@@ -433,7 +433,17 @@ function addPrice(){
 
 renderProducts();
 renderStores();
+<script>
+document.querySelectorAll("button, a").forEach(el => {
+  const text = el.textContent.trim();
 
+  if (text.includes("لوحة الإدارة") || text.includes("تسجيل سعر")) {
+    el.addEventListener("click", function () {
+      window.location.href = "login.html";
+    });
+  }
+});
+</script>
 </script>
 </body>
   </html>
