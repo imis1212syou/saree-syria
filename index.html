@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>سعّري سوريا</title>
+
+<style>
+*{box-sizing:border-box}
+body{
+  margin:0;
+  font-family:Arial,Tahoma,sans-serif;
+  background:#080d11;
+  color:#f1f4f5;
+}
+button,input{font-family:inherit}
+.app{
+  max-width:520px;
+  margin:auto;
+  min-height:100vh;
+  padding-bottom:85px;
+}
+.header{
+  padding:24px 18px 10px;
+}
+.logo{
+  color:#35d06f;
+  font-size:27px;
+  font-weight:800;
+}
+.subtitle{
+  color:#9aa5ad;
+  margin-top:7px;
+  font-size:14px;
+}
+.hero{
+  padding:10px 18px;
+}
+.hero h1{
+  font-size:24px;
+  line-height:1.5;
+  margin:8px 0;
+}
+.hero p{
+  color:#9aa5ad;
+  line-height:1.7;
+}
+.search{
+  margin:15px 18px;
+}
+.search input{
+  width:100%;
+  background:#11181e;
+  border:1px solid #303941;
+  border-radius:14px;
+  padding:16px;
+  color:white;
+  font-size:16px;
+  outline:none;
+}
+.search input:focus{border-color:#35d06f}
+
+.stats{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:9px;
+  padding:0 18px 12px;
+}
+.stat{
+  background:#11181e;
+  border:1px solid #273139;
+  border-radius:14px;
+  padding:13px 6px;
+  text-align:center;
+}
+.stat strong{
+  display:block;
+  color:#35d06f;
+  font-size:21px;
+}
+.stat span{
+  color:#9aa5ad;
+  font-size:11px;
+}
+
+.section{
+  padding:8px 18px;
+}
+.section-title{
+  font-size:19px;
+  margin:12px 0;
+}
+
+.product{
+  background:#11181e;
+  border:1px solid #29333b;
+  border-radius:17px;
+  padding:16px;
+  margin-bottom:12px;
+}
+.tag{
+  display:inline-block;
+  background:#193524;
+  color:#55dc86;
+  padding:5px 9px;
+  border-radius:20px;
+  font-size:11px;
+}
+.product h3{
+  margin:11px 0 5px;
+  font-size:18px;
+}
+.info{
+  color:#8e9aa3;
+  font-size:13px;
+  margin-bottom:13px;
+}
+.price{
+  font-size:25px;
+  font-weight:bold;
+  color:#35d06f;
+}
+.old{
+  color:#7e8991;
+  text-decoration:line-through;
+  margin-right:7px;
+  font-size:14px;
+}
+.currency{
+  color:#9aa5ad;
+  font-size:12px;
+  font-weight:normal;
+}
+.store{
+  margin-top:9px;
+  color:#c5cbd0;
+  font-size:13px;
+}
+.save{
+  margin-top:8px;
+  color:#35d06f;
+  font-size:13px;
+}
+.actions{
+  display:flex;
+  gap:8px;
+  margin-top:15px;
+}
+.btn{
+  flex:1;
+  border:1px solid #34414a;
+  background:#151e25;
+  color:#e8edef;
+  border-radius:11px;
+  padding:11px 7px;
+  cursor:pointer;
+}
+.btn.primary{
+  background:#159447;
+  border-color:#159447;
+  color:white;
+}
+.empty{
+  text-align:center;
+  padding:55px 25px;
+  color:#9aa5ad;
+}
+.empty .icon{
+  font-size:45px;
+  margin-bottom:15px;
+}
+
+.category{
+  background:#11181e;
+  border:1px solid #29333b;
+  border-radius:15px;
+  padding:17px;
+  margin-bottom:10px;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+}
+.category b{font-size:16px}
+.category span{color:#35d06f}
+
+.store-card{
+  background:#11181e;
+  border:1px solid #29333b;
+  border-radius:15px;
+  padding:17px;
+  margin-bottom:10px;
+}
+.store-card h3{margin:0 0 7px}
+.store-card p{
+  color:#909ca4;
+  margin:5px 0;
+  font-size:13px;
+}
+
+.bottom{
+  position:fixed;
+  bottom:0;
+  left:50%;
+  transform:translateX(-50%);
+  width:100%;
+  max-width:520px;
+  background:#0d1419;
+  border-top:1px solid #29333b;
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  padding:9px 5px 8px;
+  z-index:10;
+}
+.nav{
+  border:0;
+  background:none;
+  color:#7f8a92;
+  padding:7px 2px;
+  font-size:11px;
+  cursor:pointer;
+}
+.nav .ico{
+  display:block;
+  font-size:21px;
+  margin-bottom:3px;
+}
+.nav.active{
+  color:#35d06f;
+}
+
+.top-buttons{
+  display:flex;
+  gap:8px;
+  margin:12px 18px;
+}
+.top-buttons button{
+  flex:1;
+  padding:12px 7px;
+  border-radius:11px;
+  border:1px solid #304049;
+  background:#11181e;
+  color:white;
+}
+.top-buttons button:first-child{
+  background:#159447;
+  border-color:#159447;
+}
+
+.notice{
+  margin:10px 18px;
+  padding:14px;
+  background:#102318;
+  border:1px solid #245a38;
+  border-radius:13px;
+  color:#bde8ca;
+  font-size:13px;
+  line-height:1.7;
+}
+
+.hidden{display:none!important}
+</style>
+</head>
+
+<body>
+
+<div class="app">
+
+<header class="header">
+  <div class="logo">سعّري سوريا</div>
+  <div class="subtitle">قارن السعر قبل ما تشتري 🇸🇾</div>
+</header>
+
+<div id="home">
+
+  <section class="hero">
+    <h1>مقارنة أسعار المنتجات في سوريا</h1>
+    <p>
+      اعرف أرخص سعر للمنتج وشوف الفرق بين المتاجر
+      قبل ما تشتري.
+    </p>
+  </section>
+
+  <div class="top-buttons">
+    <button onclick="showPage('admin')">لوحة الإدارة</button>
+    <button onclick="showPage('add')">+ تسجيل سعر</button>
+  </div>
+
+  <div class="stats">
+    <div class="stat">
+      <strong>10</strong>
+      <span>المنتجات</span>
+    </div>
+    <div class="stat">
+      <strong>18.5%</strong>
+      <span>متوسط الفرق</span>
+    </div>
+    <div class="stat">
+      <strong>12</strong>
+      <span>المتاجر</span>
+    </div>
+  </div>
+
+  <div class="search">
+    <input id="search" type="text"
+      placeholder="ابحث عن منتج..."
+      oninput="searchProducts()">
+  </div>
+
+  <section class="section">
+    <div class="section-title">🔥 أفضل الأسعار حالياً</div>
+    <div id="products"></div>
+  </section>
+
+</div>
+
+<div id="categories" class="hidden">
+  <section class="section">
+    <div class="section-title">التصنيفات</div>
+
+    <div class="category">
+      <b>كل الأقسام</b><span>10</span>
+    </div>
+    <div class="category">
+      <b>🥫 مواد غذائية</b><span>5</span>
+    </div>
+    <div class="category">
+      <b>🥛 ألبان ومخبوزات</b><span>2</span>
+    </div>
+    <div class="category">
+      <b>🧹 منظفات ومنزليات</b><span>2</span>
+    </div>
+    <div class="category">
+      <b>📱 إلكترونيات</b><span>1</span>
+    </div>
+  </section>
+</div>
+
+<div id="stores" class="hidden">
+  <section class="section">
+    <div class="section-title">المتاجر</div>
+
+    <div class="store-card">
+      <h3>متجر دمشق المركزي</h3>
+      <p>📍 دمشق - المزة</p>
+      <p>أسعار مسجلة: 4</p>
+    </div>
+
+    <div class="store-card">
+      <h3>أسواق الشام</h3>
+      <p>📍 دمشق - البرامكة</p>
+      <p>أسعار مسجلة: 3</p>
+    </div>
+
+    <div class="store-card">
+      <h3>ماركت سوريا</h3>
+      <p>📍 حلب</p>
+      <p>أسعار مسجلة: 2</p>
+    </div>
+
+    <div class="store-card">
+      <h3>متجر الوفاء</h3>
+      <p>📍 حمص</p>
+      <p>أسعار مسجلة: 2</p>
+    </div>
+  </section>
+</div>
+
+<div id="basket" class="hidden">
+  <section class="section">
+    <div class="section-title">سلة المشتريات والتوفير الذكي</div>
+
+    <div id="basketContent" class="empty">
+      <div class="icon">🛒</div>
+      <h3>السلة فارغة</h3>
+      <p>
+        أضف المنتجات إلى السلة حتى نساعدك
+        على معرفة أفضل الأسعار والتوفير.
+      </p>
+      <button class="btn primary" onclick="showPage('home')">
+        استعراض السلع وإضافتها للسلة
+      </button>
+    </div>
+  </section>
+</div>
+
+<div id="add" class="hidden">
+  <section class="section">
+    <div class="section-title">تسجيل سعر جديد</div>
+
+    <div class="product">
+      <label>اسم المنتج</label>
+      <input class="search" style="margin:10px 0"
+        placeholder="مثلاً: زيت دوار الشمس 1 لتر">
+
+      <label>السعر بالليرة الجديدة</label>
+      <input class="search" style="margin:10px 0"
+        placeholder="مثلاً: 27">
+
+      <label>المتجر</label>
+      <input class="search" style="margin:10px 0"
+        placeholder="اسم المتجر">
+
+      <label>المدينة / المنطقة</label>
+      <input class="search" style="margin:10px 0"
+        placeholder="مثلاً: دمشق - المزة">
+
+      <button class="btn primary" onclick="alert('تم تسجيل السعر تجريبياً')">
+        حفظ السعر
+      </button>
+    </div>
+  </section>
+</div>
+
+<div id="admin" class="hidden">
+  <section class="section">
+    <div class="section-title">لوحة الإدارة والصلاحيات</div>
+
+    <div class="notice">
+      أنت مسجل بصلاحية: <b>مدير النظام (Admin)</b><br>
+      لديك كامل الصلاحيات لإدارة المنتجات والأسعار والمتاجر.
+    </div>
+
+    <div class="stats
