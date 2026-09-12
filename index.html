@@ -4,446 +4,87 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>سعرلي سوريا</title>
-
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
-*{box-sizing:border-box}
-body{
- margin:0;background:#080d11;color:#f1f4f5;
- font-family:Arial,Tahoma,sans-serif
-}
-button,input{font:inherit}
-.app{max-width:520px;margin:auto;min-height:100vh;padding-bottom:90px}
-header{padding:28px 22px 12px}
-.logo{font-size:34px;font-weight:800;color:#21c968}
-.sub{color:#9da5aa;margin-top:5px;font-size:16px}
-h1{font-size:27px;margin:28px 0 10px}
-h2{font-size:22px;margin:26px 0 14px}
-.desc{color:#a9b0b5;line-height:1.8}
-
-.actions{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:22px 0}
-.btn{
- border:0;border-radius:17px;padding:16px;cursor:pointer;
- background:#19a953;color:white;font-weight:bold
-}
-.btn.dark{background:#111920;border:1px solid #33404a}
-.btn:active{transform:scale(.98)}
-
-.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
-.stat{
- background:#171e24;border:1px solid #2d3740;border-radius:18px;
- padding:18px 8px;text-align:center
-}
-.stat b{display:block;color:#28d16d;font-size:30px}
-.stat span{color:#9da5aa;font-size:14px}
-
-.search{
- width:100%;background:#111920;border:1px solid #34414a;
- color:white;border-radius:18px;padding:17px;margin:24px 0
-}
-.card{
- background:#171e24;border:1px solid #303b44;
- border-radius:18px;padding:18px;margin:12px 0
-}
-.tag{
- display:inline-block;background:#123d28;color:#35d978;
- padding:6px 10px;border-radius:20px;font-size:12px
-}
-.product-name{font-size:20px;font-weight:bold;margin:12px 0 5px}
-.muted{color:#9da5aa;font-size:14px}
-.price{font-size:27px;font-weight:bold;color:#2bd26c;margin-top:14px}
-.old{color:#7f888d;text-decoration:line-through;font-size:14px}
-.store{margin-top:8px;color:#d9dddf}
-.save{color:#35d978;margin-top:7px;font-size:14px}
-
-.page{display:none;padding:0 22px}
-.page.active{display:block}
-
-.category,.store-row{
- display:flex;justify-content:space-between;align-items:center;
- background:#171e24;border:1px solid #303b44;
- padding:17px;border-radius:16px;margin:10px 0
-}
-
-.empty{text-align:center;padding:65px 20px;color:#9da5aa}
-.empty-icon{font-size:50px;margin-bottom:15px}
-
-.adminbox{
- background:#102d1d;border:1px solid #1e7843;
- padding:16px;border-radius:17px;color:#3be17a;margin:18px 0
-}
-
-.form input,.form select{
- width:100%;margin:7px 0;padding:15px;border-radius:14px;
- background:#111920;border:1px solid #34414a;color:white
-}
-
-nav{
- position:fixed;bottom:0;left:50%;transform:translateX(-50%);
- width:min(520px,100%);background:#11171c;
- border-top:1px solid #303940;display:grid;grid-template-columns:repeat(5,1fr);
- padding:8px 5px 10px;z-index:20
-}
-nav button{
- background:none;border:0;color:#929ba0;font-size:11px;padding:8px 2px
-}
-nav button.active{color:#2bd26c}
-nav i{display:block;font-size:21px;font-style:normal;margin-bottom:3px}
-
-.back{color:#2bd26c;background:none;border:0;padding:10px 0;font-weight:bold}
-.hidden{display:none!important}
+*{box-sizing:border-box}body{margin:0;background:#080d11;color:#f1f4f5;font-family:Arial,Tahoma,sans-serif}
+button,input{font:inherit}.app{max-width:900px;margin:auto;padding:16px 14px 90px}
+header{display:flex;justify-content:space-between;align-items:center;margin-bottom:15px}.logo{font-size:25px;font-weight:800;color:#35d07f}
+.card,.hero,.stat{background:#12191d;border:1px solid #202b30;border-radius:18px;padding:16px}.hero{margin-bottom:14px}
+h1{margin:0 0 8px;font-size:24px}h2{margin:0 0 12px;font-size:19px}.muted{color:#9da9ae;font-size:13px;line-height:1.7}
+.actions,.row{display:flex;gap:9px;flex-wrap:wrap;margin-top:14px}.btn{border:0;border-radius:11px;padding:12px 15px;font-weight:bold;cursor:pointer}
+.primary{background:#35d07f;color:#06100a}.secondary{background:#1a2429;color:#fff;border:1px solid #303b40}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin:14px 0}.stat{text-align:center}.stat b{display:block;color:#35d07f;font-size:21px}.stat span{font-size:11px;color:#9da9ae}
+input{width:100%;padding:13px;border-radius:11px;border:1px solid #303b40;background:#0b1115;color:#fff;margin:5px 0}
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:11px}.pill{display:inline-block;background:#183b2b;color:#54dc92;border-radius:999px;padding:5px 9px;font-size:11px}
+.name{font-size:18px;font-weight:800;margin:9px 0 4px}.price{font-size:24px;font-weight:900;color:#35d07f;margin-top:10px}.old{color:#7f8b90;text-decoration:line-through;font-size:12px}
+.meta{display:flex;justify-content:space-between;gap:8px;color:#98a5aa;font-size:12px;margin-top:8px}.page{display:none}.page.active{display:block}
+.nav{position:fixed;bottom:0;left:0;right:0;background:#0d1418;border-top:1px solid #263137}.navin{max-width:700px;margin:auto;display:grid;grid-template-columns:repeat(4,1fr)}
+.nav button{background:none;border:0;color:#9da9ae;padding:11px 4px;font-size:12px}.nav button.active{color:#35d07f}
+@media(max-width:600px){.grid{grid-template-columns:1fr}}
 </style>
 </head>
-
 <body>
-
 <div class="app">
+<header><div class="logo">سعرلي سوريا</div><div class="muted" id="status">زائر</div></header>
 
-<header>
-  <div class="logo">سعرلي سوريا</div>
-  <div class="sub">🇸🇾 قارن قبل ما تشتري</div>
-</header>
-
-<!-- الرئيسية -->
 <section id="home" class="page active">
-
-<h1>مقارنة أسعار المنتجات في سوريا</h1>
-<p class="desc">
-اعرف أرخص سعر للمنتج وشوف الفرق بين المتاجر قبل ما تشتري.
-</p>
-
-<div class="actions">
-<button class="btn" onclick="showPage('admin')">لوحة الإدارة</button>
-<button class="btn dark" onclick="showPage('add')">＋ تسجيل سعر</button>
-</div>
-
-<div class="stats">
-<div class="stat"><b>10</b><span>المنتجات</span></div>
-<div class="stat"><b>18.5%</b><span>متوسط الفرق</span></div>
-<div class="stat"><b>12</b><span>المتاجر</span></div>
-</div>
-
-<input id="search" class="search" placeholder="ابحث عن منتج..." oninput="searchProducts()">
-
-<h2>🔥 أفضل الأسعار حالياً</h2>
-<div id="products"></div>
-
+<div class="hero"><h1>مقارنة أسعار المنتجات في سوريا</h1><p class="muted">قارن قبل ما تشتري واعرف الأرخص والأعلى ومقدار التوفير.</p>
+<div class="actions"><button class="btn primary" onclick="show('add')">تسجيل سعر جديد</button><button class="btn secondary" onclick="show('login')">لوحة الإدارة والصلاحيات</button></div></div>
+<div class="stats"><div class="stat"><b id="pc">10</b><span>منتجات</span></div><div class="stat"><b>18.5%</b><span>متوسط فرق الأسعار</span></div><div class="stat"><b id="sc">12</b><span>متاجر</span></div></div>
+<input id="search" placeholder="ابحث عن منتج..." oninput="render()">
+<div class="row"><h2>أفضل الأسعار حالياً</h2></div><div id="products" class="grid"></div>
 </section>
 
-<!-- التصنيفات -->
-<section id="categories" class="page">
-<h1>التصنيفات</h1>
+<section id="basket" class="page"><div class="hero"><h1>سلة المشتريات والتوفير الذكي</h1><p class="muted">أضف المنتجات للسلة لمتابعة مشترياتك.</p></div><div id="basketList" class="grid"></div></section>
 
-<div class="category"><span>📦 كل الأقسام</span><b>10</b></div>
-<div class="category"><span>🥫 مواد غذائية</span><b>5</b></div>
-<div class="category"><span>🥛 ألبان ومخبوزات</span><b>2</b></div>
-<div class="category"><span>🧹 منظفات ومنزليات</span><b>2</b></div>
-<div class="category"><span>📱 إلكترونيات</span><b>1</b></div>
-</section>
+<section id="categories" class="page"><div class="hero"><h1>التصنيفات</h1><p class="muted">استعرض المنتجات حسب القسم.</p></div><div id="cats" class="grid"></div></section>
 
-<!-- المتاجر -->
-<section id="stores" class="page">
-<h1>المتاجر</h1>
-<p class="desc">دليل المتاجر والأسعار المسجلة في السوق.</p>
-<div id="storesList"></div>
-</section>
+<section id="stores" class="page"><div class="hero"><h1>المتاجر</h1><p class="muted">دليل المتاجر والأسعار.</p></div><div id="storesList" class="grid"></div></section>
 
-<!-- السلة -->
-<section id="basket" class="page">
-<h1>سلة المشتريات والتوفير الذكي</h1>
-<div id="basketContent" class="empty">
-<div class="empty-icon">🛒</div>
-<div>السلة فارغة حالياً</div>
-<p>استعرض السلع وأضف المنتجات التي تريد مقارنتها.</p>
-<button class="btn" onclick="showPage('home')">استعراض السلع</button>
-</div>
-</section>
+<section id="add" class="page"><div class="hero"><h1>تسجيل سعر جديد</h1><p class="muted">السعر بالليرة السورية الجديدة. التحويل للقديمة للعرض فقط.</p></div>
+<div class="card"><input id="pn" placeholder="اسم المنتج"><input id="brand" placeholder="العلامة التجارية"><input id="unit" placeholder="الوزن / الحجم"><input id="cat" placeholder="التصنيف"><input id="store" placeholder="اسم المتجر"><input id="city" placeholder="المدينة / المنطقة"><input id="pr" type="number" step=".01" placeholder="السعر الجديد"><button class="btn primary" onclick="add()">تسجيل السعر</button></div></section>
 
-<!-- الإدارة -->
-<section id="admin" class="page">
-<button class="back" onclick="showPage('home')">← الرئيسية</button>
-<h1>لوحة الإدارة ونظام الصلاحيات</h1>
+<section id="login" class="page"><div class="hero"><h1>تسجيل الدخول</h1><p class="muted">صلاحيات الحساب: مستخدم، تاجر، مدير.</p></div>
+<div class="card"><input id="email" type="email" placeholder="البريد الإلكتروني"><input id="pass" type="password" placeholder="كلمة المرور"><div class="actions"><button class="btn primary" onclick="login()">تسجيل الدخول</button><button class="btn secondary" onclick="logout()">تسجيل الخروج</button></div><p id="msg" class="muted"></p></div></section>
 
-<div class="adminbox">
-<b>صلاحيات كاملة: مدير النظام</b>
-<br><small>إدارة المستخدمين والمتاجر والأسعار والمنتجات.</small>
+<section id="admin" class="page"><div class="hero"><h1>لوحة الإدارة والصلاحيات</h1><p id="role" class="muted">جارٍ التحقق...</p></div><div id="panel" class="card"></div></section>
 </div>
 
-<div class="stats">
-<div class="stat"><b>4</b><span>المستخدمين</span></div>
-<div class="stat"><b>12</b><span>المتاجر</span></div>
-<div class="stat"><b>11</b><span>الأسعار</span></div>
-</div>
-
-<h2>إدارة المستخدمين والأدوار</h2>
-
-<div class="card">
-<b>أبو بحر</b>
-<p class="muted">مدير النظام — Admin</p>
-</div>
-
-<div class="card">
-<b>أحمد كمال</b>
-<p class="muted">سوبرماركت البركة — Merchant</p>
-</div>
-
-<div class="card">
-<b>سامر الحلبي</b>
-<p class="muted">مخازن الأمانة — Merchant</p>
-</div>
-
-<div class="card">
-<b>سارة العلي</b>
-<p class="muted">متسوقة — User</p>
-</div>
-</section>
-
-<!-- إضافة سعر -->
-<section id="add" class="page">
-<button class="back" onclick="showPage('home')">← الرئيسية</button>
-<h1>تسجيل سعر جديد</h1>
-
-<div class="card form">
-<label>اسم المنتج</label>
-<input id="newProduct" placeholder="مثلاً زيت دوار الشمس 1 لتر">
-
-<label>السعر الجديد</label>
-<input id="newPrice" type="number" step="0.01" placeholder="مثلاً 27">
-
-<label>المتجر</label>
-<select id="newStore">
-<option>سوبرماركت البركة</option>
-<option>مخازن الأمانة</option>
-<option>متجر دمشق</option>
-<option>أسواق الشام</option>
-</select>
-
-<label>المدينة / المنطقة</label>
-<input id="newArea" placeholder="دمشق - المزة">
-
-<button class="btn" style="width:100%;margin-top:12px" onclick="addPrice()">
-حفظ السعر
-</button>
-</div>
-</section>
-
-</div>
-
-<nav>
-<button id="navHome" class="active" onclick="showPage('home',this)">
-<i>🏠</i>الرئيسية
-</button>
-<button onclick="showPage('categories',this)">
-<i>▦</i>التصنيفات
-</button>
-<button onclick="showPage('stores',this)">
-<i>🏪</i>المتاجر
-</button>
-<button onclick="showPage('basket',this)">
-<i>🛒</i>السلة
-</button>
-<button onclick="showPage('admin',this)">
-<i>🛡️</i>الإدارة
-</button>
-</nav>
+<nav class="nav"><div class="navin">
+<button id="nhome" class="active" onclick="show('home')">المنتجات</button><button onclick="show('basket')">السلة</button><button onclick="show('categories')">التصنيفات</button><button onclick="show('stores')">المتاجر</button>
+</div></nav>
 
 <script>
+const SUPABASE_URL="https://kymecgtzquboepdpyrw.supabase.co";
+const SUPABASE_KEY="sb_publishable_wCEKoFFXqrhkE9cBWQwMGg_2OWs_jnS";
+const supabaseClient=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 
-const products = [
- {
-  name:"زيت دوار الشمس نباتي",
-  size:"1 لتر",
-  category:"مواد غذائية",
-  price:27,
-  high:29,
-  store:"سوبرماركت البركة",
-  area:"دمشق",
-  update:"منذ ساعة"
- },
- {
-  name:"شاي أسود خشن سوبر",
-  size:"400 غ",
-  category:"مواد غذائية",
-  price:28.5,
-  high:32,
-  store:"مخازن الأمانة",
-  area:"حلب",
-  update:"منذ ساعتين"
- },
- {
-  name:"مسحوق غسيل أوتوماتيك",
-  size:"3 كغ",
-  category:"منظفات ومنزليات",
-  price:42,
-  high:48,
-  store:"متجر دمشق",
-  area:"دمشق",
-  update:"اليوم"
- },
- {
-  name:"سكر أبيض",
-  size:"1 كغ",
-  category:"مواد غذائية",
-  price:15,
-  high:17,
-  store:"أسواق الشام",
-  area:"حمص",
-  update:"اليوم"
- }
-];
-
-const stores=[
-"سوبرماركت البركة",
-"مخازن الأمانة",
-"متجر دمشق",
-"أسواق الشام",
-"متجر الشام الكبير",
-"أسواق حلب"
-];
-
+let products=[
+{id:1,name:"زيت دوار الشمس نباتي",brand:"",unit:"1 لتر",cat:"مواد غذائية",store:"متجر دمشق",city:"دمشق",price:27,updated:"اليوم"},
+{id:2,name:"شاي أسود خشن سوبر",brand:"سوبر",unit:"400 غ",cat:"مواد غذائية",store:"متجر حلب",city:"حلب",price:28.5,updated:"اليوم"},
+{id:3,name:"مسحوق غسيل أوتوماتيك",brand:"",unit:"3 كغ",cat:"منظفات ومنزليات",store:"متجر الشام",city:"ريف دمشق",price:45,updated:"اليوم"}];
 let basket=[];
 
-function money(n){
- return n.toLocaleString("ar-SY",{maximumFractionDigits:2});
+function show(id){document.querySelectorAll(".page").forEach(x=>x.classList.remove("active"));document.getElementById(id).classList.add("active");window.scrollTo(0,0);if(id==="admin")profile()}
+function render(){
+ let q=(document.getElementById("search").value||"").toLowerCase();
+ let a=products.filter(p=>(p.name+p.brand+p.cat+p.store).toLowerCase().includes(q));
+ document.getElementById("products").innerHTML=a.map(p=>`<div class="card"><span class="pill">${e(p.cat)}</span><div class="name">${e(p.name)}</div><div class="muted">${e(p.brand)} ${e(p.unit)}</div><div class="price">${f(p.price)} ل.س جديدة</div><div class="old">${f(p.price*100)} ل.س قديمة</div><div class="meta"><span>${e(p.store)}</span><span>${e(p.city)}</span></div><div class="meta"><span>${e(p.updated)}</span><span>توفير مباشر</span></div><div class="actions"><button class="btn secondary" onclick="addBasket(${p.id})">أضف للسلة</button><button class="btn primary" onclick="details(${p.id})">تفاصيل</button></div></div>`).join("");
+ let cm={};products.forEach(p=>(cm[p.cat]??=[]).push(p));document.getElementById("cats").innerHTML=Object.entries(cm).map(([k,v])=>`<div class="card"><span class="pill">${e(k)}</span><div class="name">${v.length} منتجات</div></div>`).join("");
+ let sm={};products.forEach(p=>(sm[p.store]??=[]).push(p));document.getElementById("storesList").innerHTML=Object.entries(sm).map(([k,v])=>`<div class="card"><div class="name">${e(k)}</div><div class="muted">${e(v[0].city)} • ${v.length} أسعار</div></div>`).join("");
+ document.getElementById("basketList").innerHTML=basket.length?basket.map(p=>`<div class="card"><div class="name">${e(p.name)}</div><div class="price">${f(p.price)} ل.س</div><button class="btn secondary" onclick="removeBasket(${p.id})">إزالة</button></div>`).join(""):'<div class="card muted">السلة فارغة حالياً.</div>';
+ document.getElementById("pc").textContent=products.length;document.getElementById("sc").textContent=new Set(products.map(p=>p.store)).size;
 }
-
-function card(p){
- let saving=Math.max(0,p.high-p.price);
- return `
- <div class="card">
-  <span class="tag">${p.category}</span>
-  <div class="product-name">${p.name}</div>
-  <div class="muted">${p.size}</div>
-  <div class="price">${money(p.price)} ل.س جديد</div>
-  <div class="old">${money(p.price*100)} ل.س قديم</div>
-  <div class="store">🏪 ${p.store} — ${p.area}</div>
-  <div class="muted">🕒 ${p.update}</div>
-  ${saving?`<div class="save">💰 توفير ${money(saving)} ل.س</div>`:""}
-  <div class="actions">
-   <button class="btn dark" onclick='details(${JSON.stringify(p)})'>تفاصيل السلعة</button>
-   <button class="btn" onclick='addBasket(${JSON.stringify(p)})'>أضف للسلة</button>
-  </div>
- </div>`;
-}
-
-function renderProducts(list=products){
- document.getElementById("products").innerHTML=
- list.length?list.map(card).join(""):`<div class="empty">ما لقينا منتجات مطابقة 🔎</div>`;
-}
-
-function searchProducts(){
- let q=document.getElementById("search").value.trim().toLowerCase();
- renderProducts(products.filter(p=>
-  p.name.toLowerCase().includes(q) ||
-  p.store.toLowerCase().includes(q) ||
-  p.category.toLowerCase().includes(q)
- ));
-}
-
-function renderStores(){
- document.getElementById("storesList").innerHTML=
- stores.map((s,i)=>`
- <div class="store-row">
-  <span>🏪 ${s}</span>
-  <small class="muted">${i+1} أسعار</small>
- </div>`).join("");
-}
-
-function showPage(id,btn){
- document.querySelectorAll(".page").forEach(x=>x.classList.remove("active"));
- document.getElementById(id).classList.add("active");
-
- document.querySelectorAll("nav button").forEach(x=>x.classList.remove("active"));
- if(btn)btn.classList.add("active");
-
- window.scrollTo({top:0,behavior:"smooth"});
-}
-
-function details(p){
- alert(
- "المنتج: "+p.name+
- "\\nالحجم: "+p.size+
- "\\nأرخص سعر: "+money(p.price)+" ل.س جديد"+
- "\\nالسعر القديم: "+money(p.price*100)+" ل.س"+
- "\\nالمتجر: "+p.store+
- "\\nالمنطقة: "+p.area+
- "\\nآخر تحديث: "+p.update
- );
-}
-
-function addBasket(p){
- basket.push(p);
- updateBasket();
- alert("تمت إضافة المنتج إلى السلة ✅");
-}
-
-function updateBasket(){
- let box=document.getElementById("basketContent");
-
- if(!basket.length){
-  box.className="empty";
-  box.innerHTML=`
-   <div class="empty-icon">🛒</div>
-   <div>السلة فارغة حالياً</div>
-   <p>استعرض السلع وأضف المنتجات التي تريد مقارنتها.</p>
-   <button class="btn" onclick="showPage('home')">استعراض السلع</button>`;
-  return;
- }
-
- box.className="";
- box.innerHTML=basket.map((p,i)=>`
-  <div class="card">
-   <b>${p.name}</b>
-   <div class="price">${money(p.price)} ل.س</div>
-   <button class="btn dark" onclick="basket.splice(${i},1);updateBasket()">
-   حذف
-   </button>
-  </div>`).join("");
-}
-
-function addPrice(){
- let name=document.getElementById("newProduct").value.trim();
- let price=Number(document.getElementById("newPrice").value);
- let store=document.getElementById("newStore").value;
- let area=document.getElementById("newArea").value.trim();
-
- if(!name || !price || !area){
-  alert("عبّي جميع المعلومات أولاً");
-  return;
- }
-
- products.unshift({
-  name:name,
-  size:"",
-  category:"جديد",
-  price:price,
-  high:price,
-  store:store,
-  area:area,
-  update:"الآن"
- });
-
- alert("تم تسجيل السعر ✅");
- document.getElementById("newProduct").value="";
- document.getElementById("newPrice").value="";
- document.getElementById("newArea").value="";
-
- renderProducts();
- showPage("home");
-}
-
-renderProducts();
-renderStores();
-<script>
-document.querySelectorAll("button, a").forEach(el => {
-  const text = el.textContent.trim();
-
-  if (text.includes("لوحة الإدارة") || text.includes("تسجيل سعر")) {
-    el.addEventListener("click", function () {
-      window.location.href = "login.html";
-    });
-  }
-});
-</script>
+function addBasket(id){let p=products.find(x=>x.id===id);if(p&&!basket.some(x=>x.id===id))basket.push(p);render();alert("تمت الإضافة للسلة ✅")}
+function removeBasket(id){basket=basket.filter(x=>x.id!==id);render()}
+function details(id){let p=products.find(x=>x.id===id);alert(p.name+"\\n"+f(p.price)+" ل.س جديدة\\n"+f(p.price*100)+" ل.س قديمة\\nالمتجر: "+p.store+"\\nالموقع: "+p.city)}
+function add(){let n=pn.value.trim(),v=Number(pr.value);if(!n||!v)return alert("اكتب اسم المنتج والسعر");products.unshift({id:Date.now(),name:n,brand:brand.value,unit:unit.value,cat:cat.value||"عام",store:store.value||"غير محدد",city:city.value||"غير محدد",price:v,updated:"الآن"});render();alert("تم تسجيل السعر ✅");show("home")}
+async function login(){let msg=document.getElementById("msg");if(!email.value||!pass.value){msg.textContent="اكتب البريد وكلمة المرور";return}msg.textContent="جاري تسجيل الدخول...";let {error}=await supabaseClient.auth.signInWithPassword({email:email.value.trim(),password:pass.value});if(error){msg.textContent="خطأ: "+error.message;return}msg.textContent="تم تسجيل الدخول بنجاح ✅";await profile();show("admin")}
+async function logout(){await supabaseClient.auth.signOut();status.textContent="زائر";role.textContent="يجب تسجيل الدخول";panel.innerHTML="";show("home")}
+async function profile(){let {data:{user}}=await supabaseClient.auth.getUser();if(!user){role.textContent="يجب تسجيل الدخول للوصول للصلاحيات";panel.innerHTML="";return}let {data}=await supabaseClient.from("profiles").select("name,role").eq("id",user.id).maybeSingle();let r=data?.role||"user";status.textContent=data?.name||"مستخدم";role.textContent="صلاحيتك الحالية: "+(r==="admin"?"مدير النظام":r==="store"?"تاجر":"مستخدم");panel.innerHTML=r==="admin"?"<div class='name'>مدير النظام</div><div class='muted'>كامل الصلاحيات لإدارة المنتجات والأسعار والمتاجر والمستخدمين.</div>":r==="store"?"<div class='name'>بوابة التاجر</div><div class='muted'>إدارة أسعار متجرك فقط.</div>":"<div class='name'>حساب مستخدم</div><div class='muted'>تصفح الأسعار والسلة.</div>"}
+function f(n){return Number(n).toLocaleString("en-US",{maximumFractionDigits:2})}
+function e(x){return String(x??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]))}
+render();profile();
 </script>
 </body>
-  </html>
+</html>
