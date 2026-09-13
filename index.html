@@ -14,7 +14,7 @@
 <div class="top"><div><div class="logo">سعرلي سوريا</div><div id="status" class="status">زائر</div></div><button class="btn secondary" onclick="goRole()">دخول</button></div>
 
 <section id="welcome" class="page active">
-<div class="hero"><h1>أهلاً بك في سعرلي سوريا</h1><p class="muted">اكتب أي اسم للمتابعة كزائر، بدون بريد إلكتروني أو كلمة مرور.</p><input id="visitorName" placeholder="اكتب اسمك"><button class="btn primary" onclick="enterVisitor()">دخول للموقع</button><div class="actions"><button class="btn secondary" onclick="show('login')">دخول التاجر / الإدارة</button><button class="btn secondary" onclick="show('signup')">إنشاء حساب</button></div></div>
+<div class="hero"><h1>أهلاً بك في سعرلي سوريا</h1><p class="muted">اكتب أي اسم للمتابعة كزائر، بدون بريد إلكتروني أو كلمة مرور.</p><input id="visitorName" placeholder="اكتب اسمك"><button class="btn primary" onclick="enterVisitor()">دخول للموقع</button><div class="actions"><button class="btn secondary" onclick="show('login')">دخول الحساب</button><button class="btn secondary" onclick="show('signup')">إنشاء حساب</button></div></div>
 </section>
 
 <section id="home" class="page">
@@ -36,14 +36,14 @@
 <div id="merchantStoreBox"></div><label class="muted">صورة المادة</label><input id="pimg" type="file" accept="image/*">
 <button class="btn primary" onclick="submitPrice()">إرسال للمراجعة</button><p id="addMsg" class="muted"></p></div></section>
 
-<section id="login" class="page"><div class="hero"><h1>تسجيل الدخول</h1><p class="muted">التاجر والمدير فقط يحتاجان إلى البريد وكلمة المرور.</p></div><div class="card">
+<section id="login" class="page"><div class="hero"><h1>تسجيل الدخول</h1><p class="muted">إذا كان لديك حساب، سجّل الدخول بالبريد وكلمة المرور.</p></div><div class="card">
 <input id="email" type="email" placeholder="البريد الإلكتروني"><input id="pass" type="password" placeholder="كلمة المرور">
-<div class="actions"><button class="btn primary" onclick="login()">تسجيل الدخول</button><button class="btn secondary" onclick="forgotPassword()">نسيت كلمة السر؟</button><button class="btn secondary" onclick="show('signup')">إنشاء حساب</button></div><p id="msg" class="muted"></p></div></section>
+<div class="actions"><button class="btn primary" onclick="login()">تسجيل الدخول</button><button class="btn secondary" onclick="forgotPassword()">نسيت كلمة السر؟</button><button class="btn secondary" onclick="show('signup')">إنشاء حساب</button><button class="btn secondary" onclick="enterVisitorFromLogin()">الدخول كزائر</button></div><p id="msg" class="muted"></p></div></section>
 
 <section id="signup" class="page"><div class="hero"><h1>إنشاء حساب</h1><p class="muted">كل بريد إلكتروني يمكنه امتلاك حساب واحد فقط. حساب التاجر يبدأ بدون متجر وبدون صلاحيات حتى يوافق المدير.</p></div><div class="card">
 <input id="signupName" placeholder="الاسم"><input id="signupEmail" type="email" placeholder="البريد الإلكتروني"><input id="signupPass" type="password" placeholder="كلمة المرور"><input id="signupPass2" type="password" placeholder="تأكيد كلمة المرور">
 <select id="accountType"><option value="user">حساب مستخدم</option><option value="store">حساب تاجر</option></select>
-<div class="actions"><button class="btn primary" onclick="signup()">إنشاء الحساب</button><button class="btn secondary" onclick="show('login')">لدي حساب</button></div><p id="signupMsg" class="muted"></p></div></section>
+<div class="actions"><button class="btn primary" onclick="signup()">إنشاء الحساب</button><button class="btn secondary" onclick="show('login')">لدي حساب</button><button class="btn secondary" onclick="enterVisitorFromLogin()">الدخول كزائر</button></div><p id="signupMsg" class="muted"></p></div></section>
 
 <section id="admin" class="page"><div class="hero"><h1>لوحة الإدارة والصلاحيات</h1><p id="role" class="muted"></p></div><div id="adminPanel"></div></section>
 <section id="merchant" class="page"><div class="hero"><h1>بوابة التاجر</h1><p id="merchantRole" class="muted"></p></div><div id="merchantPanel"></div></section>
@@ -55,7 +55,16 @@
 const SUPABASE_URL="https://ovocwugezuddbwypzteg.supabase.co";
 const SUPABASE_KEY="sb_publishable_THEl1NqFWWRUImYpTLxu9g_iGM03Nsz";
 const ADMIN_UID="fb610b6d-8b2b-4d6d-a957-dda26f1be4a2";
-const supabaseClient=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+const REQUEST_TIMEOUT=10000;
+async function fetchWithTimeout(input,init={}){
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(),REQUEST_TIMEOUT);
+  try{return await fetch(input,{...init,signal:controller.signal});}
+  finally{clearTimeout(timer)}
+}
+const supabaseClient=supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{
+  global:{fetch:fetchWithTimeout}
+});
 let products=[],stores=[],prices=[],requests=[],profileData=null;
 let basket=JSON.parse(localStorage.getItem('saree_basket')||'[]'),favorites=JSON.parse(localStorage.getItem('saree_favorites')||'[]'),alerts=JSON.parse(localStorage.getItem('saree_alerts')||'{}');
 const $=id=>document.getElementById(id);
@@ -67,6 +76,12 @@ function show(id){document.querySelectorAll('.page').forEach(x=>x.classList.remo
 function goRole(){if(profileData?.role==='admin')show('admin');else if(profileData?.role==='store')show('merchant');else show('login')}
 function enterVisitor(){const n=$('visitorName').value.trim();if(!n)return alert('اكتب اسمك أولاً');localStorage.setItem('visitor_name',n);$('status').textContent=n+' • زائر';show('home');refreshAll()}
 function currentName(){return localStorage.getItem('visitor_name')||'زائر'}
+function enterVisitorFromLogin(){
+ const n=localStorage.getItem('visitor_name')||'زائر';
+ localStorage.setItem('visitor_name',n);profileData=null;
+ $('status').textContent=n+' • زائر';show('home');
+ refreshAll().catch(console.warn);
+}
 
 async function signup(){
  const name=$('signupName').value.trim(),email=$('signupEmail').value.trim().toLowerCase(),p1=$('signupPass').value,p2=$('signupPass2').value,type=$('accountType').value;
@@ -90,8 +105,12 @@ async function login(){
  if(!em||!pw){$('msg').textContent='اكتب البريد وكلمة المرور';return}
  $('msg').textContent='جاري تسجيل الدخول...';
  const {error}=await supabaseClient.auth.signInWithPassword({email:em,password:pw});
- if(error){$('msg').textContent='تعذر تسجيل الدخول: '+error.message;return}
- localStorage.removeItem('visitor_name');$('msg').textContent='تم تسجيل الدخول.';await loadProfile();await refreshAll();
+ if(error){$('msg').textContent='تعذر تسجيل الدخول. تأكد من البريد وكلمة المرور.';return}
+ localStorage.removeItem('visitor_name');
+ const ok=await loadProfile();
+ if(!ok){await supabaseClient.auth.signOut();$('msg').textContent='تعذر فتح الحساب حالياً. يمكنك الدخول كزائر بدون حساب.';show('login');return}
+ $('msg').textContent='تم تسجيل الدخول.';
+ await refreshAll();
 }
 async function forgotPassword(){
  const em=$('email').value.trim().toLowerCase();if(!em)return alert('اكتب البريد الإلكتروني أولاً');
@@ -100,25 +119,53 @@ async function forgotPassword(){
 }
 async function logout(){await supabaseClient.auth.signOut();profileData=null;$('status').textContent=currentName()+' • زائر';show('home');await refreshAll()}
 async function loadProfile(){
- const {data:{user}}=await supabaseClient.auth.getUser();
- if(!user){profileData=null;$('status').textContent=currentName()+' • زائر';return}
- const {data,error}=await supabaseClient.from('profiles').select('id,name,role,store_id,can_edit_prices').eq('id',user.id).maybeSingle();
- if(error){$('msg').textContent='خطأ في قراءة الحساب: '+error.message;return}
- if(!data){$('msg').textContent='الحساب موجود لكن ملف الصلاحيات غير موجود.';return}
- profileData=data;$('status').textContent=(data.name||user.email)+' • '+(data.role==='admin'?'مدير':data.role==='store'?'تاجر':'مستخدم');
- if(data.role==='admin')await renderAdmin();else if(data.role==='store')await renderMerchant();else show('home');
+  try{
+    const {data:{user},error:authError}=await supabaseClient.auth.getUser();
+    if(authError) throw authError;
+    if(!user){profileData=null;$('status').textContent=currentName()+' • زائر';return false}
+    const {data,error}=await supabaseClient.from('profiles')
+      .select('id,name,role,store_id,can_edit_prices').eq('id',user.id).maybeSingle();
+    if(error) throw error;
+    if(!data){profileData=null;$('status').textContent=(user.email||'حساب')+' • حساب غير مكتمل';show('home');return false}
+    profileData=data;
+    $('status').textContent=(data.name||user.email)+' • '+(data.role==='admin'?'مدير':data.role==='store'?'تاجر':'مستخدم');
+    if(data.role==='admin') await renderAdmin();
+    else if(data.role==='store') await renderMerchant();
+    else show('home');
+    return true;
+  }catch(err){
+    console.warn('loadProfile:',err);
+    profileData=null;
+    $('status').textContent=currentName()+' • زائر';
+    if(!$('home').classList.contains('active')) show('home');
+    return false;
+  }
 }
-async function refreshAll(){await loadPublicData();await loadProfileIfNeeded();renderProducts();renderStores();renderCategories();renderBasket();renderFavorites()}
-async function loadProfileIfNeeded(){const {data:{user}}=await supabaseClient.auth.getUser();if(user&&!profileData)await loadProfile()}
+async function refreshAll(){
+  renderProducts();renderStores();renderCategories();renderBasket();renderFavorites();
+  try{await loadPublicData();}catch(err){console.warn('public data:',err)}
+  try{await loadProfileIfNeeded();}catch(err){console.warn('profile:',err)}
+  renderProducts();renderStores();renderCategories();renderBasket();renderFavorites();
+}
+async function loadProfileIfNeeded(){
+  try{
+    const {data:{user}}=await supabaseClient.auth.getUser();
+    if(user&&!profileData) await loadProfile();
+  }catch(err){console.warn('auth check:',err)}
+}
 async function loadPublicData(){
- const [p,s,l]=await Promise.all([
-  supabaseClient.from('products').select('*').eq('active',true).order('name'),
-  supabaseClient.from('stores').select('*').eq('active',true).order('name'),
-  supabaseClient.from('price_listings').select('*,stores(id,name,city,area,address,phone,image_url,verified)').eq('approved',true).order('price_new')
- ]);
- if(p.error||s.error||l.error){console.warn(p.error||s.error||l.error);return}
- products=p.data||[];stores=s.data||[];prices=l.data||[];
- $('pc').textContent=products.length;$('sc').textContent=stores.length;$('approvedCount').textContent=prices.length;$('basketCount').textContent=basket.length;fillFilters();
+  try{
+    const [p,s,l]=await Promise.all([
+      supabaseClient.from('products').select('*').eq('active',true).order('name'),
+      supabaseClient.from('stores').select('*').eq('active',true).order('name'),
+      supabaseClient.from('price_listings').select('*,stores(id,name,city,area,address,phone,image_url,verified)').eq('approved',true).order('price_new')
+    ]);
+    if(p.error||s.error||l.error) throw(p.error||s.error||l.error);
+    products=p.data||[];stores=s.data||[];prices=l.data||[];
+    $('pc').textContent=products.length;$('sc').textContent=stores.length;
+    $('approvedCount').textContent=prices.length;$('basketCount').textContent=basket.length;
+    fillFilters();
+  }catch(err){console.warn('loadPublicData:',err)}
 }
 function fillFilters(){
  const cities=[...new Set(stores.flatMap(s=>[s.city,s.area]).filter(Boolean))].sort(),cats=[...new Set(products.map(p=>p.category).filter(Boolean))].sort();
@@ -140,7 +187,7 @@ function renderProducts(){
   const c=cheapest(p),ps=allPrices(p),fav=favorites.includes(p.id);
   return `<div class="card">${p.image_url?`<img class="img" src="${escAttr(p.image_url)}">`:''}<span class="pill">${e(p.category||'عام')}</span><div class="name">${e(p.name)}</div><div class="muted">${e(p.unit||'')} ${p.brand?'• '+e(p.brand):''}</div>
   ${c?`<div class="price">${f(c.price_new)} ل.س جديدة</div><div class="old">${old(c.price_new)} ل.س قديمة</div><div class="meta"><span>الأرخص: ${e(c.stores?.name||'')}</span><span>${e(c.stores?.city||'')}</span></div><div class="meta"><span>${ps.length} متاجر</span><span>آخر تحديث: ${new Date(c.updated_at).toLocaleDateString('ar')}</span></div>`:'<div class="notice pending">لا يوجد سعر معتمد حالياً</div>'}
-  <div class="actions"><button class="btn secondary" onclick="toggleFav('${p.id}')">${fav?'★ إزالة من المفضلة':'☆ أضف للمفضلة'}</button><button class="btn primary" onclick="details('${p.id}')">تفاصيل الأسعار</button></div></div>`
+  <div class="actions"><button class="btn secondary" onclick="toggleFav('${p.id}')">${fav?'★ إزالة من المفضلة':'☆ أضف للمفضلة'}</button><button class="btn primary" onclick="details('${p.id}')">تفاصيل الأسعار</button><button class="btn secondary" onclick="addBasket('${p.id}')">أضف للسلة</button></div></div>`
  }).join('')||'<div class="card muted">لا توجد نتائج.</div>';
 }
 function details(id){
@@ -155,9 +202,9 @@ async function vote(priceId,v){
  alert(error?'تعذر تسجيل التقييم: '+error.message:'تم تسجيل تقييمك.');
 }
 function addBasket(id){if(!basket.includes(id))basket.push(id);localStorage.setItem('saree_basket',JSON.stringify(basket));$('basketCount').textContent=basket.length;renderBasket();alert('تمت إضافة المادة للسلة.')}
-function removeBasket(id){basket=basket.filter(x=>x!==id);localStorage.setItem('saree_basket',JSON.stringify(basket));renderBasket();$('basketCount').textContent=basket.length)}
+function removeBasket(id){basket=basket.filter(x=>x!==id);localStorage.setItem('saree_basket',JSON.stringify(basket));renderBasket();$('basketCount').textContent=basket.length}
 function renderBasket(){const items=basket.map(id=>products.find(p=>p.id===id)).filter(Boolean);if(!items.length)return $('basketList').innerHTML='<div class="card muted">السلة فارغة حالياً.</div>';let total=0;$('basketList').innerHTML=items.map(p=>{const c=cheapest(p);total+=Number(c?.price_new||0);return `<div class="card"><div class="name">${e(p.name)}</div><div class="price">${c?f(c.price_new)+' ل.س':'لا يوجد سعر'}</div><div class="muted">${c?e(c.stores?.name||'')+' • '+e(c.stores?.city||''):''}</div><button class="btn secondary" onclick="removeBasket('${p.id}')">إزالة</button></div>`}).join('')+`<div class="hero"><h2>المجموع التقريبي</h2><div class="price">${f(total)} ل.س جديدة</div><div class="old">${old(total)} ل.س قديمة</div></div>`}
-function toggleFav(id){favorites=favorites.includes(id)?favorites.filter(x=>x!==id):[...favorites,id];localStorage.setItem('saree_favorites',JSON.stringify(favorites));renderProducts();renderFavorites()}
+ function toggleFav(id){favorites=favorites.includes(id)?favorites.filter(x=>x!==id):[...favorites,id];localStorage.setItem('saree_favorites',JSON.stringify(favorites));renderProducts();renderFavorites()}
 function renderFavorites(){const items=favorites.map(id=>products.find(p=>p.id===id)).filter(Boolean);$('favoritesList').innerHTML=items.length?items.map(p=>{const c=cheapest(p);return `<div class="card"><div class="name">${e(p.name)}</div><div class="price">${c?f(c.price_new)+' ل.س':'لا يوجد سعر'}</div><button class="btn secondary" onclick="toggleFav('${p.id}')">إزالة</button>${c?`<button class="btn secondary" onclick="setAlert('${p.id}')">تنبيه عند نزول السعر</button>`:''}</div>`}).join(''):'<div class="card muted">لا توجد مواد مفضلة.</div>'}
 function setAlert(id){const c=cheapest(products.find(p=>p.id===id));if(!c)return;const v=prompt('أرسل لي تنبيهًا عندما يصبح السعر أقل من:',String(c.price_new));if(v===null)return;alerts[id]=Number(v);localStorage.setItem('saree_alerts',JSON.stringify(alerts));alert('تم حفظ التنبيه على هذا الجهاز.')}
 function renderStores(){$('storesList').innerHTML=stores.map(s=>`<div class="card">${s.image_url?`<img class="img" src="${escAttr(s.image_url)}">`:''}<div class="name">${e(s.name)} ${s.verified?'✓':''}</div><div class="muted">${e(s.city||'')} ${e(s.area||'')}<br>${e(s.address||'')}</div>${s.phone?`<div class="muted">هاتف: ${e(s.phone)}</div>`:''}<div class="meta"><span>${e(s.opening_hours||'')}</span><span>${e(s.working_days||'')}</span></div></div>`).join('')||'<div class="card muted">لا توجد متاجر منشورة.</div>'}
@@ -165,7 +212,6 @@ function renderCategories(){const m={};products.forEach(p=>(m[p.category||'عا�
 function showAdd(){
  if(!profileData){alert('يجب تسجيل الدخول بحساب مستخدم أو تاجر لإرسال طلب.');show('login');return}
  if(profileData.role!=='store'){alert('إضافة الأسعار والمواد من الحسابات المصرح لها فقط.');return}
-
  if(!profileData.can_edit_prices){alert('المدير عطّل صلاحية هذا الحساب.');return}
  if(!profileData.store_id){alert('لم يتم ربط حسابك بمتجر بعد.');return}
  show('add');$('merchantStoreBox').innerHTML=`<div class="notice">المتجر المرتبط: ${e(stores.find(s=>s.id===profileData.store_id)?.name||'غير ظاهر')}</div>`;
@@ -245,8 +291,20 @@ async function saveUser(id){
  const {error}=await supabaseClient.from('profiles').update({role,store_id,can_edit_prices}).eq('id',id);
  if(error)return alert(error.message);alert('تم حفظ الصلاحيات.');await renderAdmin();
 }
-supabaseClient.auth.onAuthStateChange(async(event)=>{if(event==='SIGNED_OUT'){profileData=null;$('status').textContent=currentName()+' • زائر'}if(event==='SIGNED_IN')await loadProfile()});
-(async()=>{$('visitorName').value=currentName()==='زائر'?'':currentName();await refreshAll();const {data:{user}}=await supabaseClient.auth.getUser();if(user)await loadProfile();else show(localStorage.getItem('visitor_name')?'home':'welcome')})();
+supabaseClient.auth.onAuthStateChange((event)=>{
+  if(event==='SIGNED_OUT'){
+    profileData=null;$('status').textContent=currentName()+' • زائر';
+    show(localStorage.getItem('visitor_name')?'home':'welcome');
+  }
+  if(event==='SIGNED_IN') setTimeout(()=>loadProfile().catch(console.warn),0);
+});
+(()=>{
+  const hasVisitor=localStorage.getItem('visitor_name');
+  $('visitorName').value=hasVisitor?currentName():'';
+  show(hasVisitor?'home':'welcome');
+  renderProducts();renderStores();renderCategories();renderBasket();renderFavorites();
+  setTimeout(()=>refreshAll().catch(err=>console.warn('startup:',err)),0);
+})();
 </script>
 </body>
 </html>
