@@ -10,13 +10,12 @@
 *{box-sizing:border-box}body{margin:0;background:#080d11;color:#f1f4f5;font-family:Arial,Tahoma,sans-serif}.app{max-width:950px;margin:auto;padding:16px 14px 92px}.logo{font-size:25px;font-weight:800;color:#35d07f}.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:15px}.status,.muted{color:#9da9ae;font-size:13px;line-height:1.7}.card,.hero,.stat{background:#12191d;border:1px solid #202b30;border-radius:18px;padding:16px}.hero{margin-bottom:14px}h1{margin:0 0 8px;font-size:24px}h2{margin:0 0 12px;font-size:19px}.actions,.row{display:flex;gap:9px;flex-wrap:wrap;margin-top:14px}.btn{border:0;border-radius:11px;padding:12px 15px;font-weight:bold;cursor:pointer}.btn:disabled{opacity:.45;cursor:not-allowed}.primary{background:#35d07f;color:#06100a}.secondary{background:#1a2429;color:#fff;border:1px solid #303b40}.danger{background:#6d2525;color:#fff}.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:11px}.pill{display:inline-block;background:#183b2b;color:#54dc92;border-radius:999px;padding:5px 9px;font-size:11px}.name{font-size:18px;font-weight:800;margin:9px 0 4px}.price{font-size:24px;font-weight:900;color:#35d07f;margin-top:10px}.old{color:#7f8b90;font-size:12px}.meta{display:flex;justify-content:space-between;gap:8px;color:#98a5aa;font-size:12px;margin-top:8px}.page{display:none}.page.active{display:block}.nav{position:fixed;bottom:0;left:0;right:0;background:#0d1418;border-top:1px solid #263137;z-index:10}.navin{max-width:700px;margin:auto;display:grid;grid-template-columns:repeat(5,1fr)}.nav button{background:none;border:0;color:#9da9ae;padding:11px 4px;font-size:11px}.notice{padding:10px;border-radius:10px;background:#17231d;color:#7ff0aa;margin-top:10px}.pending{background:#3b3218;color:#f4d878}.dangerbox{background:#35191b;color:#ff9da2}.img{width:100%;height:160px;object-fit:cover;border-radius:12px;margin-bottom:8px}.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}.table{width:100%;border-collapse:collapse;font-size:12px}.table th,.table td{border-bottom:1px solid #29343a;padding:9px;text-align:right;vertical-align:top}.hidden{display:none!important}.searchbar{position:sticky;top:0;background:#080d11;padding:5px 0 10px;z-index:3}.priceRow{padding:10px;border:1px solid #263137;border-radius:12px;margin-top:8px}.approve{background:#173a28;color:#70e6a2}.reject{background:#402020;color:#ff9b9b}input,select{width:100%;padding:12px;margin-top:9px;border-radius:10px;border:1px solid #303b40;background:#0d1418;color:#fff}label{display:block;margin-top:10px}@media(max-width:650px){.grid,.two{grid-template-columns:1fr}.app{padding-top:12px}.table{font-size:11px}}
 .qrbox{background:#fff;border-radius:12px;padding:10px;width:max-content;margin-top:10px}.qrbox img{display:block}
 
-<style>
 .rememberRow{display:flex;align-items:center;gap:10px;margin:12px 0;color:#aeb8bd;cursor:pointer}.rememberRow input{width:20px;height:20px;accent-color:#35d07f}
 </style>
 </head>
 <body>
 <div class="app">
-<div class="top"><div><div class="logo">سعرلي سوريا</div><div id="status" class="status">زائر</div></div><button id="topAccountBtn" class="btn secondary hidden" onclick="confirmLogout()">تسجيل الخروج</button></div>
+<div class="top"><div><div class="logo">سعرلي سوريا</div><div id="status" class="status">زائر</div></div><button id="topAccountBtn" class="btn secondary" onclick="confirmLogout()">تسجيل الخروج</button></div>
 
 <section id="welcome" class="page active">
 <div class="hero"><h1>أهلاً بك في سعرلي سوريا</h1><p class="muted">اكتب أي اسم للمتابعة كزائر، بدون بريد إلكتروني أو كلمة مرور.</p><input id="visitorName" placeholder="اكتب اسمك"><button class="btn primary" onclick="enterVisitor()">دخول للموقع</button><div class="actions"><button class="btn secondary" onclick="show('login')">دخول الحساب</button><button class="btn secondary" onclick="show('signup')">إنشاء حساب</button></div></div>
@@ -91,7 +90,7 @@ async function recordStoreVisit(storeId){
 function renderStoreDetail(id){const storeId=id||new URLSearchParams(location.search).get('store');const s=stores.find(x=>x.id===storeId);if(!s){$('storeDetailName').textContent='المتجر غير موجود';$('storeDetailBody').innerHTML='<div class="card">هذا الرابط غير صالح أو المتجر غير متاح حالياً.</div>';return;}$('storeDetailName').textContent=s.name;recordStoreVisit(storeId);const ps=prices.filter(x=>x.store_id===s.id).sort((a,b)=>Number(a.price_new)-Number(b.price_new));$('storeDetailBody').innerHTML=`${s.image_url?`<img class="img" src="${escAttr(s.image_url)}">`:''}<div class="muted">${e(s.city||'')} ${e(s.area||'')}<br>${e(s.address||'')}${s.phone?'<br>'+e(s.phone):''}</div><h2 style="margin-top:18px">أسعار المتجر (${ps.length})</h2><div class="grid">${ps.length?ps.map(x=>{const p=products.find(y=>y.id===x.product_id);return p?`<div class="card"><div class="name">${e(p.name)}</div><div class="price">${f(x.price_new)} ل.س جديدة</div><div class="old">${old(x.price_new)} ل.س قديمة</div></div>`:''}).join(''):'<div class="card muted">لا توجد أسعار معتمدة لهذا المتجر حالياً. العدد: صفر</div>'}</div>`;}
 function handleStoreDeepLink(){const id=new URLSearchParams(location.search).get('store');if(id){setTimeout(()=>{show('storeDetail');renderStoreDetail(id);},0);}}
 window.addEventListener('popstate',()=>{const id=new URLSearchParams(location.search).get('store');if(id){show('storeDetail');renderStoreDetail(id);}else{show('home');}});
-function renderTopAccount(){const b=$('topAccountBtn');if(!b)return;const logged=!!profileData;if(logged){b.classList.remove('hidden');b.textContent='تسجيل الخروج';}else{b.classList.add('hidden');}}
+function renderTopAccount(){const b=$('topAccountBtn');if(!b)return;b.classList.remove('hidden');if(profileData&&(profileData.role==='store'||profileData.role==='admin')){b.textContent='تسجيل الخروج';b.onclick=confirmLogout;}else{b.textContent='دخول الحساب';b.onclick=()=>show('login');}}
 function renderRoleActions(){const box=$('roleActions');if(!box)return;box.innerHTML='';if(!profileData)return;if(profileData.role==='store'){box.innerHTML='<button class="btn primary" onclick="showAdd()">تسجيل سعر جديد</button><button class="btn secondary" onclick="openPriceUpdate()">تحديث الأسعار</button>';}else if(profileData.role==='admin'){box.innerHTML='<button class="btn primary" onclick="showAdd()">تسجيل سعر جديد</button><button class="btn secondary" onclick="openPriceUpdate()">تحديث الأسعار</button><button class="btn secondary" onclick="show(\'admin\')">لوحة التحكم</button>';}}
 function openPriceUpdate(){if(profileData?.role==='admin'){show('admin');renderAdmin();return;}if(profileData?.role==='store'){renderMerchant();return;}alert('هذه الميزة للحسابات المصرح لها فقط.');}
 function openNav(id){show(id);if(id==='basket' && basket.length===0) $('basketList').innerHTML='<div class="card"><div class="name">السلة</div><div class="price">0</div><div class="muted">عدد المنتجات في السلة: صفر</div></div>';if(id==='favorites' && favorites.length===0) $('favoritesList').innerHTML='<div class="card"><div class="name">المفضلة</div><div class="price">0</div><div class="muted">عدد المواد المفضلة: صفر</div></div>';if(id==='stores' && stores.length===0) $('storesList').innerHTML='<div class="card"><div class="name">المتاجر</div><div class="price">0</div><div class="muted">عدد المتاجر: صفر</div></div>';if(id==='categories' && !products.some(p=>p.category)) $('cats').innerHTML='<div class="card"><div class="name">التصنيفات</div><div class="price">0</div><div class="muted">عدد التصنيفات: صفر</div></div>';}
@@ -137,18 +136,22 @@ async function signup(){
 }
 
 async function login(){
+
  const em=$('email').value.trim().toLowerCase(),pw=$('pass').value;
  const remember=!!$('rememberLogin')?.checked;
  if(!em||!pw){$('msg').textContent='اكتب البريد وكلمة المرور';return}
  $('msg').textContent='جاري تسجيل الدخول...';
+ sessionStorage.setItem('saree_explicit_login','1');
  const {error}=await supabaseClient.auth.signInWithPassword({email:em,password:pw});
- if(error){$('msg').textContent='تعذر تسجيل الدخول. تأكد من البريد وكلمة المرور.';return}
+ if(error){sessionStorage.removeItem('saree_explicit_login');$('msg').textContent='تعذر تسجيل الدخول. تأكد من البريد وكلمة المرور.';return}
  if(remember)localStorage.setItem('saree_remember_login','1');else localStorage.removeItem('saree_remember_login');
  localStorage.removeItem('visitor_name');
  const ok=await loadProfile();
  if(!ok){await supabaseClient.auth.signOut();$('msg').textContent='تعذر فتح الحساب حالياً. يمكنك الدخول كزائر بدون حساب.';show('login');return}
  $('msg').textContent='تم تسجيل الدخول.';
+ renderTopAccount();renderRoleActions();
  await refreshAll();
+ if(!profileData){setTimeout(()=>loadProfile().catch(console.warn),300);}
 }
 async function forgotPassword(){
  const em=$('email').value.trim().toLowerCase();if(!em)return alert('اكتب البريد الإلكتروني أولاً');
@@ -273,6 +276,7 @@ async function submitPrice(){
  if(Number.isNaN(v)||v<0)return alert('اكتب السعر بشكل صحيح.');
  if(!selected&&!n)return alert('اكتب اسم المادة الجديدة.');
  if(!profileData||profileData.role!=='store'||!profileData.store_id||!profileData.can_edit_prices)return alert('حسابك غير مخول لإرسال الطلب.');
+
  let imageUrl=null;try{if(file)imageUrl=await uploadImage(file,'materials')}catch(err){return alert('فشل رفع الصورة: '+err.message)}
  const payload={request_type:selected?'price':'product',product_id:selected||null,store_id:profileData.store_id,price_new:v,product_name:selected?null:n,product_description:null,product_category:$('cat').value.trim()||'عام',product_unit:$('unit').value.trim(),product_image_url:imageUrl,submitted_by:profileData.id,status:'pending'};
  const {error}=await supabaseClient.from('change_requests').insert(payload);
@@ -334,7 +338,7 @@ async function loadAdminStoreVisitorCounts(){
 }
 
 function buildAllQRCodes(){if(typeof QRCode==='undefined')return;stores.forEach(s=>{const box=$('qr_'+s.id);if(!box)return;box.innerHTML='';new QRCode(box,{text:storeUrl(s.id),width:160,height:160,correctLevel:QRCode.CorrectLevel.H});});}
-function printStoreQR(id){const s=stores.find(x=>x.id===id);if(!s)return;const url=storeUrl(id);const w=window.open('','_blank');if(!w)return alert('اسمح بفتح النوافذ المنبثقة لطباعة QR.');w.document.write(`<html dir="rtl"><head><title>QR - ${e(s.name)}</title></head><body style="font-family:Arial;text-align:center;padding:30px"><h2>${e(s.name)}</h2><div id="qrprint"></div><p>${e(url)}</p><script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"><\/script><script>new QRCode(document.getElementById('qrprint'),{text:${JSON.stringify(url)},width:300,height:300,correctLevel:QRCode.CorrectLevel.H});<\/script><script>setTimeout(()=>window.print(),800);<\/script></body></html>`);w.document.close();}
+function printStoreQR(id){const st=stores.find(x=>x.id===id);if(!st)return;const url=storeUrl(id);const w=window.open('','_blank');if(!w)return alert('اسمح بفتح النوافذ المنبثقة لطباعة QR.');const safeName=e(st.name),safeUrl=e(url);const html='<!doctype html><html dir=\"rtl\"><head><meta charset=\"utf-8\"><title>QR - '+safeName+'</title></head><body style=\"font-family:Arial;text-align:center;padding:30px\"><h2>'+safeName+'</h2><div id=\"qrprint\"></div><p>'+safeUrl+'</p><script src=\"https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js\"><\/script><script>new QRCode(document.getElementById(\"qrprint\"),{text:'+JSON.stringify(url)+',width:300,height:300,correctLevel:QRCode.CorrectLevel.H});setTimeout(function(){window.print();},800);<\/script></body></html>';w.document.open();w.document.write(html);w.document.close();}
 function requestHtml(r){return `<div class="priceRow"><b>${e(r.product_name||'طلب تعديل سعر')}</b><div class="muted">السعر: ${r.price_new!=null?f(r.price_new)+' ل.س جديدة':'—'}<br>النوع: ${e(r.request_type)}<br>أرسل: ${new Date(r.created_at).toLocaleString('ar')}</div><div class="actions"><button class="btn approve" onclick="approveRequest('${r.id}')">موافقة ونشر</button><button class="btn reject" onclick="rejectRequest('${r.id}')">رفض</button></div></div>`}
 async function approveRequest(id){
  const r=requests.find(x=>x.id===id);if(!r)return;
@@ -384,7 +388,7 @@ async function saveRoleOnly(id){
 supabaseClient.auth.onAuthStateChange((event)=>{
   if(event==='SIGNED_OUT'){
     profileData=null;renderTopAccount();renderRoleActions();$('status').textContent=currentName()+' • زائر';
-    show(localStorage.getItem('visitor_name')?'home':'welcome');
+    show('home');
   }
   if(event==='SIGNED_IN') setTimeout(()=>loadProfile().catch(console.warn),0);
 });
@@ -392,7 +396,7 @@ supabaseClient.auth.onAuthStateChange((event)=>{
   const hasVisitor=localStorage.getItem('visitor_name');
   $('visitorName').value=hasVisitor?currentName():'';
   renderTopAccount();renderRoleActions();
-  show(hasVisitor?'home':'welcome');
+  show('home');
   renderProducts();renderStores();renderCategories();renderBasket();renderFavorites();
   setTimeout(async()=>{
     try{
