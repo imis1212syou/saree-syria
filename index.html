@@ -82,7 +82,13 @@ function escAttr(x){return e(x).replace(/`/g,'&#096;')}
 function show(id){document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));$(id)?.classList.add('active');window.scrollTo(0,0);if(id==='basket')renderBasket();if(id==='favorites')renderFavorites();if(id==='stores')renderStores();if(id==='categories')renderCategories();if(id==='storeDetail')renderStoreDetail();if(id==='home')renderRoleActions();}
 function storeUrl(id){return window.location.origin+window.location.pathname+'?store='+encodeURIComponent(id);}
 function openStore(id){if(!id)return;history.pushState({},'',window.location.pathname+'?store='+encodeURIComponent(id));show('storeDetail');renderStoreDetail(id);}
-   ps=prices.filter(x=>x.store_id===s.id).sort((a,b)=>Number(a.price_new)-Number(b.price_new));$('storeDetailBody').innerHTML=`${s.image_url?`<img class="img" src="${escAttr(s.image_url)}">`:''}<div class="muted">${e(s.city||'')} ${e(s.area||'')}<br>${e(s.address||'')}${s.phone?'<br>'+e(s.phone):''}</div><h2 style="margin-top:18px">أسعار المتجر (${ps.length})</h2><div class="grid">${ps.length?ps.map(x=>{const p=products.find(y=>y.id===x.product_id);return p?`<div class="card"><div class="name">${e(p.name)}</div><div class="price">${f(x.price_new)} ل.س جديدة</div><div class="old">${old(x.price_new)} ل.س قديمة</div></div>`:''}).join(''):'<div class="card muted">لا توجد أسعار معتمدة لهذا المتجر حالياً. العدد: صفر</div>'}</div>`;}
+async function recordStoreVisit(storeId){
+  try{
+    if(!storeId) return;
+    await supabaseClient.from('store_visitor_visits').upsert({store_id:storeId,visitor_id:visitorId()},{onConflict:'store_id,visitor_id',ignoreDuplicates:true});
+  }catch(err){console.warn('store visit:',err)}
+}
+function renderStoreDetail(id){const storeId=id||new URLSearchParams(location.search).get('store');const s=stores.find(x=>x.id===storeId);if(!s){$('storeDetailName').textContent='المتجر غير موجود';$('storeDetailBody').innerHTML='<div class="card">هذا الرابط غير صالح أو المتجر غير متاح حالياً.</div>';return;}$('storeDetailName').textContent=s.name;recordStoreVisit(storeId);const ps=prices.filter(x=>x.store_id===s.id).sort((a,b)=>Number(a.price_new)-Number(b.price_new));$('storeDetailBody').innerHTML=`${s.image_url?`<img class="img" src="${escAttr(s.image_url)}">`:''}<div class="muted">${e(s.city||'')} ${e(s.area||'')}<br>${e(s.address||'')}${s.phone?'<br>'+e(s.phone):''}</div><h2 style="margin-top:18px">أسعار المتجر (${ps.length})</h2><div class="grid">${ps.length?ps.map(x=>{const p=products.find(y=>y.id===x.product_id);return p?`<div class="card"><div class="name">${e(p.name)}</div><div class="price">${f(x.price_new)} ل.س جديدة</div><div class="old">${old(x.price_new)} ل.س قديمة</div></div>`:''}).join(''):'<div class="card muted">لا توجد أسعار معتمدة لهذا المتجر حالياً. العدد: صفر</div>'}</div>`;}
 function handleStoreDeepLink(){const id=new URLSearchParams(location.search).get('store');if(id){setTimeout(()=>{show('storeDetail');renderStoreDetail(id);},0);}}
 window.addEventListener('popstate',()=>{const id=new URLSearchParams(location.search).get('store');if(id){show('storeDetail');renderStoreDetail(id);}else{show('home');}});
 function renderTopAccount(){const b=$('topAccountBtn');if(!b)return;const logged=!!profileData;if(logged){b.classList.remove('hidden');b.textContent='تسجيل الخروج';}else{b.classList.add('hidden');}}
@@ -137,10 +143,7 @@ async function login(){
  $('msg').textContent='جاري تسجيل الدخول...';
  const {error}=await supabaseClient.auth.signInWithPassword({email:em,password:pw});
  if(error){$('msg').textContent='تعذر تسجيل الدخول. تأكد من البريد وكلمة المرور.';return}
-  
-function renderStoreDetail(id){const storeId=id||new URLSearchParams(location.search).get('store');const s=stores.find(x=>x.id===storeId);if(!s){$('storeDetailName').textContent='المتجر غير موجود';$('storeDetailBody').innerHTML='<div class="card">هذا الرابط غير صالح أو المتجر غير متاح حالياً.</div>';return;}$('storeDetailName').textContent=s.name;const
-
-                                if(remember)localStorage.setItem('saree_remember_login','1');else localStorage.removeItem('saree_remember_login');
+ if(remember)localStorage.setItem('saree_remember_login','1');else localStorage.removeItem('saree_remember_login');
  localStorage.removeItem('visitor_name');
  const ok=await loadProfile();
  if(!ok){await supabaseClient.auth.signOut();$('msg').textContent='تعذر فتح الحساب حالياً. يمكنك الدخول كزائر بدون حساب.';show('login');return}
@@ -152,7 +155,7 @@ async function forgotPassword(){
  const {error}=await supabaseClient.auth.resetPasswordForEmail(em,{redirectTo:location.origin+location.pathname});
  alert(error?'خطأ: '+error.message:'تم إرسال رابط إعادة تعيين كلمة السر إذا كان الحساب موجوداً.');
 }
-async function logout(){localStorage.removeItem('saree_remember_login');try{await supabaseClient.auth.signOut()}catch(e){console.warn(e)}profileData=null;renderTopAccount();renderRoleActions();$('status').textContent=currentName()+' • زائر';show('home');await refreshAll()}
+async function logout(){localStorage.removeItem('saree_remember_login');sessionStorage.removeItem('saree_explicit_login');try{await supabaseClient.auth.signOut()}catch(e){console.warn(e)}profileData=null;renderTopAccount();renderRoleActions();$('status').textContent=currentName()+' • زائر';show('home');await refreshAll()}
 async function loadProfile(){
   try{
     const {data:{user},error:authError}=await supabaseClient.auth.getUser();
@@ -276,12 +279,21 @@ async function submitPrice(){
  if(error)return $('addMsg').textContent='خطأ: '+error.message;
  $('addMsg').textContent='تم إرسال الطلب للمراجعة.';['pn','brand','unit','cat','pr'].forEach(id=>$(id).value='');$('pimg').value='';$('existingProduct').value='';show('merchant');
 }
+async function loadMerchantStoreVisitorCount(){
+  try{
+    if(!profileData || profileData.role!=='store' || !profileData.store_id) return;
+    const {data,error}=await supabaseClient.rpc('merchant_store_visitor_count',{p_store_id:profileData.store_id});
+    if(!error && $('merchantVisitorCount')) $('merchantVisitorCount').textContent=f(data||0);
+  }catch(err){console.warn('merchant store visitors:',err)}
+}
+
 async function renderMerchant(){
  show('merchant');$('merchantRole').textContent='الحساب مربوط بمتجر واحد فقط. لا يمكنك تعديل متجر آخر أو النشر مباشرة.';
  const s=stores.find(x=>x.id===profileData.store_id);
  const {data,error}=await supabaseClient.from('change_requests').select('*').eq('submitted_by',profileData.id).order('created_at',{ascending:false}).limit(30);
  const reqs=data||[];
- $('merchantPanel').innerHTML=`<div class="card"><div class="name">${e(s?.name||'لم يتم ربط متجر بعد')}</div><div class="muted">${e(s?.city||'')} ${e(s?.area||'')}<br>${e(s?.address||'')}<br>${e(s?.phone||'')}</div><div class="notice ${profileData.can_edit_prices?'':'pending'}">${profileData.can_edit_prices&&s?'الصلاحية مفعّلة، وكل طلب يحتاج موافقة المدير.':'لا توجد لديك صلاحية إرسال أسعار أو مواد حالياً.'}</div><div class="actions"><button class="btn primary" ${profileData.can_edit_prices&&s?'':'disabled'} onclick="showAdd()">إضافة مادة / سعر</button><button class="btn secondary" onclick="openPriceUpdate()">تحديث الأسعار</button><button class="btn secondary" onclick="logout()">تسجيل الخروج</button></div></div><div class="card"><h2>طلباتك</h2>${error?`<p class="muted">${e(error.message)}</p>`:reqs.length?reqs.map(r=>`<div class="priceRow"><b>${e(r.product_name||'تعديل سعر')}</b><div class="muted">${r.price_new!=null?f(r.price_new)+' ل.س جديدة':''} • ${new Date(r.created_at).toLocaleString('ar')}</div><span class="pill">${r.status==='pending'?'قيد المراجعة':r.status==='approved'?'مقبول':'مرفوض'}</span>${r.reason?`<div class="muted">السبب: ${e(r.reason)}</div>`:''}</div>`).join(''):'<p class="muted">لا توجد طلبات.</p>'}</div>`;
+ $('merchantPanel').innerHTML=`<div class="card"><div class="name">${e(s?.name||'لم يتم ربط متجر بعد')}</div><div class="muted">${e(s?.city||'')} ${e(s?.area||'')}<br>${e(s?.address||'')}<br>${e(s?.phone||'')}</div><div class="notice ${profileData.can_edit_prices?'':'pending'}">${profileData.can_edit_prices&&s?'الصلاحية مفعّلة، وكل طلب يحتاج موافقة المدير.':'لا توجد لديك صلاحية إرسال أسعار أو مواد حالياً.'}</div>${s?`<div class="card" style="margin-top:10px"><div class="name" id="merchantVisitorCount">—</div><div class="muted">زوار المتجر الفريدون</div></div>`:''}<div class="actions"><button class="btn primary" ${profileData.can_edit_prices&&s?'':'disabled'} onclick="showAdd()">إضافة مادة / سعر</button><button class="btn secondary" onclick="openPriceUpdate()">تحديث الأسعار</button><button class="btn secondary" onclick="logout()">تسجيل الخروج</button></div></div><div class="card"><h2>طلباتك</h2>${error?`<p class="muted">${e(error.message)}</p>`:reqs.length?reqs.map(r=>`<div class="priceRow"><b>${e(r.product_name||'تعديل سعر')}</b><div class="muted">${r.price_new!=null?f(r.price_new)+' ل.س جديدة':''} • ${new Date(r.created_at).toLocaleString('ar')}</div><span class="pill">${r.status==='pending'?'قيد المراجعة':r.status==='approved'?'مقبول':'مرفوض'}</span>${r.reason?`<div class="muted">السبب: ${e(r.reason)}</div>`:''}</div>`).join(''):'<p class="muted">لا توجد طلبات.</p>'}</div>`;
+ loadMerchantStoreVisitorCount();
 }
 async function loadVisitorCount(){
   try{
@@ -308,18 +320,26 @@ async function renderAdmin(){
    return `<div class="priceRow"><b>${e(u.name||u.id)}</b><div class="muted">حساب تاجر • ${e(u.email||'بدون بريد')} • ${u.store_id?'مرتبط بمتجر':'غير مرتبط بمتجر'}</div><select id="store_${u.id}">${opts}</select><label class="muted"><input id="edit_${u.id}" type="checkbox" ${u.can_edit_prices?'checked':''}> تفعيل صلاحية إرسال الأسعار والمواد</label><button class="btn primary" onclick="saveUser('${u.id}')">ربط وحفظ الصلاحيات</button></div>`;
  }).join(''):'<p class="muted">لا توجد حسابات تجار حالياً.</p>';
  const usersBlock=users.map(u=>u.id!==ADMIN_UID?`<div class="priceRow"><b>${e(u.name||u.id)}</b><div class="muted">البريد: ${e(u.email||'بدون بريد')} • الدور: ${e(u.role)}${u.store_id?' • مرتبط بمتجر':''}</div><select id="role_${u.id}"><option value="user" ${u.role==='user'?'selected':''}>مستخدم</option><option value="store" ${u.role==='store'?'selected':''}>تاجر</option></select><button class="btn secondary" onclick="saveRoleOnly('${u.id}')">حفظ الدور</button></div>`:'<div class="priceRow"><b>حساب المدير</b><span class="pill">مدير النظام</span></div>').join('');
- const storeBlock=stores.length?stores.map(st=>`<div class="priceRow"><b>${e(st.name)}</b><div class="muted">${e(st.city||'')} • ${e(st.area||'')} • ${e(st.address||'')}</div><div id="qr_${st.id}" class="qrbox"></div><div class="actions"><button class="btn secondary" onclick="openStore('${st.id}')">فتح صفحة المتجر</button><button class="btn secondary" onclick="printStoreQR('${st.id}')">طباعة QR</button></div></div>`).join(''):'<p class="muted">لا توجد متاجر حالياً.</p>';
+ const storeBlock=stores.length?stores.map(st=>`<div class="priceRow"><b>${e(st.name)}</b><div class="muted">${e(st.city||'')} • ${e(st.area||'')} • ${e(st.address||'')}</div><div class="muted">زوار المتجر الفريدون: <b id="sv_${st.id}">—</b></div><div id="qr_${st.id}" class="qrbox"></div><div class="actions"><button class="btn secondary" onclick="openStore('${st.id}')">فتح صفحة المتجر</button><button class="btn secondary" onclick="printStoreQR('${st.id}')">طباعة QR</button></div></div>`).join(''):'<p class="muted">لا توجد متاجر حالياً.</p>';
  $('adminPanel').innerHTML=`<div class="grid"><div class="card"><div class="name">${requests.length}</div><div class="muted">طلبات معلقة</div></div><div class="card"><div class="name">${stores.length}</div><div class="muted">متاجر</div></div><div class="card"><div class="name">${products.length}</div><div class="muted">منتجات</div></div><div class="card"><div class="name">${users.length}</div><div class="muted">حسابات</div></div><div class="card"><div class="name" id="visitorCount">—</div><div class="muted">عدد الزوار الفريدين</div></div></div><div class="card"><h2>طلبات التجار</h2>${requestBlock}</div><div class="card"><h2>إضافة متجر</h2><div class="two"><input id="sn" placeholder="اسم المتجر"><input id="scity" placeholder="المدينة"><input id="sarea" placeholder="المنطقة"><input id="saddr" placeholder="العنوان"><input id="sphone" placeholder="الهاتف"><input id="shours" placeholder="ساعات الدوام"><input id="sdays" placeholder="أيام العمل"><input id="simg" type="file" accept="image/*"></div><button class="btn primary" onclick="adminAddStore()">إضافة المتجر</button></div><div class="card"><h2>ربط حسابات التجار بالمتاجر</h2><p class="muted">أنشئ المتجر أولاً، ثم اختر حساب التاجر واربطه بمتجر واحد فقط. الحساب الجديد يبقى بلا صلاحيات حتى تفعّلها أنت.</p>${merchantBlock}</div><div class="card"><h2>جميع الحسابات</h2>${usersBlock}</div><div class="card"><h2>المتاجر و QR Code</h2><p class="muted">لكل متجر QR Code فعلي. عند مسحه بكاميرا الهاتف يفتح صفحة المتجر مباشرة.</p>${storeBlock}</div><div class="actions"><button class="btn secondary" onclick="show('home')">العودة للموقع</button><button class="btn secondary" onclick="logout()">تسجيل الخروج</button></div>`;
- loadVisitorCount();setTimeout(buildAllQRCodes,50);
+ loadVisitorCount();loadAdminStoreVisitorCounts();setTimeout(buildAllQRCodes,50);
 }
+async function loadAdminStoreVisitorCounts(){
+  try{
+    if(!profileData || profileData.role!=='admin') return;
+    const {data,error}=await supabaseClient.rpc('admin_store_visitor_counts');
+    if(error || !Array.isArray(data)) return;
+    data.forEach(row=>{const el=$('sv_'+row.store_id);if(el)el.textContent=f(row.visitor_count||0)});
+  }catch(err){console.warn('store visitor counts:',err)}
+}
+
 function buildAllQRCodes(){if(typeof QRCode==='undefined')return;stores.forEach(s=>{const box=$('qr_'+s.id);if(!box)return;box.innerHTML='';new QRCode(box,{text:storeUrl(s.id),width:160,height:160,correctLevel:QRCode.CorrectLevel.H});});}
-function printStoreQR(id){const s=stores.find(x=>x.id===id);if(!s)return;const url=storeUrl(id);const w=window.open('','_blank');if(!w)return alert('اسمح بفتح النوافذ المنبثقة لطباعة QR.');w.document.write(`<html dir="rtl"><head><title>QR - ${e(s.name)}</title></head><body 
-style="font-family:Arial;text-align:center;padding:30px"><h2>${e(s.name)}</h2><div id="qrprint"></div><p>${e(url)}</p><script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"><\/script><script>new QRCode(document.getElementById('qrprint'),{text:${JSON.stringify(url)},width:300,height:300,correctLevel:QRCode.CorrectLevel.H});<\/script><script>setTimeout(()=>window.print(),800);<\/script></body></html>`);w.document.close();}
+function printStoreQR(id){const s=stores.find(x=>x.id===id);if(!s)return;const url=storeUrl(id);const w=window.open('','_blank');if(!w)return alert('اسمح بفتح النوافذ المنبثقة لطباعة QR.');w.document.write(`<html dir="rtl"><head><title>QR - ${e(s.name)}</title></head><body style="font-family:Arial;text-align:center;padding:30px"><h2>${e(s.name)}</h2><div id="qrprint"></div><p>${e(url)}</p><script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"><\/script><script>new QRCode(document.getElementById('qrprint'),{text:${JSON.stringify(url)},width:300,height:300,correctLevel:QRCode.CorrectLevel.H});<\/script><script>setTimeout(()=>window.print(),800);<\/script></body></html>`);w.document.close();}
 function requestHtml(r){return `<div class="priceRow"><b>${e(r.product_name||'طلب تعديل سعر')}</b><div class="muted">السعر: ${r.price_new!=null?f(r.price_new)+' ل.س جديدة':'—'}<br>النوع: ${e(r.request_type)}<br>أرسل: ${new Date(r.created_at).toLocaleString('ar')}</div><div class="actions"><button class="btn approve" onclick="approveRequest('${r.id}')">موافقة ونشر</button><button class="btn reject" onclick="rejectRequest('${r.id}')">رفض</button></div></div>`}
 async function approveRequest(id){
  const r=requests.find(x=>x.id===id);if(!r)return;
  if(r.request_type==='product'){
-  const {data,error}=await supabaseClient.from('products').insert({name:r.product_name,description:r.product_description,brand:r.product_name?null:null,category:r.product_category,unit:r.product_unit,image_url:r.product_image_url,active:true,created_by:r.submitted_by}).select().single();
+  const {data,error}=await supabaseClient.from('products').insert({name:r.product_name,description:r.product_description,category:r.product_category,unit:r.product_unit,image_url:r.product_image_url,active:true,created_by:r.submitted_by}).select().single();
   if(error)return alert(error.message);
   const {error:e2}=await supabaseClient.from('price_listings').insert({product_id:data.id,store_id:r.store_id,price_new:r.price_new,approved:true,submitted_by:r.submitted_by,approved_by:profileData.id});
   if(e2)return alert(e2.message);
@@ -377,9 +397,11 @@ supabaseClient.auth.onAuthStateChange((event)=>{
   setTimeout(async()=>{
     try{
       const remember=localStorage.getItem('saree_remember_login')==='1';
-      if(!remember){
-        const {data}=await supabaseClient.auth.getSession();
-        if(data?.session) await supabaseClient.auth.signOut();
+      const {data}=await supabaseClient.auth.getSession();
+      const explicit=sessionStorage.getItem('saree_explicit_login')==='1';
+      if(explicit){sessionStorage.removeItem('saree_explicit_login');}
+      if(!remember && data?.session && !explicit){
+        await supabaseClient.auth.signOut();
       }
     }catch(err){console.warn('session check:',err)}
     recordVisitor().catch(console.warn);
