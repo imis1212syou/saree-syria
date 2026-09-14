@@ -1,1174 +1,920 @@
-/* سعرلي سوريا — ماسح الباركود
-   الدفعة 1 من 2 — نسخة نهائية بدون وميض
-*/
-(function(){
-
+(function () {
   'use strict';
 
-  let barcodeStream = null;
-  let barcodeTimer = null;
-  let barcodeBusy = false;
+  let stream = null;
+  let video = null;
+  let detector = null;
+  let scanTimer = null;
+  let scannerMode = null; // add أو store
+  let scannerStoreId = null;
 
-  function B(id){
+  function el(id) {
     return document.getElementById(id);
   }
 
-  function escBarcode(v){
-    if(typeof window.e === 'function'){
-      return window.e(v);
-    }
+  /* =========================
+     فتح ماسح الباركود
+     ========================= */
 
-    return String(v ?? '').replace(/[&<>"']/g,function(m){
-      return {
-        '&':'&amp;',
-        '<':'&lt;',
-        '>':'&gt;',
-        '"':'&quot;',
-        "'":'&#039;'
-      }[m];
-    });
-  }
+  window.openBarcodeScannerForAdd = function () {
+    scannerMode = 'add';
+    scannerStoreId = null;
+    openScannerModal();
+  };
 
-  function stopBarcodeCamera(){
-
-    try{
-
-      if(barcodeTimer){
-        clearInterval(barcodeTimer);
-        barcodeTimer = null;
-      }
-
-      if(barcodeStream){
-        barcodeStream
-          .getTracks()
-          .forEach(function(track){
-            track.stop();
-          });
-
-        barcodeStream = null;
-      }
-
-    }catch(_){}
-
-    barcodeBusy = false;
-  }
-
-  window.closeBarcodeScanner = function(){
-
-    stopBarcodeCamera();
-
-    const box = B('barcodeScannerBox');
-
-    if(box){
-      box.remove();
-    }
+  window.openBarcodeScannerForStore = function (storeId) {
+    scannerMode = 'store';
+    scannerStoreId = storeId;
+    openScannerModal();
   };
 
 
-  window.openBarcodeScanner = function(storeId){
+  /* =========================
+     نافذة الكاميرا
+     ========================= */
 
-    storeId =
-      storeId ||
-      window.currentStoreId;
+  function openScannerModal() {
 
-    if(!storeId){
-      alert('لم يتم تحديد المتجر.');
-      return;
-    }
+    closeBarcodeScanner();
 
-    window.currentBarcodeStoreId = storeId;
+    const modal = document.createElement('div');
 
-    window.closeBarcodeScanner();
+    modal.id = 'barcodeScannerModal';
 
-    const box =
-      document.createElement('div');
+    modal.style.cssText = `
+      position:fixed;
+      inset:0;
+      z-index:999999;
+      background:rgba(0,0,0,.94);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:15px;
+      direction:rtl;
+    `;
 
-    box.id = 'barcodeScannerBox';
-
-    box.innerHTML = `
-
-      <div class="card" style="
-        position:fixed;
-        z-index:99999;
-        inset:10px;
-        max-width:600px;
-        margin:auto;
-        overflow:auto;
-        background:#111820;
-        border:1px solid #2b3945;
+    modal.innerHTML = `
+      <div style="
+        width:100%;
+        max-width:520px;
+        background:#10191c;
+        border:1px solid rgba(57,217,138,.25);
+        border-radius:20px;
+        padding:18px;
+        color:#fff;
+        box-sizing:border-box;
       ">
 
-        <div class="row" style="
-          justify-content:space-between;
-          align-items:center;
+        <h2 style="margin-top:0">
+          📷 مسح الباركود
+        </h2>
+
+        <p style="opacity:.75">
+          وجّه الكاميرا نحو الباركود
+        </p>
+
+        <video
+          id="barcodeVideo"
+          autoplay
+          muted
+          playsinline
+          style="
+            width:100%;
+            height:300px;
+            object-fit:cover;
+            background:#000;
+            border-radius:15px;
+          ">
+        </video>
+
+        <p
+          id="barcodeScanStatus"
+          style="
+            color:#39d98a;
+            text-align:center;
+            margin:12px 0;
+          ">
+          جاري تشغيل الكاميرا...
+        </p>
+
+        <div style="
+          display:flex;
+          gap:8px;
+          margin-top:10px;
         ">
 
-          <h2>📷 مسح باركود</h2>
+          <input
+            id="barcodeManualModal"
+            type="text"
+            inputmode="numeric"
+            placeholder="اكتب رقم الباركود يدويًا"
+            style="
+              flex:1;
+              min-width:0;
+            ">
 
           <button
-            class="btn secondary"
-            onclick="closeBarcodeScanner()">
-            إغلاق
+            type="button"
+            class="btn primary"
+            id="barcodeManualSearchBtn">
+            بحث
           </button>
 
         </div>
 
-        <p class="muted">
-          وجّه الكاميرا نحو الباركود وانتظر حتى يتم التعرف عليه تلقائياً.
-        </p>
-
-        <div style="
-          position:relative;
-          width:100%;
-          max-width:500px;
-          margin:15px auto;
-          overflow:hidden;
-          border-radius:18px;
-          background:#000;
-        ">
-
-          <video
-            id="barcodeVideo"
-            autoplay
-            muted
-            playsinline
-            style="
-              display:block;
-              width:100%;
-              min-height:260px;
-              object-fit:cover;
-            ">
-          </video>
-
-          <div style="
-            position:absolute;
-            left:10%;
-            right:10%;
-            top:45%;
-            height:2px;
-            background:#32d583;
-            box-shadow:0 0 10px #32d583;
-          "></div>
-
-        </div>
-
-        <p
-          id="barcodeScannerStatus"
-          class="muted"
-          style="text-align:center">
-
-          جاري تشغيل الكاميرا...
-
-        </p>
-
         <button
+          type="button"
           class="btn secondary"
-          onclick="stopBarcodeCamera()">
-
-          إيقاف الكاميرا
-
+          onclick="closeBarcodeScanner()"
+          style="margin-top:12px;width:100%;">
+          إغلاق
         </button>
 
       </div>
     `;
 
-    document.body.appendChild(box);
+    document.body.appendChild(modal);
 
-    startBarcodeCamera();
-  };
+    video = el('barcodeVideo');
 
+    el('barcodeManualSearchBtn').onclick = function () {
 
-  async function startBarcodeCamera(){
+      const value = (el('barcodeManualModal')?.value || '').trim();
 
-    const video =
-      B('barcodeVideo');
-
-    const status =
-      B('barcodeScannerStatus');
-
-    if(!video){
-      return;
-    }
-
-    if(
-      !navigator.mediaDevices ||
-      !navigator.mediaDevices.getUserMedia
-    ){
-
-      if(status){
-        status.textContent =
-          'المتصفح لا يسمح بتشغيل الكاميرا.';
-      }
-
-      return;
-    }
-
-    try{
-
-      barcodeStream =
-        await navigator.mediaDevices.getUserMedia({
-
-          video:{
-            facingMode:{
-              ideal:'environment'
-            },
-
-            width:{
-              ideal:1280
-            },
-
-            height:{
-              ideal:720
-            }
-          },
-
-          audio:false
-
-        });
-
-      video.srcObject =
-        barcodeStream;
-
-      await video.play();
-
-      if(status){
-        status.textContent =
-          'وجّه الكاميرا نحو الباركود...';
-      }
-
-      startBarcodeDetection(video);
-
-    }catch(error){
-
-      console.warn(
-        'barcode camera:',
-        error
-      );
-
-      if(status){
-
-        if(
-          error &&
-          (
-            error.name === 'NotAllowedError' ||
-            error.name === 'PermissionDeniedError'
-          )
-        ){
-
-          status.textContent =
-            'اسمح للموقع باستخدام الكاميرا ثم حاول مرة أخرى.';
-
-        }else{
-
-          status.textContent =
-            'تعذر تشغيل الكاميرا: ' +
-            (error.message || '');
-
-        }
-      }
-    }
-  }
-
-
-  function startBarcodeDetection(video){
-
-    if(!('BarcodeDetector' in window)){
-
-      const status =
-        B('barcodeScannerStatus');
-
-      if(status){
-
-        status.innerHTML =
-          'هذا المتصفح لا يدعم قراءة الباركود مباشرة. ' +
-          'سنستخدم الطريقة البديلة.';
-
-      }
-
-      return;
-    }
-
-    let detector;
-
-    try{
-
-      detector =
-        new BarcodeDetector({
-
-          formats:[
-            'ean_13',
-            'ean_8',
-            'upc_a',
-            'upc_e',
-            'code_128',
-            'code_39',
-            'itf',
-            'codabar'
-          ]
-
-        });
-
-    }catch(error){
-
-      console.warn(
-        'BarcodeDetector:',
-        error
-      );
-
-      try{
-
-        detector =
-          new BarcodeDetector();
-
-      }catch(_){
-
-        return;
-
-      }
-    }
-
-
-    /*
-      هذا المؤقت خاص بقراءة الكاميرا فقط.
-      لا يعيد رسم صفحة المتجر ولا يسبب وميضاً.
-    */
-
-    barcodeTimer =
-      setInterval(async function(){
-
-        if(barcodeBusy){
-          return;
-        }
-
-        if(
-          !video.videoWidth ||
-          !video.videoHeight
-        ){
-          return;
-        }
-
-        barcodeBusy = true;
-
-        try{
-
-          const codes =
-            await detector.detect(video);
-
-          if(
-            codes &&
-            codes.length
-          ){
-
-            const code =
-              codes[0].rawValue;
-
-            if(code){
-
-              await window.findProductByBarcode(
-                String(code).trim()
-              );
-
-            }
-          }
-
-        }catch(error){
-
-          console.warn(
-            'barcode detection:',
-            error
-          );
-
-        }finally{
-
-          barcodeBusy = false;
-
-        }
-
-      },350);
-  }
-
-
-  window.findProductByBarcode =
-    async function(barcode){
-
-      barcode =
-        String(barcode || '').trim();
-
-      if(!barcode){
+      if (!value) {
+        alert('اكتب رقم الباركود أولاً.');
         return;
       }
 
-      stopBarcodeCamera();
-
-      const status =
-        B('barcodeScannerStatus');
-
-      if(status){
-
-        status.textContent =
-          'تمت قراءة الباركود: ' +
-          barcode +
-          ' — جاري البحث...';
-
-      }
-
-      const storeId =
-        window.currentBarcodeStoreId ||
-        window.currentStoreId;
-
-      if(!storeId){
-
-        alert(
-          'لم يتم تحديد المتجر.'
-        );
-
-        window.closeBarcodeScanner();
-
-        return;
-      }
-
-      try{
-
-        const {
-          data:productsData,
-          error:productError
-        } =
-          await supabaseClient
-            .from('products')
-            .select('*')
-            .eq('barcode',barcode)
-            .limit(1);
-
-        if(productError){
-          throw productError;
-        }
-
-        if(
-          !productsData ||
-          !productsData.length
-        ){
-
-          alert(
-            'هذا الباركود غير مسجل ضمن مواد الموقع حالياً.'
-          );
-
-          window.closeBarcodeScanner();
-
-          return;
-        }
-
-        const product =
-          productsData[0];
-
-
-        const {
-          data:priceData,
-          error:priceError
-        } =
-          await supabaseClient
-            .from('price_listings')
-            .select('*')
-            .eq('store_id',storeId)
-            .eq('product_id',product.id)
-            .eq('status','approved')
-            .order('updated_at',{
-              ascending:false
-            })
-            .limit(1);
-
-        if(priceError){
-          throw priceError;
-        }
-
-        if(
-          !priceData ||
-          !priceData.length
-        ){
-
-          alert(
-            'المادة موجودة، لكن لا يوجد لها سعر منشور في هذا المتجر.'
-          );
-
-          window.closeBarcodeScanner();
-
-          return;
-        }
-
-        window.closeBarcodeScanner();
-
-        window.barcodeFoundProduct =
-          product;
-
-        window.barcodeFoundPrice =
-          priceData[0];
-
-        showBarcodeProductResult(
-          product,
-          priceData[0]
-        );
-
-      }catch(error){
-
-        console.error(error);
-
-        alert(
-          'حدث خطأ أثناء البحث: ' +
-          (error.message || error)
-        );
-
-        window.closeBarcodeScanner();
-      }
+      handleBarcode(value);
     };
 
+    startCamera();
+  }
 
-  function showBarcodeProductResult(
-    product,
-    price
-  ){
 
-    const body =
-      B('storeDetailBody');
+  /* =========================
+     تشغيل الكاميرا
+     ========================= */
 
-    if(!body){
+  async function startCamera() {
+
+    try {
+
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error('camera_not_supported');
+      }
+
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: {
+            ideal: 'environment'
+          },
+          width: {
+            ideal: 1280
+          },
+          height: {
+            ideal: 720
+          }
+        },
+        audio: false
+      });
+
+      video.srcObject = stream;
+
+      const status = el('barcodeScanStatus');
+
+      if (status) {
+        status.textContent =
+          '📷 وجّه الكاميرا نحو الباركود...';
+      }
+
+      if ('BarcodeDetector' in window) {
+
+        try {
+
+          detector = new BarcodeDetector({
+            formats: [
+              'ean_13',
+              'ean_8',
+              'upc_a',
+              'upc_e',
+              'code_128',
+              'code_39',
+              'itf'
+            ]
+          });
+
+          scan();
+
+        } catch (err) {
+
+          console.warn('BarcodeDetector error:', err);
+
+          fallbackMessage();
+
+        }
+
+      } else {
+
+        fallbackMessage();
+      }
+
+    } catch (err) {
+
+      console.error('Camera error:', err);
+
+      const status = el('barcodeScanStatus');
+
+      if (status) {
+        status.textContent =
+          '⚠️ لم يتم تشغيل الكاميرا. اسمح للموقع باستخدام الكاميرا أو اكتب الباركود يدويًا.';
+      }
+    }
+  }
+
+
+  /* =========================
+     قراءة الباركود بالكاميرا
+     ========================= */
+
+  async function scan() {
+
+    if (!video || !detector) return;
+
+    try {
+
+      const result = await detector.detect(video);
+
+      if (result && result.length) {
+
+        const value = result[0]?.rawValue;
+
+        if (value) {
+
+          await handleBarcode(value);
+
+          return;
+        }
+      }
+
+    } catch (err) {
+      console.warn('Barcode scan:', err);
+    }
+
+    scanTimer = setTimeout(scan, 300);
+  }
+
+
+  /* =========================
+     معالجة الباركود
+     ========================= */
+
+  async function handleBarcode(barcode) {
+
+    barcode = String(barcode || '').trim();
+
+    if (!barcode) return;
+
+    closeBarcodeScanner();
+
+    /* التاجر / المدير */
+    if (scannerMode === 'add') {
+
+      const input = el('barcode');
+
+      if (input) {
+        input.value = barcode;
+
+        input.dispatchEvent(
+          new Event('input', {
+            bubbles: true
+          })
+        );
+
+        input.dispatchEvent(
+          new Event('change', {
+            bubbles: true
+          })
+        );
+      }
+
+      const msg = el('barcodeMsg');
+
+      if (msg) {
+        msg.textContent =
+          '✅ تم قراءة الباركود تلقائيًا: ' + barcode;
+      }
+
+      await fillProductFromBarcode(barcode);
+
       return;
     }
 
-    const oldContent =
-      body.innerHTML;
 
-    body.innerHTML = `
+    /* الزائر داخل المتجر */
+    if (scannerMode === 'store') {
 
-      <div
-        class="card"
-        style="border:2px solid #32d583">
+      await showStoreBarcodeResult(
+        barcode,
+        scannerStoreId
+      );
+    }
+  }
 
-        <div
-          class="row"
-          style="
-            justify-content:space-between;
-            align-items:center
-          ">
 
-          <h2>
-            ${escBarcode(
-              product.name || 'المادة'
-            )}
-          </h2>
+  /* =========================
+     البحث عن مادة للتاجر
+     ========================= */
 
-          <span class="pill">
-            ✓ تم العثور
-          </span>
+  async function fillProductFromBarcode(barcode) {
 
-        </div>
+    try {
 
+      const {
+        data,
+        error
+      } = await supabaseClient
+        .from('products')
+        .select('*')
+        .eq('barcode', barcode)
+        .eq('active', true)
+        .limit(1)
+        .maybeSingle();
+
+      if (error) {
+        console.warn(error);
+        return;
+      }
+
+      if (!data) {
+
+        const msg = el('barcodeMsg');
+
+        if (msg) {
+          msg.textContent =
+            'ℹ️ لم نجد مادة بهذا الباركود. يمكنك إضافة المادة الجديدة.';
+        }
+
+        return;
+      }
+
+      if (el('pn') && data.name)
+        el('pn').value = data.name;
+
+      if (el('brand') && data.brand)
+        el('brand').value = data.brand;
+
+      if (el('unit') && data.unit)
+        el('unit').value = data.unit;
+
+      if (el('cat') && data.category)
+        el('cat').value = data.category;
+
+      const msg = el('barcodeMsg');
+
+      if (msg) {
+        msg.textContent =
+          '✅ تم العثور على المادة وتعبئة بياناتها تلقائيًا.';
+      }
+
+    } catch (err) {
+
+      console.warn('Product barcode lookup:', err);
+    }
+  }
+
+
+  /* =========================
+     الزائر:
+     البحث عن المادة في نفس المتجر
+     ========================= */
+
+  async function showStoreBarcodeResult(
+    barcode,
+    storeId
+  ) {
+
+    if (!storeId) {
+      alert('لم يتم تحديد المتجر.');
+      return;
+    }
+
+    try {
+
+      const {
+        data: product,
+        error: productError
+      } = await supabaseClient
+        .from('products')
+        .select('*')
+        .eq('barcode', barcode)
+        .eq('active', true)
+        .limit(1)
+        .maybeSingle();
+
+      if (productError) {
+        throw productError;
+      }
+
+      if (!product) {
+
+        showBarcodeResultModal(
+          'لم نجد مادة بهذا الباركود',
+          'لا توجد مادة مسجلة بهذا الرقم حاليًا.'
+        );
+
+        return;
+      }
+
+
+      const {
+        data: listing,
+        error: priceError
+      } = await supabaseClient
+        .from('price_listings')
+        .select('price_new,approved,store_id,product_id')
+        .eq('store_id', storeId)
+        .eq('product_id', product.id)
+        .eq('approved', true)
+        .limit(1)
+        .maybeSingle();
+
+      if (priceError) {
+        throw priceError;
+      }
+
+
+      if (!listing) {
+
+        showBarcodeResultModal(
+          product.name || 'المادة',
+          'المادة موجودة، لكن لا يوجد لها سعر معتمد في هذا المتجر حاليًا.'
+        );
+
+        return;
+      }
+
+
+      const store =
+        stores.find(x => x.id === storeId);
+
+      const oldPrice =
+        Number(listing.price_new || 0) * 100;
+
+
+      showBarcodeProductModal({
+        product,
+        listing,
+        store,
+        oldPrice
+      });
+
+    } catch (err) {
+
+      console.error('Store barcode:', err);
+
+      showBarcodeResultModal(
+        'تعذر البحث',
+        'حدث خطأ أثناء البحث عن المادة. حاول مرة أخرى.'
+      );
+    }
+  }
+
+
+  /* =========================
+     عرض نتيجة الزائر
+     ========================= */
+
+  function showBarcodeProductModal({
+    product,
+    listing,
+    store,
+    oldPrice
+  }) {
+
+    closeBarcodeResultModal();
+
+    const modal =
+      document.createElement('div');
+
+    modal.id =
+      'barcodeResultModal';
+
+    modal.style.cssText = `
+      position:fixed;
+      inset:0;
+      z-index:999998;
+      background:rgba(0,0,0,.88);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:18px;
+      direction:rtl;
+    `;
+
+    const image =
+      product.image_url
+        ? `
+          <img
+            src="${escapeHtml(product.image_url)}"
+            style="
+              width:100px;
+              height:100px;
+              object-fit:cover;
+              border-radius:14px;
+            ">
+        `
+        : '';
+
+    modal.innerHTML = `
+      <div style="
+        width:100%;
+        max-width:430px;
+        background:#10191c;
+        border-radius:20px;
+        padding:20px;
+        color:#fff;
+        text-align:center;
+      ">
+
+        ${image}
+
+        <h2>
+          ${escapeHtml(product.name || 'المادة')}
+        </h2>
 
         ${
           product.brand
-          ? `
-            <p class="muted">
-              العلامة:
-              ${escBarcode(product.brand)}
-            </p>
-          `
-          : ''
+            ? `<p class="muted">
+                العلامة: ${escapeHtml(product.brand)}
+              </p>`
+            : ''
         }
-
 
         ${
           product.unit
-          ? `
-            <p class="muted">
-              الحجم / الوزن:
-              ${escBarcode(product.unit)}
-            </p>
-          `
-          : ''
+            ? `<p class="muted">
+                ${escapeHtml(product.unit)}
+              </p>`
+            : ''
         }
 
-
         <div style="
-          font-size:28px;
-          font-weight:800;
           margin:18px 0;
+          padding:15px;
+          border-radius:15px;
+          background:rgba(57,217,138,.08);
         ">
 
-          ${
-            typeof window.f === 'function'
-            ? window.f(price.price)
-            : price.price
-          }
+          <div class="muted">
+            السعر في هذا المتجر
+          </div>
 
-          ل.س
+          <div style="
+            font-size:28px;
+            font-weight:bold;
+            margin:6px 0;
+          ">
+            ${formatPrice(listing.price_new)}
+            ل.س جديدة
+          </div>
+
+          <div class="muted">
+            ${formatPrice(oldPrice)}
+            ل.س قديمة
+          </div>
 
         </div>
 
+        ${
+          store
+            ? `<p class="muted">
+                المتجر: ${escapeHtml(store.name || '')}
+              </p>`
+            : ''
+        }
 
         <p class="muted">
-
-          الباركود:
-          ${escBarcode(product.barcode)}
-
+          الباركود: ${escapeHtml(product.barcode || '')}
         </p>
 
-
         <button
+          type="button"
           class="btn primary"
-          onclick="restoreBarcodeStore()">
-
-          ← العودة لصفحة المتجر
-
+          onclick="closeBarcodeResultModal()"
+          style="width:100%;">
+          إغلاق
         </button>
 
       </div>
-
     `;
 
-    window._barcodeOldStoreDetail =
-      oldContent;
+    document.body.appendChild(modal);
   }
 
 
-  window.restoreBarcodeStore =
-    function(){
+  window.closeBarcodeResultModal =
+    closeBarcodeResultModal;
 
-      const storeId =
-        window.currentBarcodeStoreId ||
-        window.currentStoreId;
+  function closeBarcodeResultModal() {
 
-      if(
-        typeof window.renderStoreDetail ===
-        'function'
-      ){
+    const modal =
+      el('barcodeResultModal');
 
-        window.renderStoreDetail(
-          storeId
-        );
-
-      }
-
-    };
-
-})();
-/* سعرلي سوريا — ماسح الباركود
-   الدفعة 2 من 2 — نسخة نهائية بدون وميض
-*/
-(function(){
-
-  'use strict';
+    if (modal) modal.remove();
+  }
 
 
-  /* إضافة زر مسح الباركود داخل صفحة المتجر */
-  function addBarcodeButton(){
+  function showBarcodeResultModal(
+    title,
+    text
+  ) {
+
+    closeBarcodeResultModal();
+
+    const modal =
+      document.createElement('div');
+
+    modal.id =
+      'barcodeResultModal';
+
+    modal.style.cssText = `
+      position:fixed;
+      inset:0;
+      z-index:999998;
+      background:rgba(0,0,0,.88);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:18px;
+      direction:rtl;
+    `;
+
+    modal.innerHTML = `
+      <div style="
+        width:100%;
+        max-width:420px;
+        background:#10191c;
+        border-radius:20px;
+        padding:20px;
+        color:#fff;
+        text-align:center;
+      ">
+
+        <h2>
+          ${escapeHtml(title)}
+        </h2>
+
+        <p class="muted">
+          ${escapeHtml(text)}
+        </p>
+
+        <button
+          type="button"
+          class="btn primary"
+          onclick="closeBarcodeResultModal()"
+          style="width:100%;">
+          إغلاق
+        </button>
+
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+  }
+
+
+  /* =========================
+     زر الباركود في صفحة المتجر
+     ========================= */
+
+  function addStoreBarcodeButton() {
 
     const body =
-      document.getElementById(
-        'storeDetailBody'
-      );
+      el('storeDetailBody');
 
-    if(!body){
-      return;
-    }
+    if (!body) return;
 
-    if(
+    if (
       document.getElementById(
-        'openBarcodeBtn'
+        'storeBarcodeButton'
       )
-    ){
-      return;
-    }
+    ) return;
 
     const storeId =
-      window.currentStoreId ||
-      window.currentBarcodeStoreId;
+      new URLSearchParams(
+        location.search
+      ).get('store');
 
-    if(!storeId){
+    if (!storeId) return;
+
+    const box =
+      document.createElement('div');
+
+    box.id =
+      'storeBarcodeButton';
+
+    box.style.cssText = `
+      margin:15px 0;
+    `;
+
+    box.innerHTML = `
+      <button
+        type="button"
+        class="btn primary"
+        style="width:100%;"
+        onclick="openBarcodeScannerForStore('${storeId}')">
+
+        📷 مسح باركود للبحث عن مادة
+
+      </button>
+    `;
+
+    body.prepend(box);
+  }
+
+
+  /* =========================
+     ربط الزر بصفحة المتجر
+     بدون interval
+     ========================= */
+
+  function hookStoreDetail() {
+
+    if (
+      typeof window.renderStoreDetail !==
+      'function'
+    ) return;
+
+    const original =
+      window.renderStoreDetail;
+
+    if (original.__barcodeWrapped)
       return;
-    }
 
-    const btn =
-      document.createElement('button');
+    function wrappedRenderStoreDetail() {
 
-    btn.id =
-      'openBarcodeBtn';
+      const result =
+        original.apply(this, arguments);
 
-    btn.className =
-      'btn primary';
-
-    btn.style.width =
-      '100%';
-
-    btn.style.marginBottom =
-      '15px';
-
-    btn.textContent =
-      '📷 مسح باركود المادة';
-
-    btn.onclick =
-      function(){
-
-        window.openBarcodeScanner(
-          storeId
-        );
-
-      };
-
-    body.insertBefore(
-      btn,
-      body.firstChild
-    );
-  }
-
-
-  /*
-    نربط زر الباركود بفتح صفحة المتجر
-    بدون أي setInterval.
-    لذلك لن تتم إعادة رسم الصفحة بشكل متكرر.
-  */
-
-  const originalRenderStoreDetail =
-    window.renderStoreDetail;
-
-  if(
-    typeof originalRenderStoreDetail ===
-    'function'
-  ){
-
-    window.renderStoreDetail =
-      async function(id){
-
-        const result =
-          await originalRenderStoreDetail.apply(
-            this,
-            arguments
-          );
-
-        /*
-          ننتظر انتهاء رسم صفحة المتجر
-          ثم نضيف الزر مرة واحدة فقط.
-        */
-
-        setTimeout(
-          function(){
-            addBarcodeButton();
-          },
-          50
-        );
-
-        return result;
-      };
-  }
-
-
-  /*
-    دعم المتصفحات التي لا تدعم
-    BarcodeDetector
-  */
-
-  async function loadFallbackScanner(){
-
-    if(window.Html5Qrcode){
-      return true;
-    }
-
-    return new Promise(
-      function(resolve){
-
-        const existing =
-          document.querySelector(
-            'script[data-barcode-fallback]'
-          );
-
-        if(existing){
-
-          existing.addEventListener(
-            'load',
-            function(){
-              resolve(true);
-            }
-          );
-
-          existing.addEventListener(
-            'error',
-            function(){
-              resolve(false);
-            }
-          );
-
-          return;
-        }
-
-
-        const script =
-          document.createElement(
-            'script'
-          );
-
-        script.src =
-          'https://unpkg.com/html5-qrcode';
-
-        script.async = true;
-
-        script.setAttribute(
-          'data-barcode-fallback',
-          '1'
-        );
-
-        script.onload =
-          function(){
-            resolve(true);
-          };
-
-        script.onerror =
-          function(){
-            resolve(false);
-          };
-
-        document.head.appendChild(
-          script
-        );
-      }
-    );
-  }
-
-
-  window.openBarcodeFallback =
-    async function(storeId){
-
-      storeId =
-        storeId ||
-        window.currentStoreId;
-
-      if(!storeId){
-
-        alert(
-          'لم يتم تحديد المتجر.'
-        );
-
-        return;
-      }
-
-      window.currentBarcodeStoreId =
-        storeId;
-
-      window.closeBarcodeScanner();
-
-
-      const box =
-        document.createElement(
-          'div'
-        );
-
-      box.id =
-        'barcodeScannerBox';
-
-      box.innerHTML = `
-
-        <div class="card" style="
-          position:fixed;
-          z-index:99999;
-          inset:10px;
-          max-width:600px;
-          margin:auto;
-          overflow:auto;
-          background:#111820;
-          border:1px solid #2b3945;
-        ">
-
-          <div class="row" style="
-            justify-content:space-between;
-            align-items:center;
-          ">
-
-            <h2>
-              📷 مسح باركود
-            </h2>
-
-            <button
-              class="btn secondary"
-              onclick="closeBarcodeScanner()">
-
-              إغلاق
-
-            </button>
-
-          </div>
-
-
-          <p class="muted">
-            وجّه الكاميرا نحو الباركود.
-          </p>
-
-
-          <div
-            id="barcodeFallbackReader"
-            style="width:100%">
-          </div>
-
-
-          <p
-            id="barcodeFallbackStatus"
-            class="muted"
-            style="text-align:center">
-
-            جاري تجهيز الكاميرا...
-
-          </p>
-
-        </div>
-      `;
-
-      document.body.appendChild(
-        box
+      setTimeout(
+        addStoreBarcodeButton,
+        0
       );
 
+      return result;
+    }
 
-      const loaded =
-        await loadFallbackScanner();
+    wrappedRenderStoreDetail.__barcodeWrapped =
+      true;
+
+    window.renderStoreDetail =
+      wrappedRenderStoreDetail;
+  }
 
 
-      if(
-        !loaded ||
-        !window.Html5Qrcode
-      ){
+  /* =========================
+     مراقبة ظهور صفحة المتجر
+     ========================= */
 
-        const status =
-          document.getElementById(
-            'barcodeFallbackStatus'
-          );
+  function setupNavigationHook() {
 
-        if(status){
+    const originalShow =
+      window.show;
 
-          status.textContent =
-            'تعذر تشغيل قارئ الباركود.';
+    if (
+      typeof originalShow !==
+      'function'
+    ) return;
 
-        }
+    if (originalShow.__barcodeWrapped)
+      return;
 
-        return;
+    function wrappedShow(id) {
+
+      const result =
+        originalShow.apply(this, arguments);
+
+      if (id === 'storeDetail') {
+
+        setTimeout(
+          addStoreBarcodeButton,
+          0
+        );
       }
 
+      return result;
+    }
 
-      const readerId =
-        'barcodeFallbackReader';
+    wrappedShow.__barcodeWrapped =
+      true;
 
-
-      const scanner =
-        new Html5Qrcode(
-          readerId
-        );
-
-
-      window.barcodeFallbackScanner =
-        scanner;
+    window.show =
+      wrappedShow;
+  }
 
 
-      try{
-
-        await scanner.start(
-
-          {
-            facingMode:
-              'environment'
-          },
-
-          {
-            fps:10,
-
-            qrbox:{
-              width:250,
-              height:150
-            },
-
-            formatsToSupport:[
-
-              Html5QrcodeSupportedFormats
-                .EAN_13,
-
-              Html5QrcodeSupportedFormats
-                .EAN_8,
-
-              Html5QrcodeSupportedFormats
-                .UPC_A,
-
-              Html5QrcodeSupportedFormats
-                .UPC_E,
-
-              Html5QrcodeSupportedFormats
-                .CODE_128,
-
-              Html5QrcodeSupportedFormats
-                .CODE_39,
-
-              Html5QrcodeSupportedFormats
-                .ITF
-
-            ]
-          },
-
-
-          async function(decodedText){
-
-            try{
-
-              await scanner.stop();
-
-            }catch(_){}
-
-
-            window.barcodeFallbackScanner =
-              null;
-
-
-            if(
-              typeof window.findProductByBarcode ===
-              'function'
-            ){
-
-              await window.findProductByBarcode(
-                String(
-                  decodedText
-                ).trim()
-              );
-
-            }
-
-          },
-
-
-          function(_errorMessage){
-
-            /*
-              تجاهل أخطاء القراءة المؤقتة
-            */
-
-          }
-        );
-
-
-        const status =
-          document.getElementById(
-            'barcodeFallbackStatus'
-          );
-
-
-        if(status){
-
-          status.textContent =
-            'وجّه الكاميرا نحو الباركود...';
-
-        }
-
-
-      }catch(error){
-
-        console.error(
-          'fallback scanner:',
-          error
-        );
-
-
-        const status =
-          document.getElementById(
-            'barcodeFallbackStatus'
-          );
-
-
-        if(status){
-
-          status.textContent =
-            'اسمح للموقع باستخدام الكاميرا ثم حاول مرة أخرى.';
-
-        }
-      }
-    };
-
-
-  /*
-    إغلاق قارئ الطريقة البديلة
-  */
-
-  const oldClose =
-    window.closeBarcodeScanner;
-
+  /* =========================
+     إغلاق الكاميرا
+     ========================= */
 
   window.closeBarcodeScanner =
-    function(){
+    function () {
 
-      try{
-
-        if(
-          window.barcodeFallbackScanner
-        ){
-
-          window.barcodeFallbackScanner
-            .stop()
-            .catch(
-              function(){}
-            );
-
-          window.barcodeFallbackScanner =
-            null;
-        }
-
-      }catch(_){}
-
-
-      if(
-        typeof oldClose ===
-        'function'
-      ){
-
-        oldClose();
-
+      if (scanTimer) {
+        clearTimeout(scanTimer);
+        scanTimer = null;
       }
+
+      if (stream) {
+
+        stream
+          .getTracks()
+          .forEach(track => track.stop());
+
+        stream = null;
+      }
+
+      detector = null;
+      video = null;
+
+      const modal =
+        el('barcodeScannerModal');
+
+      if (modal) {
+        modal.remove();
+      }
+
+      scannerMode = null;
+      scannerStoreId = null;
     };
 
 
-  /*
-    إذا لم يدعم الهاتف
-    BarcodeDetector
-    نستخدم القارئ البديل تلقائياً.
-  */
+  /* =========================
+     المتصفح لا يدعم الكاميرا
+     ========================= */
 
-  const oldOpen =
-    window.openBarcodeScanner;
+  function fallbackMessage() {
 
+    const status =
+      el('barcodeScanStatus');
 
-  window.openBarcodeScanner =
-    function(storeId){
+    if (status) {
 
-      if(
-        !('BarcodeDetector' in window)
-      ){
-
-        return window.openBarcodeFallback(
-          storeId
-        );
-
-      }
+      status.textContent =
+        '⚠️ هذا المتصفح لا يدعم القراءة التلقائية. يمكنك كتابة الباركود في الخانة بالأسفل.';
+    }
+  }
 
 
-      if(
-        typeof oldOpen ===
-        'function'
-      ){
+  /* =========================
+     أدوات
+     ========================= */
 
-        return oldOpen(
-          storeId
-        );
+  function escapeHtml(value) {
 
-      }
-    };
+    return String(value ?? '')
+      .replace(/[&<>"']/g, function (m) {
+
+        return {
+          '&': '&amp;',
+          '<': '&lt;',
+          '>': '&gt;',
+          '"': '&quot;',
+          "'": '&#039;'
+        }[m];
+
+      });
+  }
 
 
-  /*
-    مهم جداً:
-    لا يوجد هنا أي setInterval
-    لمراقبة صفحة المتجر.
+  function formatPrice(value) {
 
-    زر الباركود يُضاف فقط عند فتح
-    صفحة المتجر، وبالتالي لا يوجد
-    إعادة رسم مستمرة ولا وميض.
-  */
+    return Number(value || 0)
+      .toLocaleString('en-US', {
+        maximumFractionDigits:2
+      });
+  }
 
+
+  /* =========================
+     التشغيل بعد تحميل الصفحة
+     ========================= */
+
+  window.addEventListener(
+    'load',
+    function () {
+
+      hookStoreDetail();
+      setupNavigationHook();
+
+      setTimeout(
+        addStoreBarcodeButton,
+        300
+      );
+
+    }
+  );
 
 })();
