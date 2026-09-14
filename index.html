@@ -33,13 +33,130 @@
 <section id="stores" class="page"><div class="hero"><h1>المتاجر</h1><p class="muted">اضغط على المتجر لفتح صفحته. لكل متجر QR Code فعلي يمكن مسحه بكاميرا الهاتف.</p></div><div id="storesList" class="grid"></div></section>
 <section id="storeDetail" class="page"><div class="hero"><button class="btn secondary" onclick="openNav('stores')">← المتاجر</button><h1 id="storeDetailName">المتجر</h1><div id="storeDetailBody"></div></div></section>
 <section id="categories" class="page"><div class="hero"><h1>التصنيفات</h1></div><div id="cats" class="grid"></div></section>
+<section id="add" class="page">
 
-<section id="add" class="page"><div class="hero"><h1>إضافة مادة أو سعر</h1><p class="muted">كل طلب يحتاج موافقة المدير قبل ظهوره للعامة.</p></div><div class="card">
-<select id="existingProduct"><option value="">إضافة مادة جديدة</option></select>
-<input id="pn" placeholder="اسم المادة الجديدة"><input id="brand" placeholder="العلامة التجارية (اختياري)">
-<input id="unit" placeholder="الوزن / الحجم مثل 1 لتر"><input id="cat" placeholder="التصنيف"><input id="pr" type="number" step="0.01" min="0" placeholder="السعر بالليرة السورية الجديدة">
-<div id="merchantStoreBox"></div><label class="muted">صورة المادة</label><input id="pimg" type="file" accept="image/*">
-<button class="btn primary" onclick="submitPrice()">إرسال للمراجعة</button><p id="addMsg" class="muted"></p></div></section>
+  <div class="hero">
+    <h1>إضافة مادة أو سعر</h1>
+    <p class="muted">
+      كل طلب يحتاج موافقة المدير قبل ظهوره للعامة.
+    </p>
+  </div>
+
+  <div class="card">
+
+    <!-- اختيار مادة موجودة -->
+    <select id="existingProduct">
+      <option value="">إضافة مادة جديدة</option>
+    </select>
+
+    <!-- اسم المادة -->
+    <input
+      id="pn"
+      type="text"
+      placeholder="اسم المادة الجديدة">
+
+    <!-- العلامة التجارية -->
+    <input
+      id="brand"
+      type="text"
+      placeholder="العلامة التجارية (اختياري)">
+
+    <!-- الوزن / الحجم -->
+    <input
+      id="unit"
+      type="text"
+      placeholder="الوزن / الحجم مثل 1 لتر">
+
+    <!-- ========================= -->
+    <!-- قسم الباركود -->
+    <!-- ========================= -->
+
+    <div class="barcodeBox">
+
+      <label class="muted">
+        الباركود
+      </label>
+
+      <!-- زر الكاميرا -->
+      <div class="actions">
+
+        <button
+          type="button"
+          class="btn secondary"
+          onclick="openBarcodeScannerForAdd()">
+
+          📷 مسح الباركود بالكاميرا
+
+        </button>
+
+      </div>
+
+      <!-- إدخال يدوي -->
+      <input
+        id="barcode"
+        type="text"
+        inputmode="numeric"
+        autocomplete="off"
+        pattern="[0-9]*"
+        placeholder="أو اكتب رقم الباركود هنا">
+
+      <!-- رسالة المسح -->
+      <p
+        id="barcodeMsg"
+        class="muted">
+      </p>
+
+    </div>
+
+    <!-- التصنيف -->
+    <input
+      id="cat"
+      type="text"
+      placeholder="التصنيف">
+
+    <!-- السعر -->
+    <input
+      id="pr"
+      type="number"
+      step="0.01"
+      min="0"
+      placeholder="السعر بالليرة السورية الجديدة">
+
+    <!-- المتجر -->
+    <div id="merchantStoreBox"></div>
+
+    <!-- ========================= -->
+    <!-- صورة المادة - اختيارية -->
+    <!-- ========================= -->
+
+    <label class="muted">
+      صورة المادة (اختياري)
+    </label>
+
+    <input
+      id="pimg"
+      type="file"
+      accept="image/*">
+
+    <!-- إرسال -->
+    <button
+      type="button"
+      class="btn primary"
+      onclick="submitPrice()">
+
+      إرسال للمراجعة
+
+    </button>
+
+    <!-- رسالة -->
+    <p
+      id="addMsg"
+      class="muted">
+    </p>
+
+  </div>
+
+</section>
 
 <section id="login" class="page"><div class="hero"><h1>تسجيل الدخول</h1><p class="muted">إذا كان لديك حساب، سجّل الدخول بالبريد وكلمة المرور.</p></div><div class="card">
 <input id="email" type="email" placeholder="البريد الإلكتروني"><input id="pass" type="password" placeholder="كلمة المرور">
