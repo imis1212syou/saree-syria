@@ -1,53 +1,87 @@
-/* سعرلي سوريا — إضافات المتاجر والمواد
+/* =========================================================
+   سعرلي سوريا — store_features.js
    الدفعة 1 من 2
-   نسخة نهائية بدون وميض
-*/
-(function(){
+   النسخة الشاملة
+   ========================================================= */
+
+(function () {
+
   'use strict';
 
-  function esc(v){
-    if(typeof window.e === 'function'){
+  /* =======================================================
+     أدوات
+     ======================================================= */
+
+  function el(id) {
+    return document.getElementById(id);
+  }
+
+  function esc(v) {
+
+    if (typeof window.e === 'function') {
       return window.e(v);
     }
 
     return String(v ?? '').replace(
       /[&<>"']/g,
-      function(m){
+      function (m) {
         return {
-          '&':'&amp;',
-          '<':'&lt;',
-          '>':'&gt;',
-          '"':'&quot;',
-          "'":'&#039;'
+          '&': '&amp;',
+          '<': '&lt;',
+          '>': '&gt;',
+          '"': '&quot;',
+          "'": '&#039;'
         }[m];
       }
     );
   }
 
-  function el(id){
-    return document.getElementById(id);
-  }
 
-
-  function canAdd(){
+  function isAdmin() {
 
     return !!(
       profileData &&
-      (
-        profileData.role === 'admin' ||
-        (
-          profileData.role === 'store' &&
-          profileData.store_id &&
-          profileData.can_edit_prices
-        )
-      )
+      profileData.role === 'admin'
     );
   }
 
 
-  async function refreshStoresSafe(){
+  function isMerchant() {
 
-    try{
+    return !!(
+      profileData &&
+      profileData.role === 'store'
+    );
+  }
+
+
+  function merchantAllowed() {
+
+    return !!(
+      profileData &&
+      profileData.role === 'store' &&
+      profileData.store_id &&
+      profileData.can_edit_prices
+    );
+  }
+
+
+  function canManageProducts() {
+
+    return (
+      isAdmin() ||
+      merchantAllowed()
+    );
+  }
+
+
+  /* =======================================================
+     تحميل المتاجر
+     ======================================================= */
+
+  async function loadStores() {
+
+    try {
 
       const {
         data,
@@ -57,24 +91,23 @@
         .select('*')
         .order('name');
 
-      if(error){
-
+      if (error) {
         console.warn(
-          'stores:',
+          'تعذر تحميل المتاجر:',
           error.message
         );
-
         return;
       }
 
-      if(Array.isArray(data)){
-        stores = data;
-      }
+      stores =
+        Array.isArray(data)
+          ? data
+          : [];
 
-    }catch(err){
+    } catch (err) {
 
       console.warn(
-        'stores refresh:',
+        'stores error:',
         err
       );
 
@@ -82,75 +115,45 @@
   }
 
 
+  /* =======================================================
+     صفحة المتاجر
+     ======================================================= */
+
   window.renderStores =
-    async function(){
+    async function () {
 
       const box =
         el('storesList');
 
-      if(!box){
+      if (!box) {
         return;
       }
 
-      await refreshStoresSafe();
+      await loadStores();
 
 
-      if(!stores.length){
+      if (!stores.length) {
 
-        box.innerHTML =
-          '<div class="card">' +
-          '<p class="muted">' +
-          'لا توجد متاجر مضافة حالياً.' +
-          '</p>' +
-          '</div>';
+        box.innerHTML = `
+          <div class="card">
+            <p class="muted">
+              لا توجد متاجر مضافة حالياً.
+            </p>
+          </div>
+        `;
 
         return;
       }
 
 
       box.innerHTML =
-        stores.map(function(st){
-
-          const verified =
-            st.verified
-            ? '<span class="pill">✓ موثّق</span>'
-            : '';
-
-
-          const hours =
-            st.opening_hours
-            ? '<div class="muted">🕐 ' +
-              esc(st.opening_hours) +
-              '</div>'
-            : '';
-
-
-          const days =
-            st.working_days
-            ? '<div class="muted">📅 ' +
-              esc(st.working_days) +
-              '</div>'
-            : '';
-
-
-          const phone =
-            st.phone
-            ? '<div class="muted">📞 ' +
-              esc(st.phone) +
-              '</div>'
-            : '';
-
-
-          const address =
-            st.address
-            ? '<div class="muted">📍 ' +
-              esc(st.address) +
-              '</div>'
-            : '';
-
+        stores.map(function (store) {
 
           const area =
-            [st.city, st.area]
+            [
+              store.city,
+              store.area
+            ]
               .filter(Boolean)
               .join(' — ');
 
@@ -163,82 +166,132 @@
                 class="row"
                 style="
                   justify-content:space-between;
-                  align-items:center
-                ">
+                  align-items:center;
+                  gap:10px;
+                "
+              >
 
                 <h3>
-                  ${esc(st.name || 'متجر')}
+                  ${esc(
+                    store.name || 'متجر'
+                  )}
                 </h3>
 
-                ${verified}
+                ${
+                  store.verified
+                    ? `
+                      <span class="pill">
+                        ✓ موثّق
+                      </span>
+                    `
+                    : ''
+                }
 
               </div>
 
 
               ${
                 area
-                ? `
-                  <div class="muted">
-                    📍 ${esc(area)}
-                  </div>
-                `
-                : ''
+                  ? `
+                    <div class="muted">
+                      📍 ${esc(area)}
+                    </div>
+                  `
+                  : ''
               }
-
-
-              ${address}
-
-              ${phone}
-
-              ${hours}
-
-              ${days}
-
-
-              <button
-                class="btn primary"
-                onclick="openStore('${st.id}')">
-
-                فتح صفحة المتجر
-
-              </button>
 
 
               ${
-                profileData?.role === 'admin'
-                ? `
-
-                  <button
-                    class="btn secondary"
-                    onclick="
-                      toggleStoreVerification(
-                        '${st.id}',
-                        ${st.verified ? 'false' : 'true'}
-                      )
-                    ">
-
-                    ${
-                      st.verified
-                      ? 'إلغاء توثيق المتجر'
-                      : '✓ توثيق المتجر'
-                    }
-
-                  </button>
-
-                `
-                : ''
+                store.address
+                  ? `
+                    <div class="muted">
+                      📍 ${esc(store.address)}
+                    </div>
+                  `
+                  : ''
               }
+
+
+              ${
+                store.phone
+                  ? `
+                    <div class="muted">
+                      📞 ${esc(store.phone)}
+                    </div>
+                  `
+                  : ''
+              }
+
+
+              ${
+                store.opening_hours
+                  ? `
+                    <div class="muted">
+                      🕐 ${esc(
+                        store.opening_hours
+                      )}
+                    </div>
+                  `
+                  : ''
+              }
+
+
+              <div
+                class="actions"
+                style="margin-top:12px;"
+              >
+
+                <button
+                  type="button"
+                  class="btn primary"
+                  onclick="
+                    openStore('${store.id}')
+                  "
+                >
+                  فتح صفحة المتجر
+                </button>
+
+
+                ${
+                  isAdmin()
+                    ? `
+                      <button
+                        type="button"
+                        class="btn secondary"
+                        onclick="
+                          toggleStoreVerification(
+                            '${store.id}',
+                            ${store.verified ? 'false' : 'true'}
+                          )
+                        "
+                      >
+                        ${
+                          store.verified
+                            ? 'إلغاء التوثيق'
+                            : '✓ توثيق المتجر'
+                        }
+                      </button>
+                    `
+                    : ''
+                }
+
+              </div>
 
             </div>
 
           `;
 
         }).join('');
+
     };
 
 
+  /* =======================================================
+     صفحة المتجر
+     ======================================================= */
+
   window.renderStoreDetail =
-    async function(id){
+    async function (storeId) {
 
       const body =
         el('storeDetailBody');
@@ -246,83 +299,120 @@
       const title =
         el('storeDetailName');
 
-      if(!body || !title){
+      if (!body || !title) {
         return;
       }
 
 
-      const storeId =
-        id ||
+      const id =
+        storeId ||
         window.currentStoreId;
 
 
-      if(!storeId){
+      if (!id) {
 
-        body.innerHTML =
-          '<p class="muted">' +
-          'لم يتم تحديد المتجر.' +
-          '</p>';
-
-        return;
-      }
-
-
-      await refreshStoresSafe();
-
-
-      const st =
-        stores.find(function(x){
-
-          return String(x.id) ===
-            String(storeId);
-
-        });
-
-
-      if(!st){
-
-        title.textContent =
-          'المتجر';
-
-        body.innerHTML =
-          '<div class="card">' +
-          '<p class="muted">' +
-          'المتجر غير موجود.' +
-          '</p>' +
-          '</div>';
+        body.innerHTML = `
+          <div class="card">
+            <p class="muted">
+              لم يتم تحديد المتجر.
+            </p>
+          </div>
+        `;
 
         return;
       }
 
 
       window.currentStoreId =
-        st.id;
+        id;
+
+
+      await loadStores();
+
+
+      const store =
+        stores.find(function (s) {
+
+          return String(s.id) ===
+            String(id);
+
+        });
+
+
+      if (!store) {
+
+        body.innerHTML = `
+          <div class="card">
+            <p class="muted">
+              المتجر غير موجود.
+            </p>
+          </div>
+        `;
+
+        return;
+      }
 
 
       title.textContent =
-        st.name || 'المتجر';
+        store.name || 'المتجر';
 
 
-      try{
+      try {
 
-        if(
-          typeof recordStoreVisit ===
+        if (
+          typeof window.recordStoreVisit ===
           'function'
-        ){
+        ) {
 
-          await recordStoreVisit(
-            st.id
+          await window.recordStoreVisit(
+            store.id
           );
 
         }
 
-      }catch(_){}
+      } catch (_) {}
 
 
-      const area =
-        [st.city, st.area]
-          .filter(Boolean)
-          .join(' — ');
+      let pricesData = [];
+
+
+      try {
+
+        const {
+          data,
+          error
+        } =
+          await supabaseClient
+            .from('price_listings')
+            .select(
+              '*,products(*)'
+            )
+            .eq(
+              'store_id',
+              store.id
+            )
+            .eq(
+              'approved',
+              true
+            )
+            .order(
+              'updated_at',
+              {
+                ascending: false
+              }
+            );
+
+
+        if (!error) {
+
+          pricesData =
+            Array.isArray(data)
+              ? data
+              : [];
+
+        }
+
+      } catch (_) {}
 
 
       let html = `
@@ -333,243 +423,356 @@
             class="row"
             style="
               justify-content:space-between;
-              align-items:center
-            ">
+              align-items:center;
+            "
+          >
 
             <h2>
-              ${esc(st.name || 'المتجر')}
+              ${esc(
+                store.name || 'المتجر'
+              )}
             </h2>
 
             ${
-              st.verified
-              ? '<span class="pill">✓ موثّق</span>'
-              : ''
+              store.verified
+                ? `
+                  <span class="pill">
+                    ✓ موثّق
+                  </span>
+                `
+                : ''
             }
 
           </div>
 
 
           ${
-            area
-            ? `
-              <p class="muted">
-                📍 ${esc(area)}
-              </p>
-            `
-            : ''
+            store.city || store.area
+              ? `
+                <p class="muted">
+                  📍
+                  ${esc(
+                    [
+                      store.city,
+                      store.area
+                    ]
+                      .filter(Boolean)
+                      .join(' — ')
+                  )}
+                </p>
+              `
+              : ''
           }
 
 
           ${
-            st.address
-            ? `
-              <p>
-                📍 العنوان:
-                ${esc(st.address)}
-              </p>
-            `
-            : ''
+            store.address
+              ? `
+                <p class="muted">
+                  العنوان:
+                  ${esc(store.address)}
+                </p>
+              `
+              : ''
           }
 
 
           ${
-            st.phone
-            ? `
-              <p>
-                📞 الهاتف:
-                ${esc(st.phone)}
-              </p>
-            `
-            : ''
-          }
-
-
-          ${
-            st.opening_hours
-            ? `
-              <p>
-                🕐 ساعات الدوام:
-                ${esc(st.opening_hours)}
-              </p>
-            `
-            : ''
-          }
-
-
-          ${
-            st.working_days
-            ? `
-              <p>
-                📅 أيام العمل:
-                ${esc(st.working_days)}
-              </p>
-            `
-            : ''
+            store.phone
+              ? `
+                <p class="muted">
+                  الهاتف:
+                  ${esc(store.phone)}
+                </p>
+              `
+              : ''
           }
 
         </div>
 
-      `;
 
+        ${
+          merchantAllowed() &&
+          String(profileData.store_id) ===
+          String(store.id)
 
-      let ps = [];
+          ? `
 
+            <div class="card">
 
-      try{
+              <div
+                class="actions"
+                style="margin-bottom:10px;"
+              >
 
-        const {
-          data,
-          error
-        } =
-          await supabaseClient
-            .from('price_listings')
-            .select('*,products(*)')
-            .eq('store_id',st.id)
-            .eq('status','approved')
-            .order(
-              'updated_at',
-              {
-                ascending:false
-              }
-            );
+                <button
+                  type="button"
+                  class="btn primary"
+                  onclick="
+                    openBarcodeScannerForStore(
+                      '${store.id}'
+                    )
+                  "
+                >
+                  📷 مسح الباركود
+                </button>
 
+                <button
+                  type="button"
+                  class="btn secondary"
+                  onclick="
+                    showAdd()
+                  "
+                >
+                  إضافة مادة
+                </button>
 
-        if(
-          !error &&
-          Array.isArray(data)
-        ){
+              </div>
 
-          ps = data;
+              <p class="muted">
+                يمكنك تعديل وحذف مواد وأسعار متجرك فقط.
+              </p>
 
+            </div>
+
+          `
+          : ''
         }
 
-      }catch(_){}
-
-
-      html += `
 
         <div class="card">
 
           <h3>
-            أسعار المتجر
+            المواد والأسعار
           </h3>
 
+          <div
+            class="grid"
+            id="storeProductsGrid"
+          >
 
-          ${
-            ps.length
-
-            ? `
-
-              <div class="grid">
-
-                ${
-                  ps.map(function(p){
-
-                    const pr =
-                      p.products || {};
+      `;
 
 
-                    return `
+      if (!pricesData.length) {
 
-                      <div class="card">
+        html += `
+          <p class="muted">
+            لا توجد أسعار منشورة لهذا المتجر حالياً.
+          </p>
+        `;
 
-                        <h3>
-                          ${esc(
-                            pr.name || 'مادة'
-                          )}
-                        </h3>
+      } else {
 
+        html +=
+          pricesData
+            .map(function (row) {
 
-                        ${
-                          pr.brand
-                          ? `
-                            <div class="muted">
-                              ${esc(pr.brand)}
-                            </div>
-                          `
-                          : ''
-                        }
+              const product =
+                row.products || {};
 
-
-                        ${
-                          pr.unit
-                          ? `
-                            <div class="muted">
-                              ${esc(pr.unit)}
-                            </div>
-                          `
-                          : ''
-                        }
+              const price =
+                row.price_new ??
+                row.price ??
+                0;
 
 
-                        <div class="price">
-
-                          ${
-                            typeof window.f ===
-                            'function'
-                            ? window.f(
-                                p.price ??
-                                p.price_new ??
-                                0
-                              )
-                            : (
-                                p.price ??
-                                p.price_new ??
-                                0
-                              )
-                          }
-
-                          ل.س
-
-                        </div>
+              const canEditThis =
+                isAdmin() ||
+                (
+                  merchantAllowed() &&
+                  String(
+                    profileData.store_id
+                  ) ===
+                  String(store.id)
+                );
 
 
+              return `
+
+                <div
+                  class="card"
+                  data-store-product="${esc(row.id)}"
+                >
+
+                  ${
+                    product.image_url
+                      ? `
+                        <img
+                          src="${esc(
+                            product.image_url
+                          )}"
+                          alt="${esc(
+                            product.name || ''
+                          )}"
+                          loading="lazy"
+                          style="
+                            width:100%;
+                            max-height:200px;
+                            object-fit:contain;
+                            border-radius:14px;
+                          "
+                        >
+                      `
+                      : ''
+                  }
+
+
+                  <h3>
+                    ${esc(
+                      product.name ||
+                      'مادة'
+                    )}
+                  </h3>
+
+
+                  ${
+                    product.brand
+                      ? `
                         <div class="muted">
+                          ${esc(
+                            product.brand
+                          )}
+                        </div>
+                      `
+                      : ''
+                  }
 
+
+                  ${
+                    product.unit
+                      ? `
+                        <div class="muted">
+                          ${esc(
+                            product.unit
+                          )}
+                        </div>
+                      `
+                      : ''
+                  }
+
+
+                  ${
+                    product.barcode
+                      ? `
+                        <div class="muted">
+                          باركود:
+                          ${esc(
+                            product.barcode
+                          )}
+                        </div>
+                      `
+                      : ''
+                  }
+
+
+                  <div class="price">
+
+                    ${
+                      typeof window.f ===
+                      'function'
+                        ? window.f(price)
+                        : price
+                    }
+
+                    ل.س
+
+                  </div>
+
+
+                  ${
+                    row.updated_at
+                      ? `
+                        <div class="muted">
                           آخر تحديث:
                           ${esc(
-                            p.updated_at || ''
+                            row.updated_at
                           )}
+                        </div>
+                      `
+                      : ''
+                  }
+
+
+                  ${
+                    canEditThis
+                      ? `
+
+                        <div
+                          class="actions"
+                          style="
+                            margin-top:10px;
+                          "
+                        >
+
+                          <button
+                            type="button"
+                            class="btn secondary"
+                            onclick="
+                              editStoreProduct(
+                                '${row.id}',
+                                '${product.id}',
+                                '${store.id}'
+                              )
+                            "
+                          >
+                            ✏️ تعديل
+                          </button>
+
+
+                          <button
+                            type="button"
+                            class="btn secondary"
+                            onclick="
+                              deleteStoreProduct(
+                                '${row.id}',
+                                '${product.id}',
+                                '${store.id}'
+                              )
+                            "
+                          >
+                            🗑️ حذف
+                          </button>
 
                         </div>
 
-                      </div>
+                      `
+                      : ''
+                  }
 
-                    `;
+                </div>
 
-                  }).join('')
-                }
+              `;
 
-              </div>
+            })
+            .join('');
 
-            `
+      }
 
-            : `
 
-              <p class="muted">
-                لا توجد أسعار منشورة لهذا المتجر حالياً.
-              </p>
-
-            `
-          }
-
+      html += `
+          </div>
         </div>
-
       `;
 
 
       body.innerHTML =
         html;
+
     };
 
 
-  window.toggleStoreVerification =
-    async function(storeId,value){
+  /* =======================================================
+     توثيق المتجر — المدير فقط
+     ======================================================= */
 
-      if(
-        !profileData ||
-        profileData.role !== 'admin'
-      ){
+  window.toggleStoreVerification =
+    async function (
+      storeId,
+      value
+    ) {
+
+      if (!isAdmin()) {
 
         alert(
           'هذه العملية للمدير فقط.'
@@ -579,354 +782,493 @@
       }
 
 
-      try{
+      const {
+        error
+      } =
+        await supabaseClient
+          .from('stores')
+          .update({
+            verified:
+              value === true ||
+              value === 'true'
+          })
+          .eq(
+            'id',
+            storeId
+          );
 
-        const {
-          error
-        } =
-          await supabaseClient
-            .from('stores')
-            .update({
-              verified:
-                value === true ||
-                value === 'true'
+
+      if (error) {
+
+        alert(
+          'تعذر تحديث المتجر: ' +
+          error.message
+        );
+
+        return;
+      }
+
+
+      await renderStores();
+
+    };
+
+
+  /* =======================================================
+     صفحة إضافة مادة
+     ======================================================= */
+
+  window.showAdd =
+    function () {
+
+      if (!canManageProducts()) {
+
+        alert(
+          'ليس لديك صلاحية إضافة مادة.'
+        );
+
+        return;
+      }
+
+
+      if (
+        typeof window.show ===
+        'function'
+      ) {
+
+        window.show('add');
+
+      }
+
+
+      const box =
+        el('merchantStoreBox');
+
+
+      if (!box) {
+        return;
+      }
+
+
+      /*
+        المدير يختار المتجر.
+      */
+
+      if (isAdmin()) {
+
+        const options =
+          stores
+            .map(function (store) {
+
+              return `
+                <option value="${esc(store.id)}">
+                  ${esc(store.name)}
+                </option>
+              `;
+
             })
-            .eq(
-              'id',
-              storeId
+            .join('');
+
+
+        box.innerHTML = `
+
+          <label class="muted">
+            المتجر الذي سيضاف إليه السعر
+          </label>
+
+          <select id="adminAddStore">
+
+            <option value="">
+              اختر المتجر
+            </option>
+
+            ${options}
+
+          </select>
+
+        `;
+
+        return;
+      }
+
+
+      /*
+        التاجر المربوط:
+        متجره محدد تلقائياً.
+      */
+
+      if (merchantAllowed()) {
+
+        const store =
+          stores.find(function (s) {
+
+            return String(s.id) ===
+              String(profileData.store_id);
+
+          });
+
+
+        box.innerHTML = `
+
+          <label class="muted">
+            المتجر
+          </label>
+
+          <input
+            type="text"
+            value="${esc(
+              store?.name ||
+              'متجرك'
+            )}"
+            disabled
+          >
+
+          <input
+            type="hidden"
+            id="merchantStoreId"
+            value="${esc(
+              profileData.store_id
+            )}"
+          >
+
+        `;
+
+      }
+
+    };
+
+
+  /* =======================================================
+     تجهيز قائمة المواد الموجودة
+     ======================================================= */
+
+  async function loadExistingProducts() {
+
+    const select =
+      el('existingProduct');
+
+    if (!select) {
+      return;
+    }
+
+
+    try {
+
+      const {
+        data,
+        error
+      } =
+        await supabaseClient
+          .from('products')
+          .select(
+            'id,name,brand,unit,category,barcode,image_url'
+          )
+          .eq(
+            'active',
+            true
+          )
+          .order(
+            'name'
+          );
+
+
+      if (error) {
+        return;
+      }
+
+
+      select.innerHTML =
+        `
+          <option value="">
+            إضافة مادة جديدة
+          </option>
+        `;
+
+
+      (data || [])
+        .forEach(function (product) {
+
+          const option =
+            document.createElement(
+              'option'
             );
 
 
-        if(error){
+          option.value =
+            product.id;
 
-          alert(
-            'تعذر تحديث التوثيق: ' +
-            error.message
+
+          option.textContent =
+            product.name +
+            (
+              product.brand
+                ? ' — ' +
+                  product.brand
+                : ''
+            );
+
+
+          select.appendChild(
+            option
           );
 
+        });
+
+    } catch (_) {}
+
+  }
+
+
+  /* =======================================================
+     عند اختيار مادة
+     ======================================================= */
+
+  function setupExistingProduct() {
+
+    const select =
+      el('existingProduct');
+
+
+    if (
+      !select ||
+      select.dataset.bound === '1'
+    ) {
+      return;
+    }
+
+
+    select.dataset.bound =
+      '1';
+
+
+    select.addEventListener(
+      'change',
+      async function () {
+
+        const id =
+          select.value;
+
+
+        if (!id) {
           return;
         }
 
 
-        await refreshStoresSafe();
-
-
-        /*
-          إعادة رسم قائمة المتاجر مرة واحدة فقط
-          بعد العملية، وليس كل ثانية.
-        */
-
-        if(
-          typeof window.renderStores ===
-          'function'
-        ){
-
-          await window.renderStores();
-
-        }
-
-      }catch(err){
-
-        alert(
-          'حدث خطأ: ' +
-          err.message
-        );
-
-      }
-    };
-
-
-  window.showAdd =
-    function(){
-
-      if(!profileData){
-
-        alert(
-          'سجّل الدخول أولاً.'
-        );
-
-        show('login');
-
-        return;
-      }
-
-
-      if(
-        profileData.role ===
-        'admin'
-      ){
-
-        show('add');
-
-
-        const box =
-          el('merchantStoreBox');
-
-
-        if(box){
-
-          const opts =
-            stores.map(function(s){
-
-              return `
-                <option value="${s.id}">
-                  ${esc(s.name)}
-                </option>
-              `;
-
-            }).join('');
-
-
-          box.innerHTML = `
-
-            <label class="muted">
-              المتجر للسعر (اختياري)
-            </label>
-
-            <select id="adminAddStore">
-
-              <option value="">
-                بدون سعر متجر
-              </option>
-
-              ${opts}
-
-            </select>
-
-          `;
-        }
-
-        return;
-      }
-
-
-      if(
-        profileData.role !==
-        'store'
-      ){
-
-        alert(
-          'إضافة المواد متاحة للتاجر المربوط بمتجر والمصرح له، وللمدير.'
-        );
-
-        return;
-      }
-
-
-      if(
-        !profileData.can_edit_prices
-      ){
-
-        alert(
-          'حسابك غير مصرح له حالياً.'
-        );
-
-        return;
-      }
-
-
-      if(
-        !profileData.store_id
-      ){
-
-        alert(
-          'حسابك غير مربوط بمتجر حتى الآن.'
-        );
-
-        return;
-      }
-
-
-      show('add');
-    };
-
-
-  function injectHomeButton(){
-
-    const home =
-      document.getElementById(
-        'home'
-      );
-
-    if(
-      !home ||
-      !canAdd()
-    ){
-
-      return;
-    }
-
-
-    if(
-      document.getElementById(
-        'storeFeaturesAddBtn'
-      )
-    ){
-
-      return;
-    }
-
-
-    const btn =
-      document.createElement(
-        'button'
-      );
-
-
-    btn.id =
-      'storeFeaturesAddBtn';
-
-    btn.className =
-      'btn primary';
-
-    btn.textContent =
-      'إضافة مادة جديدة';
-
-    btn.onclick =
-      window.showAdd;
-
-
-    home.appendChild(
-      btn
-    );
-  }
-
-
-  /*
-    مهم:
-    تم حذف setInterval بالكامل.
-    لا يوجد أي تحديث تلقائي لصفحة المتاجر.
-  */
-
-
-  window.addEventListener(
-    'load',
-    function(){
-
-      setTimeout(
-        function(){
-
-          injectHomeButton();
-
-          if(
-            el('stores')?.classList
-              .contains('active')
-          ){
-
-            window.renderStores();
-
-          }
-
-        },
-        700
-      );
-
-    }
-  );
-
-})();
-/* سعرلي سوريا — إضافات المتاجر والمواد
+        try {
+
+          const {
+            data,
+            error
+          } =
+            await supabaseClient
+              .from('products')
+           /* =========================================================
+   سعرلي سوريا — store_features.js
    الدفعة 2 من 2
-   نسخة نهائية بدون وميض
-*/
-(function(){
+   ========================================================= */
+
+(function () {
 
   'use strict';
 
 
-  window.submitPrice = async function(){
-
-    const selected =
-      document.getElementById(
-        'existingProduct'
-      )?.value || '';
-
-    const name =
-      document.getElementById(
-        'pn'
-      )?.value.trim() || '';
-
-    const priceRaw =
-      document.getElementById(
-        'pr'
-      )?.value;
-
-    const price =
-      priceRaw === ''
-      ? null
-      : Number(priceRaw);
-
-    const file =
-      document.getElementById(
-        'pimg'
-      )?.files?.[0] || null;
+  function el(id) {
+    return document.getElementById(id);
+  }
 
 
-    if(!selected && !name){
+  function esc(v) {
 
-      alert(
-        'اكتب اسم المادة الجديدة.'
-      );
-
-      return;
+    if (typeof window.e === 'function') {
+      return window.e(v);
     }
 
+    return String(v ?? '').replace(
+      /[&<>"']/g,
+      function (m) {
+        return {
+          '&':'&amp;',
+          '<':'&lt;',
+          '>':'&gt;',
+          '"':'&quot;',
+          "'":'&#039;'
+        }[m];
+      }
+    );
 
-    if(
-      price !== null &&
-      (
+  }
+
+
+  function isAdmin() {
+
+    return !!(
+      profileData &&
+      profileData.role === 'admin'
+    );
+
+  }
+
+
+  function merchantAllowed() {
+
+    return !!(
+      profileData &&
+      profileData.role === 'store' &&
+      profileData.store_id &&
+      profileData.can_edit_prices
+    );
+
+  }
+
+
+  function canManage() {
+
+    return (
+      isAdmin() ||
+      merchantAllowed()
+    );
+
+  }
+
+
+  /* =======================================================
+     إضافة المادة / السعر
+     ======================================================= */
+
+  window.submitPrice =
+    async function () {
+
+      if (!canManage()) {
+
+        alert(
+          'ليس لديك صلاحية إضافة أو تعديل المواد.'
+        );
+
+        return;
+      }
+
+
+      const selected =
+        el('existingProduct')?.value || '';
+
+
+      const name =
+        el('pn')?.value.trim() || '';
+
+
+      const brand =
+        el('brand')?.value.trim() || '';
+
+
+      const unit =
+        el('unit')?.value.trim() || '';
+
+
+      const category =
+        el('cat')?.value.trim() || '';
+
+
+      const barcode =
+        el('barcode')?.value.trim() || '';
+
+
+      const priceRaw =
+        el('pr')?.value;
+
+
+      const price =
+        priceRaw === '' ||
+        priceRaw == null
+          ? null
+          : Number(priceRaw);
+
+
+      const imageFile =
+        el('pimg')?.files?.[0] || null;
+
+
+      if (!selected && !name) {
+
+        alert(
+          'اكتب اسم المادة الجديدة.'
+        );
+
+        return;
+      }
+
+
+      if (
+        price === null ||
         Number.isNaN(price) ||
         price < 0
-      )
-    ){
+      ) {
 
-      alert(
-        'اكتب السعر بشكل صحيح.'
-      );
+        alert(
+          'اكتب السعر بشكل صحيح.'
+        );
 
-      return;
-    }
-
-
-    if(!profileData){
-
-      alert(
-        'سجّل الدخول أولاً.'
-      );
-
-      return;
-    }
+        return;
+      }
 
 
-    /* =========================
-       المدير
-       ========================= */
+      /* ---------------------------------------------------
+         تحديد المتجر
+         --------------------------------------------------- */
 
-    if(
-      profileData.role ===
-      'admin'
-    ){
+      let storeId = null;
+
+
+      if (isAdmin()) {
+
+        storeId =
+          el('adminAddStore')?.value ||
+          null;
+
+      } else {
+
+        storeId =
+          profileData.store_id;
+
+      }
+
+
+      if (!storeId) {
+
+        alert(
+          'اختر المتجر.'
+        );
+
+        return;
+      }
+
+
+      /* ---------------------------------------------------
+         الصورة اختيارية
+         --------------------------------------------------- */
 
       let imageUrl = null;
 
 
-      try{
+      try {
 
-        if(
-          file &&
-          typeof window.uploadImage ===
-          'function'
-        ){
+        if (imageFile) {
 
-          imageUrl =
-            await window.uploadImage(
-              file,
-              'materials'
-            );
+          if (
+            typeof window.uploadImage ===
+            'function'
+          ) {
+
+            imageUrl =
+              await window.uploadImage(
+                imageFile,
+                'materials'
+              );
+
+          }
 
         }
 
-      }catch(err){
+      } catch (err) {
 
         alert(
           'فشل رفع الصورة: ' +
@@ -937,159 +1279,84 @@
       }
 
 
-      /* مادة موجودة */
+      /* ===================================================
+         مادة موجودة
+         =================================================== */
 
-      if(selected){
+      if (selected) {
 
-        if(price === null){
+        /*
+          المدير يستطيع تعديل أي مادة.
+          التاجر يستطيع التعامل مع مادته ضمن متجره.
+        */
 
-          alert(
-            'اكتب السعر عند إضافة سعر لمادة موجودة.'
-          );
 
-          return;
+        if (isAdmin()) {
+
+          const productUpdate = {
+
+            name:
+              name || undefined,
+
+            brand:
+              brand || null,
+
+            unit:
+              unit || null,
+
+            category:
+              category || null,
+
+            barcode:
+              barcode || null
+
+          };
+
+
+          if (imageUrl) {
+            productUpdate.image_url =
+              imageUrl;
+          }
+
+
+          const {
+            error: productError
+          } =
+            await supabaseClient
+              .from('products')
+              .update(productUpdate)
+              .eq(
+                'id',
+                selected
+              );
+
+
+          if (productError) {
+
+            alert(
+              'تعذر تعديل المادة: ' +
+              productError.message
+            );
+
+            return;
+          }
+
         }
 
 
-        const storeId =
-          document.getElementById(
-            'adminAddStore'
-          )?.value || '';
-
-
-        if(!storeId){
-
-          alert(
-            'اختر المتجر للسعر.'
-          );
-
-          return;
-        }
-
+        /*
+          السعر للمتجر المختار
+        */
 
         const {
-          error
+          error: priceError
         } =
           await supabaseClient
             .from('price_listings')
-            .upsert({
-
-              product_id:
-                selected,
-
-              store_id:
-                storeId,
-
-              price_new:
-                price,
-
-              approved:
-                true,
-
-              submitted_by:
-                profileData.id,
-
-              approved_by:
-                profileData.id,
-
-              updated_at:
-                new Date()
-                  .toISOString()
-
-            },{
-              onConflict:
-                'product_id,store_id'
-            });
-
-
-        if(error){
-
-          alert(
-            error.message
-          );
-
-          return;
-        }
-
-
-        alert(
-          'تم إضافة السعر ونشره مباشرة.'
-        );
-
-      }else{
-
-        /* مادة جديدة للمدير */
-
-        const {
-          data,
-          error
-        } =
-          await supabaseClient
-            .from('products')
-            .insert({
-
-              name:
-                name,
-
-              description:
-                null,
-
-              category:
-                document.getElementById(
-                  'cat'
-                )?.value.trim() ||
-                'عام',
-
-              unit:
-                document.getElementById(
-                  'unit'
-                )?.value.trim() ||
-                null,
-
-              image_url:
-                imageUrl,
-
-              active:
-                true,
-
-              created_by:
-                profileData.id
-
-            })
-            .select()
-            .single();
-
-
-        if(error){
-
-          alert(
-            error.message
-          );
-
-          return;
-        }
-
-
-        const storeId =
-          document.getElementById(
-            'adminAddStore'
-          )?.value || '';
-
-
-        if(
-          storeId &&
-          price !== null
-        ){
-
-          const {
-            error:e2
-          } =
-            await supabaseClient
-              .from('price_listings')
-              .insert({
-
+            .upsert(
+              {
                 product_id:
-                  data.id,
+                  selected,
 
                 store_id:
                   storeId,
@@ -1100,501 +1367,843 @@
                 approved:
                   true,
 
+                status:
+                  'approved',
+
                 submitted_by:
                   profileData.id,
 
                 approved_by:
-                  profileData.id
+                  profileData.id,
 
-              });
-
-
-          if(e2){
-
-            alert(
-              e2.message
+                updated_at:
+                  new Date().toISOString()
+              },
+              {
+                onConflict:
+                  'product_id,store_id'
+              }
             );
 
-            return;
-          }
-        }
 
+        if (priceError) {
 
-        alert(
-
-          storeId &&
-          price !== null
-
-          ? 'تمت إضافة المادة والسعر ونشرهما مباشرة.'
-
-          : 'تمت إضافة المادة ونشرها مباشرة.'
-
-        );
-      }
-
-
-      /* تنظيف النموذج */
-
-      [
-        'pn',
-        'brand',
-        'unit',
-        'cat',
-        'pr'
-      ].forEach(function(i){
-
-        const x =
-          document.getElementById(i);
-
-        if(x){
-          x.value = '';
-        }
-
-      });
-
-
-      const imageInput =
-        document.getElementById(
-          'pimg'
-        );
-
-      if(imageInput){
-        imageInput.value = '';
-      }
-
-
-      const existingProduct =
-        document.getElementById(
-          'existingProduct'
-        );
-
-      if(existingProduct){
-        existingProduct.value = '';
-      }
-
-
-      if(
-        typeof window.refreshAll ===
-        'function'
-      ){
-
-        await window.refreshAll();
-
-      }
-
-
-      if(
-        typeof window.show ===
-        'function'
-      ){
-
-        window.show(
-          'home'
-        );
-
-      }
-
-
-      return;
-    }
-
-
-    /* =========================
-       التاجر
-       ========================= */
-
-    if(
-      profileData.role !==
-      'store' ||
-      !profileData.store_id ||
-      !profileData.can_edit_prices
-    ){
-
-      alert(
-        'حسابك غير مخول لإرسال الطلب.'
-      );
-
-      return;
-    }
-
-
-    if(price === null){
-
-      alert(
-        'اكتب السعر.'
-      );
-
-      return;
-    }
-
-
-    let imageUrl = null;
-
-
-    try{
-
-      if(
-        file &&
-        typeof window.uploadImage ===
-        'function'
-      ){
-
-        imageUrl =
-          await window.uploadImage(
-            file,
-            'materials'
+          alert(
+            'تعذر حفظ السعر: ' +
+            priceError.message
           );
 
+          return;
+        }
+
+
+        clearAfterSave();
+
+        alert(
+          'تم تحديث المادة والسعر بنجاح.'
+        );
+
+
+        if (
+          typeof window.renderStoreDetail ===
+          'function'
+        ) {
+
+          await window.renderStoreDetail(
+            storeId
+          );
+
+        }
+
+
+        return;
       }
 
-    }catch(err){
+
+      /* ===================================================
+         مادة جديدة
+         =================================================== */
+
+      const {
+        data: product,
+        error: insertError
+      } =
+        await supabaseClient
+          .from('products')
+          .insert({
+
+            name:
+              name,
+
+            brand:
+              brand || null,
+
+            unit:
+              unit || null,
+
+            category:
+              category || null,
+
+            barcode:
+              barcode || null,
+
+            image_url:
+              imageUrl || null,
+
+            active:
+              true,
+
+            created_by:
+              profileData.id
+
+          })
+          .select()
+          .single();
+
+
+      if (insertError) {
+
+        alert(
+          'تعذر إضافة المادة: ' +
+          insertError.message
+        );
+
+        return;
+      }
+
+
+      if (!product) {
+
+        alert(
+          'لم يتم إنشاء المادة.'
+        );
+
+        return;
+      }
+
+
+      /* ---------------------------------------------------
+         إضافة سعر المادة للمتجر
+         --------------------------------------------------- */
+
+      const {
+        error: listingError
+      } =
+        await supabaseClient
+          .from('price_listings')
+          .insert({
+
+            product_id:
+              product.id,
+
+            store_id:
+              storeId,
+
+            price_new:
+              price,
+
+            approved:
+              true,
+
+            status:
+              'approved',
+
+            submitted_by:
+              profileData.id,
+
+            approved_by:
+              profileData.id,
+
+            updated_at:
+              new Date().toISOString()
+
+          });
+
+
+      if (listingError) {
+
+        alert(
+          'تم إنشاء المادة لكن تعذر حفظ السعر: ' +
+          listingError.message
+        );
+
+        return;
+      }
+
+
+      clearAfterSave();
+
 
       alert(
-        'فشل رفع الصورة: ' +
-        err.message
+        'تمت إضافة المادة والسعر بنجاح.'
       );
 
-      return;
-    }
 
+      if (
+        typeof window.renderStoreDetail ===
+        'function'
+      ) {
 
-    const payload = {
+        await window.renderStoreDetail(
+          storeId
+        );
 
-      request_type:
-        selected
-        ? 'price'
-        : 'product',
-
-      product_id:
-        selected || null,
-
-      store_id:
-        profileData.store_id,
-
-      price_new:
-        price,
-
-      product_name:
-        selected
-        ? null
-        : name,
-
-      product_description:
-        null,
-
-                   product_category:
-        document.getElementById(
-          'cat'
-        )?.value.trim() ||
-        'عام',
-
-      product_unit:
-        document.getElementById(
-          'unit'
-        )?.value.trim() ||
-        '',
-
-      product_image_url:
-        imageUrl,
-
-      submitted_by:
-        profileData.id,
-
-      status:
-        'pending'
+      }
 
     };
 
 
-    const {
-      error
-    } =
-      await supabaseClient
-        .from('change_requests')
-        .insert(
-          payload
-        );
+  /* =======================================================
+     تنظيف النموذج
+     ======================================================= */
 
-
-    if(error){
-
-      const msg =
-        document.getElementById(
-          'addMsg'
-        );
-
-      if(msg){
-
-        msg.textContent =
-          'خطأ: ' +
-          error.message;
-
-      }
-
-      return;
-    }
-
-
-    const msg =
-      document.getElementById(
-        'addMsg'
-      );
-
-    if(msg){
-
-      msg.textContent =
-        'تم إرسال الطلب للمراجعة.';
-
-    }
-
-
-    /* تنظيف النموذج */
+  function clearAfterSave() {
 
     [
       'pn',
       'brand',
       'unit',
+      'barcode',
       'cat',
       'pr'
-    ].forEach(function(i){
+    ].forEach(function (id) {
 
-      const x =
-        document.getElementById(i);
+      const input =
+        el(id);
 
-      if(x){
-        x.value = '';
+      if (input) {
+        input.value = '';
       }
 
     });
 
 
-    const imageInput =
-      document.getElementById(
-        'pimg'
-      );
-
-    if(imageInput){
-      imageInput.value = '';
+    if (el('existingProduct')) {
+      el('existingProduct').value = '';
     }
 
 
-    const existingProduct =
-      document.getElementById(
-        'existingProduct'
-      );
-
-    if(existingProduct){
-      existingProduct.value = '';
+    if (el('pimg')) {
+      el('pimg').value = '';
     }
 
 
-    if(
-      typeof window.show ===
-      'function'
-    ){
-
-      window.show(
-        'merchant'
-      );
-
+    if (el('barcodeMsg')) {
+      el('barcodeMsg').textContent = '';
     }
-
-
-    if(
-      typeof window.renderMerchant ===
-      'function'
-    ){
-
-      await window.renderMerchant();
-
-    }
-
-  };
-
-
-  /*
-    ربط التنقل مع صفحات المتاجر
-    بدون مؤقتات.
-  */
-
-  const oldShow =
-    window.show;
-
-
-  if(
-    typeof oldShow ===
-    'function'
-  ){
-
-    window.show =
-      function(id){
-
-        const result =
-          oldShow.apply(
-            this,
-            arguments
-          );
-
-
-        /*
-          نعيد الرسم فقط عندما
-          يطلب المستخدم فتح الصفحة.
-        */
-
-        if(
-          id === 'stores'
-        ){
-
-          setTimeout(
-            function(){
-
-              if(
-                typeof window.renderStores ===
-                'function'
-              ){
-
-                window.renderStores();
-
-              }
-
-            },
-            0
-          );
-
-        }
-
-
-        if(
-          id === 'storeDetail'
-        ){
-
-          setTimeout(
-            function(){
-
-              if(
-                typeof window.renderStoreDetail ===
-                'function'
-              ){
-
-                window.renderStoreDetail();
-
-              }
-
-            },
-            0
-          );
-
-        }
-
-
-        return result;
-      };
 
   }
 
 
-  /*
-    زر إضافة المادة.
-    يتم إنشاؤه مرة واحدة فقط.
-  */
+  /* =======================================================
+     تعديل مادة
+     ======================================================= */
 
-  function addButton(){
+  window.editStoreProduct =
+    async function (
+      listingId,
+      productId,
+      storeId
+    ) {
 
-    if(!profileData){
+      if (!canManage()) {
+
+        alert(
+          'ليس لديك صلاحية التعديل.'
+        );
+
+        return;
+      }
+
+
+      /*
+        التاجر ممنوع من تعديل متجر آخر.
+      */
+
+      if (
+        merchantAllowed() &&
+        String(
+          profileData.store_id
+        ) !==
+        String(storeId)
+      ) {
+
+        alert(
+          'لا يمكنك تعديل مادة في متجر آخر.'
+        );
+
+        return;
+      }
+
+
+      try {
+
+        const {
+          data,
+          error
+        } =
+          await supabaseClient
+            .from('price_listings')
+            .select(
+              'id,store_id,price_new,price,products(*)'
+            )
+            .eq(
+              'id',
+              listingId
+            )
+            .single();
+
+
+        if (error || !data) {
+
+          alert(
+            'تعذر تحميل المادة.'
+          );
+
+          return;
+        }
+
+
+        if (
+          merchantAllowed() &&
+          String(data.store_id) !==
+          String(profileData.store_id)
+        ) {
+
+          alert(
+            'لا يمكنك تعديل هذه المادة.'
+          );
+
+          return;
+        }
+
+
+        const product =
+          data.products || {};
+
+
+        const newName =
+          prompt(
+            'اسم المادة:',
+            product.name || ''
+          );
+
+
+        if (newName === null) {
+          return;
+        }
+
+
+        const newBrand =
+          prompt(
+            'العلامة التجارية:',
+            product.brand || ''
+          );
+
+
+        if (newBrand === null) {
+          return;
+        }
+
+
+        const newUnit =
+          prompt(
+            'الوزن / الحجم:',
+            product.unit || ''
+          );
+
+
+        if (newUnit === null) {
+          return;
+        }
+
+
+        const newCategory =
+          prompt(
+            'التصنيف:',
+            product.category || ''
+          );
+
+
+        if (newCategory === null) {
+          return;
+        }
+
+
+        const newBarcode =
+          prompt(
+            'الباركود:',
+            product.barcode || ''
+          );
+
+
+        if (newBarcode === null) {
+          return;
+        }
+
+
+        const currentPrice =
+          data.price_new ??
+          data.price ??
+          '';
+
+
+        const newPriceRaw =
+          prompt(
+            'السعر الجديد:',
+            currentPrice
+          );
+
+
+        if (newPriceRaw === null) {
+          return;
+        }
+
+
+        const newPrice =
+          Number(newPriceRaw);
+
+
+        if (
+          Number.isNaN(newPrice) ||
+          newPrice < 0
+        ) {
+
+          alert(
+            'السعر غير صحيح.'
+          );
+
+          return;
+        }
+
+
+        const {
+          error: updateProductError
+        } =
+          await supabaseClient
+            .from('products')
+            .update({
+
+              name:
+                newName.trim(),
+
+              brand:
+                newBrand.trim() || null,
+
+              unit:
+                newUnit.trim() || null,
+
+              category:
+                newCategory.trim() || null,
+
+              barcode:
+                newBarcode.trim() || null
+
+            })
+            .eq(
+              'id',
+              productId
+            );
+
+
+        if (updateProductError) {
+
+          alert(
+            'تعذر تعديل المادة: ' +
+            updateProductError.message
+          );
+
+          return;
+        }
+
+
+        const {
+          error: updatePriceError
+        } =
+          await supabaseClient
+            .from('price_listings')
+            .update({
+
+              price_new:
+                newPrice,
+
+              price:
+                newPrice,
+
+              approved:
+                true,
+
+              status:
+                'approved',
+
+              updated_at:
+                new Date().toISOString()
+
+            })
+            .eq(
+              'id',
+              listingId
+            );
+
+
+        if (updatePriceError) {
+
+          alert(
+            'تم تعديل المادة لكن تعذر تعديل السعر: ' +
+            updatePriceError.message
+          );
+
+          return;
+        }
+
+
+        alert(
+          'تم التعديل بنجاح.'
+        );
+
+
+        await window.renderStoreDetail(
+          storeId
+        );
+
+      } catch (err) {
+
+        alert(
+          'حدث خطأ: ' +
+          err.message
+        );
+
+      }
+
+    };
+
+
+  /* =======================================================
+     حذف المادة / سعرها من المتجر
+     ======================================================= */
+
+  window.deleteStoreProduct =
+    async function (
+      listingId,
+      productId,
+      storeId
+    ) {
+
+      if (!canManage()) {
+
+        alert(
+          'ليس لديك صلاحية الحذف.'
+        );
+
+        return;
+      }
+
+
+      if (
+        merchantAllowed() &&
+        String(
+          profileData.store_id
+        ) !==
+        String(storeId)
+      ) {
+
+        alert(
+          'لا يمكنك حذف مادة من متجر آخر.'
+        );
+
+        return;
+      }
+
+
+      if (
+        !confirm(
+          'هل تريد حذف هذه المادة من هذا المتجر؟'
+        )
+      ) {
+
+        return;
+      }
+
+
+      try {
+
+        /*
+          نحذف سعر المتجر فقط.
+          لا نحذف المنتج العام حتى لا يختفي
+          من المتاجر الأخرى.
+        */
+
+        const {
+          error
+        } =
+          await supabaseClient
+            .from('price_listings')
+            .delete()
+            .eq(
+              'id',
+              listingId
+            )
+            .eq(
+              'store_id',
+              storeId
+            );
+
+
+        if (error) {
+
+          alert(
+            'تعذر الحذف: ' +
+            error.message
+          );
+
+          return;
+        }
+
+
+        alert(
+          'تم حذف المادة من هذا المتجر.'
+        );
+
+
+        await window.renderStoreDetail(
+          storeId
+        );
+
+      } catch (err) {
+
+        alert(
+          'حدث خطأ: ' +
+          err.message
+        );
+
+      }
+
+    };
+
+
+  /* =======================================================
+     زر إضافة مادة بالصفحة الرئيسية
+     ======================================================= */
+
+  function injectHomeButton() {
+
+    if (!canManage()) {
       return;
     }
 
 
-    const allowed =
-      profileData.role ===
-      'admin' ||
-
-      (
-        profileData.role ===
-        'store' &&
-
-        profileData.store_id &&
-
-        profileData.can_edit_prices
-      );
+    const home =
+      el('home');
 
 
-    if(!allowed){
+    if (!home) {
       return;
     }
 
 
-    const box =
-      document.getElementById(
-        'roleActions'
-      );
-
-
-    if(!box){
+    if (
+      el('storeFeaturesAddBtn')
+    ) {
       return;
     }
 
 
-    if(
-      box.querySelector(
-        '[data-store-feature-add]'
-      )
-    ){
-
-      return;
-    }
-
-
-    const b =
+    const button =
       document.createElement(
         'button'
       );
 
 
-    b.className =
+    button.id =
+      'storeFeaturesAddBtn';
+
+
+    button.type =
+      'button';
+
+
+    button.className =
       'btn primary';
 
-    b.textContent =
+
+    button.textContent =
       'إضافة مادة جديدة';
 
-    b.setAttribute(
-      'data-store-feature-add',
-      '1'
-    );
 
-    b.onclick =
+    button.onclick =
       window.showAdd;
 
 
-    box.appendChild(
-      b
+    home.appendChild(
+      button
     );
+
   }
 
 
-  /*
-    لا يوجد setInterval هنا.
-    زر الإضافة لا يتم فحصه كل ثانية.
-  */
+  /* =======================================================
+     تجهيز صفحة الإضافة
+     ======================================================= */
+
+  function prepareAddPage() {
+
+    if (!canManage()) {
+      return;
+    }
 
 
-  window.addEventListener(
-    'load',
-    function(){
-
-      setTimeout(
-        function(){
-
-          addButton();
-
-        },
-        700
+    const note =
+      document.querySelector(
+        '#add .hero .muted'
       );
 
+
+    if (note) {
+
+      note.textContent =
+        isAdmin()
+          ? 'المدير يستطيع إضافة وتعديل المواد والأسعار لجميع المتاجر.'
+          : 'يمكنك إضافة وتعديل مواد وأسعار متجرك مباشرة بدون موافقة المدير.';
+
     }
-  );
+
+
+    loadExistingProducts();
+
+
+    if (
+      typeof setupExistingProduct ===
+      'function'
+    ) {
+      setupExistingProduct();
+    }
+
+  }
+
+
+  /* =======================================================
+     فتح المتجر
+     ======================================================= */
+
+  window.openStore =
+    function (storeId) {
+
+      window.currentStoreId =
+        storeId;
+
+
+      if (
+        typeof window.show ===
+        'function'
+      ) {
+
+        window.show(
+          'storeDetail'
+        );
+
+      }
+
+
+      if (
+        typeof window.renderStoreDetail ===
+        'function'
+      ) {
+
+        window.renderStoreDetail(
+          storeId
+        );
+
+      }
+
+    };
+
+
+  /* =======================================================
+     QR للمتجر
+     ======================================================= */
+
+  window.generateStoreQR =
+    function (storeId) {
+
+      const box =
+        el('storeQR');
+
+
+      if (!box) {
+        return;
+      }
+
+
+      box.innerHTML = '';
+
+
+      if (
+        typeof QRCode ===
+        'undefined'
+      ) {
+
+        box.innerHTML = `
+          <p class="muted">
+            تعذر تحميل مولد QR.
+          </p>
+        `;
+
+        return;
+      }
+
+
+      const url =
+        window.location.origin +
+        window.location.pathname +
+        '?store=' +
+        encodeURIComponent(
+          storeId
+        );
+
+
+      new QRCode(
+        box,
+        {
+          text: url,
+          width: 220,
+          height: 220
+        }
+      );
+
+    };
+
+
+  /* =======================================================
+     بداية التشغيل
+     ======================================================= */
+
+  function initStoreFeatures() {
+
+    injectHomeButton();
+
+    prepareAddPage();
+
+  }
+
+
+  if (
+    document.readyState ===
+    'loading'
+  ) {
+
+    document.addEventListener(
+      'DOMContentLoaded',
+      initStoreFeatures,
+      {
+        once: true
+      }
+    );
+
+  } else {
+
+    initStoreFeatures();
+
+  }
 
 
 })();
-
-         
