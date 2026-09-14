@@ -1,5 +1,5 @@
 /* سعرلي سوريا — ماسح الباركود
-   الدفعة 1 من 2
+   الدفعة 1 من 2 — نسخة بدون وميض
 */
 (function(){
 
@@ -242,7 +242,7 @@
       if(status){
         status.innerHTML=
           'هذا المتصفح لا يدعم قراءة الباركود مباشرة. '+
-          'سنضيف طريقة بديلة في الدفعة الثانية.';
+          'سنستخدم الطريقة البديلة.';
       }
 
       return;
@@ -416,7 +416,6 @@
         window.closeBarcodeScanner();
 
         window.barcodeFoundProduct=product;
-
         window.barcodeFoundPrice=priceData[0];
 
         showBarcodeProductResult(
