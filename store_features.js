@@ -797,1007 +797,7 @@
     تم حذف setInterval بالكامل.
     لا يوجد أي تحديث تلقائي لصفحة المتاجر.
   */
- (function(){
-  'use strict';
 
-  window.submitPrice =
-    async function(){
-
-      const msg =
-        el('addMsg');
-
-      if(msg){
-        msg.textContent =
-          '';
-      }
-
-
-      if(!profileData){
-
-        if(msg){
-          msg.textContent =
-            'يجب تسجيل الدخول أولاً.';
-        }
-
-        return;
-      }
-
-
-      const selectedProduct =
-        el('existingProduct')?.value || '';
-
-
-      const productName =
-        el('pn')?.value.trim() || '';
-
-
-      const brand =
-        el('brand')?.value.trim() || '';
-
-
-      const unit =
-        el('unit')?.value.trim() || '';
-
-
-      const barcode =
-        el('barcode')?.value.trim() || '';
-
-
-      const category =
-        el('cat')?.value.trim() || '';
-
-
-      const priceValue =
-        Number(
-          el('pr')?.value
-        );
-
-
-      const imageInput =
-        el('pimg');
-
-
-      const imageFile =
-        imageInput?.files?.[0] || null;
-
-
-      if(
-        !selectedProduct &&
-        !productName
-      ){
-
-        if(msg){
-          msg.textContent =
-            'اكتب اسم المادة أو اختر مادة موجودة.';
-        }
-
-        return;
-      }
-
-
-      if(
-        !Number.isFinite(priceValue) ||
-        priceValue < 0
-      ){
-
-        if(msg){
-          msg.textContent =
-            'أدخل سعراً صحيحاً.';
-        }
-
-        return;
-      }
-
-
-      /*
-        المدير:
-        يستطيع إضافة المادة والسعر مباشرة.
-      */
-
-      if(
-        profileData.role ===
-        'admin'
-      ){
-
-        try{
-
-          let imageUrl =
-            null;
-
-
-          if(imageFile){
-
-            const ext =
-              (
-                imageFile.name
-                .split('.')
-                .pop() ||
-                'jpg'
-              )
-              .toLowerCase();
-
-
-            const path =
-              'products/' +
-              crypto.randomUUID() +
-              '.' +
-              ext;
-
-
-            const {
-              error:
-              uploadError
-            } =
-              await supabaseClient
-                .storage
-                .from('product-images')
-                .upload(
-                  path,
-                  imageFile,
-                  {
-                    upsert:false,
-                    contentType:
-                      imageFile.type ||
-                      'image/jpeg'
-                  }
-                );
-
-
-            if(uploadError){
-
-              if(msg){
-                msg.textContent =
-                  'تعذر رفع الصورة: ' +
-                  uploadError.message;
-              }
-
-              return;
-            }
-
-
-            const {
-              data:
-              publicData
-            } =
-              supabaseClient
-                .storage
-                .from('product-images')
-                .getPublicUrl(
-                  path
-                );
-
-
-            imageUrl =
-              publicData?.publicUrl ||
-              null;
-          }
-
-
-          let productId =
-            selectedProduct;
-
-
-          /*
-            إذا كانت مادة موجودة:
-            نستخدمها مباشرة.
-          */
-
-          if(productId){
-
-            const updateData = {};
-
-
-            if(productName){
-              updateData.name =
-                productName;
-            }
-
-
-            if(brand){
-              updateData.brand =
-                brand;
-            }
-
-
-            if(unit){
-              updateData.unit =
-                unit;
-            }
-
-
-            if(category){
-              updateData.category =
-                category;
-            }
-
-
-            if(barcode){
-              updateData.barcode =
-                barcode;
-            }
-
-
-            if(imageUrl){
-              updateData.image_url =
-                imageUrl;
-            }
-
-
-            if(
-              Object.keys(updateData)
-                .length
-            ){
-
-              const {
-                error
-              } =
-                await supabaseClient
-                  .from('products')
-                  .update(updateData)
-                  .eq(
-                    'id',
-                    productId
-                  );
-
-
-              if(error){
-
-                if(msg){
-                  msg.textContent =
-                    'تعذر تعديل المادة: ' +
-                    error.message;
-                }
-
-                return;
-              }
-            }
-
-          }else{
-
-            /*
-              مادة جديدة.
-            */
-
-            const {
-              data:
-              newProduct,
-              error
-            } =
-              await supabaseClient
-                .from('products')
-                .insert({
-                  name:
-                    productName,
-                  brand:
-                    brand || null,
-                  unit:
-                    unit || null,
-                  category:
-                    category || null,
-                  barcode:
-                    barcode || null,
-                  image_url:
-                    imageUrl,
-                  active:true,
-                  created_by:
-                    profileData.id
-                })
-                .select()
-                .single();
-
-
-            if(error){
-
-              if(msg){
-                msg.textContent =
-                  'تعذر إضافة المادة: ' +
-                  error.message;
-              }
-
-              return;
-            }
-
-
-            productId =
-              newProduct.id;
-          }
-
-
-          /*
-            المتجر الذي يختاره المدير.
-          */
-
-          const storeId =
-            el('adminAddStore')?.value ||
-            '';
-
-
-          if(storeId){
-
-            const {
-              error
-            } =
-              await supabaseClient
-                .from('price_listings')
-                .upsert(
-                  {
-                    store_id:
-                      storeId,
-                    product_id:
-                      productId,
-                    price:
-                      priceValue,
-                    status:
-                      'approved',
-                    updated_at:
-                      new Date().toISOString()
-                  },
-                  {
-                    onConflict:
-                      'store_id,product_id'
-                  }
-                );
-
-
-            if(error){
-
-              if(msg){
-                msg.textContent =
-                  'تم حفظ المادة لكن تعذر حفظ سعر المتجر: ' +
-                  error.message;
-              }
-
-              return;
-            }
-          }
-
-
-          if(msg){
-
-            msg.textContent =
-              'تمت إضافة/تعديل المادة والسعر بنجاح.';
-
-          }
-
-
-          /*
-            تنظيف النموذج.
-          */
-
-          if(el('existingProduct')){
-            el('existingProduct').value =
-              '';
-          }
-
-          if(el('pn')){
-            el('pn').value =
-              '';
-          }
-
-          if(el('brand')){
-            el('brand').value =
-              '';
-          }
-
-          if(el('unit')){
-            el('unit').value =
-              '';
-          }
-
-          if(el('barcode')){
-            el('barcode').value =
-              '';
-          }
-
-          if(el('cat')){
-            el('cat').value =
-              '';
-          }
-
-          if(el('pr')){
-            el('pr').value =
-              '';
-          }
-
-          if(el('pimg')){
-            el('pimg').value =
-              '';
-          }
-
-
-          if(
-            typeof refreshAll ===
-            'function'
-          ){
-
-            await refreshAll();
-
-          }
-
-
-          if(
-            typeof show ===
-            'function'
-          ){
-
-            show('home');
-
-          }
-
-
-        }catch(err){
-
-          if(msg){
-
-            msg.textContent =
-              'حدث خطأ: ' +
-              err.message;
-
-          }
-
-        }
-
-        return;
-      }
-
-
-      /*
-        التاجر:
-        يجب أن يكون مربوطاً بمتجر
-        ومفعلاً من المدير.
-      */
-
-      if(
-        profileData.role !==
-        'store'
-      ){
-
-        if(msg){
-          msg.textContent =
-            'هذه العملية متاحة للتاجر المصرح له فقط.';
-        }
-
-        return;
-      }
-
-
-      if(
-        !profileData.store_id
-      ){
-
-        if(msg){
-          msg.textContent =
-            'حسابك غير مربوط بمتجر.';
-        }
-
-        return;
-      }
-
-
-      if(
-        !profileData.can_edit_prices
-      ){
-
-        if(msg){
-          msg.textContent =
-            'المدير لم يفعّل صلاحية تعديل الأسعار لحسابك.';
-        }
-
-        return;
-      }
-
-
-      try{
-
-        let imageUrl =
-          null;
-
-
-        if(imageFile){
-
-          const ext =
-            (
-              imageFile.name
-              .split('.')
-              .pop() ||
-              'jpg'
-            )
-            .toLowerCase();
-
-
-          const path =
-            'products/' +
-            crypto.randomUUID() +
-            '.' +
-            ext;
-
-
-          const {
-            error:
-            uploadError
-          } =
-            await supabaseClient
-              .storage
-              .from('product-images')
-              .upload(
-                path,
-                imageFile,
-                {
-                  upsert:false,
-                  contentType:
-                    imageFile.type ||
-                    'image/jpeg'
-                }
-              );
-
-
-          if(uploadError){
-
-            if(msg){
-              msg.textContent =
-                'تعذر رفع الصورة: ' +
-                uploadError.message;
-            }
-
-            return;
-          }
-
-
-          const {
-            data:
-            publicData
-          } =
-            supabaseClient
-              .storage
-              .from('product-images')
-              .getPublicUrl(
-                path
-              );
-
-
-          imageUrl =
-            publicData?.publicUrl ||
-            null;
-        }
-
-
-        /*
-          إذا كانت المادة موجودة:
-          يعدّل التاجر بياناتها والسعر
-          ضمن متجره فقط.
-        */
-
-        let productId =
-          selectedProduct;
-
-
-        if(productId){
-
-          const updateData = {};
-
-
-          if(productName){
-            updateData.name =
-              productName;
-          }
-
-
-          if(brand){
-            updateData.brand =
-              brand;
-          }
-
-
-          if(unit){
-            updateData.unit =
-              unit;
-          }
-
-
-          if(category){
-            updateData.category =
-              category;
-          }
-
-
-          if(barcode){
-            updateData.barcode =
-              barcode;
-          }
-
-
-          if(imageUrl){
-            updateData.image_url =
-              imageUrl;
-          }
-
-
-          if(
-            Object.keys(updateData)
-              .length
-          ){
-
-            /*
-              هذا التحديث سيخضع لـ RLS.
-              التاجر لا يستطيع تعديل
-              مادة خارج صلاحياته.
-            */
-
-            const {
-              error
-            } =
-              await supabaseClient
-                .from('products')
-                .update(updateData)
-                .eq(
-                  'id',
-                  productId
-                );
-
-
-            if(error){
-
-              if(msg){
-                msg.textContent =
-                  'تعذر تعديل المادة: ' +
-                  error.message;
-              }
-
-              return;
-            }
-          }
-
-
-          const {
-            error:
-            priceError
-          } =
-            await supabaseClient
-              .from('price_listings')
-              .upsert(
-                {
-                  store_id:
-                    profileData.store_id,
-                  product_id:
-                    productId,
-                  price:
-                    priceValue,
-                  status:
-                    'approved',
-                  updated_at:
-                    new Date().toISOString()
-                },
-                {
-                  onConflict:
-                    'store_id,product_id'
-                }
-              );
-
-
-          if(priceError){
-
-            if(msg){
-              msg.textContent =
-                'تعذر تحديث السعر: ' +
-                priceError.message;
-            }
-
-            return;
-          }
-
-        }else{
-
-          /*
-            مادة جديدة للتاجر.
-          */
-
-          const {
-            data:
-            newProduct,
-            error
-          } =
-            await supabaseClient
-              .from('products')
-              .insert({
-                name:
-                  productName,
-                brand:
-                  brand || null,
-                unit:
-                  unit || null,
-                category:
-                  category || null,
-                barcode:
-                  barcode || null,
-                image_url:
-                  imageUrl,
-                active:true,
-                created_by:
-                  profileData.id
-              })
-              .select()
-              .single();
-
-
-          if(error){
-
-            if(msg){
-              msg.textContent =
-                'تعذر إضافة المادة: ' +
-                error.message;
-            }
-
-            return;
-          }
-
-
-          productId =
-            newProduct.id;
-
-
-          const {
-            error:
-            priceError
-          } =
-            await supabaseClient
-              .from('price_listings')
-              .insert({
-                store_id:
-                  profileData.store_id,
-                product_id:
-                  productId,
-                price:
-                  priceValue,
-                status:
-                  'approved',
-                updated_at:
-                  new Date().toISOString()
-              });
-
-
-          if(priceError){
-
-            if(msg){
-              msg.textContent =
-                'تم إنشاء المادة لكن تعذر إضافة السعر: ' +
-                priceError.message;
-            }
-
-            return;
-          }
-        }
-
-
-        if(msg){
-
-          msg.textContent =
-            'تم حفظ المادة والسعر في متجرك بنجاح.';
-
-        }
-
-
-        /*
-          تنظيف الحقول.
-        */
-
-        if(el('existingProduct')){
-          el('existingProduct').value =
-            '';
-        }
-
-        if(el('pn')){
-          el('pn').value =
-            '';
-        }
-
-        if(el('brand')){
-          el('brand').value =
-            '';
-        }
-
-        if(el('unit')){
-          el('unit').value =
-            '';
-        }
-
-        if(el('barcode')){
-          el('barcode').value =
-            '';
-        }
-
-        if(el('cat')){
-          el('cat').value =
-            '';
-        }
-
-        if(el('pr')){
-          el('pr').value =
-            '';
-        }
-
-        if(el('pimg')){
-          el('pimg').value =
-            '';
-        }
-
-
-        if(
-          typeof refreshAll ===
-          'function'
-        ){
-
-          await refreshAll();
-
-        }
-
-
-        if(
-          typeof show ===
-          'function'
-        ){
-
-          show('home');
-
-        }
-
-      }catch(err){
-
-        if(msg){
-
-          msg.textContent =
-            'حدث خطأ: ' +
-            err.message;
-
-        }
-
-      }
-    };
-
-
-  /*
-    إعادة رسم صفحة المتجر مرة واحدة
-    عند الانتقال إليها فقط.
-  */
-
-  const originalShow =
-    window.show;
-
-
-  if(
-    typeof originalShow ===
-    'function'
-  ){
-
-    window.show =
-      function(page){
-
-        originalShow.apply(
-          this,
-          arguments
-        );
-
-
-        setTimeout(
-          function(){
-
-            try{
-
-              if(
-                page ===
-                'stores' &&
-                typeof window.renderStores ===
-                'function'
-              ){
-
-                window.renderStores();
-
-              }
-
-
-              if(
-                page ===
-                'storeDetail' &&
-                typeof window.renderStoreDetail ===
-                'function'
-              ){
-
-                window.renderStoreDetail(
-                  window.currentStoreId
-                );
-
-              }
-
-            }catch(_){}
-
-          },
-          0
-        );
-      };
-
-  }
-
-
-  /*
-    زر إضافة المادة في الصفحة الرئيسية.
-    تتم الإضافة مرة واحدة فقط.
-  */
-
-  function addButton(){
-
-    if(
-      !canAdd()
-    ){
-
-      return;
-    }
-
-
-    if(
-      document.getElementById(
-        'storeFeaturesAddBtn2'
-      )
-    ){
-
-      return;
-    }
-
-
-    const home =
-      document.getElementById(
-        'home'
-      );
-
-
-    if(!home){
-      return;
-    }
-
-
-    const btn =
-      document.createElement(
-        'button'
-      );
-
-
-    btn.id =
-      'storeFeaturesAddBtn2';
-
-    btn.className =
-      'btn primary';
-
-    btn.textContent =
-      'إضافة مادة جديدة';
-
-    btn.onclick =
-      window.showAdd;
-
-
-    const actions =
-      home.querySelector(
-        '.actions'
-      );
-
-
-    if(actions){
-
-      actions.appendChild(
-        btn
-      );
-
-    }else{
-
-      home.appendChild(
-        btn
-      );
-
-    }
-  }
-
-
-  /*
-    تشغيل أولي مرة واحدة فقط.
-    لا يوجد setInterval.
-  */
 
   window.addEventListener(
     'load',
@@ -1806,12 +806,789 @@
       setTimeout(
         function(){
 
-          try{
-            addButton();
-          }catch(_){}
+          injectHomeButton();
+
+          if(
+            el('stores')?.classList
+              .contains('active')
+          ){
+
+            window.renderStores();
+
+          }
 
         },
-        300
+        700
+      );
+
+    }
+  );
+
+})();
+/* سعرلي سوريا — إضافات المتاجر والمواد
+   الدفعة 2 من 2
+   نسخة نهائية بدون وميض
+*/
+(function(){
+
+  'use strict';
+
+
+  window.submitPrice = async function(){
+
+    const selected =
+      document.getElementById(
+        'existingProduct'
+      )?.value || '';
+
+    const name =
+      document.getElementById(
+        'pn'
+      )?.value.trim() || '';
+
+    const priceRaw =
+      document.getElementById(
+        'pr'
+      )?.value;
+
+    const price =
+      priceRaw === ''
+      ? null
+      : Number(priceRaw);
+
+    const file =
+      document.getElementById(
+        'pimg'
+      )?.files?.[0] || null;
+
+
+    if(!selected && !name){
+
+      alert(
+        'اكتب اسم المادة الجديدة.'
+      );
+
+      return;
+    }
+
+
+    if(
+      price !== null &&
+      (
+        Number.isNaN(price) ||
+        price < 0
+      )
+    ){
+
+      alert(
+        'اكتب السعر بشكل صحيح.'
+      );
+
+      return;
+    }
+
+
+    if(!profileData){
+
+      alert(
+        'سجّل الدخول أولاً.'
+      );
+
+      return;
+    }
+
+
+    /* =========================
+       المدير
+       ========================= */
+
+    if(
+      profileData.role ===
+      'admin'
+    ){
+
+      let imageUrl = null;
+
+
+      try{
+
+        if(
+          file &&
+          typeof window.uploadImage ===
+          'function'
+        ){
+
+          imageUrl =
+            await window.uploadImage(
+              file,
+              'materials'
+            );
+
+        }
+
+      }catch(err){
+
+        alert(
+          'فشل رفع الصورة: ' +
+          err.message
+        );
+
+        return;
+      }
+
+
+      /* مادة موجودة */
+
+      if(selected){
+
+        if(price === null){
+
+          alert(
+            'اكتب السعر عند إضافة سعر لمادة موجودة.'
+          );
+
+          return;
+        }
+
+
+        const storeId =
+          document.getElementById(
+            'adminAddStore'
+          )?.value || '';
+
+
+        if(!storeId){
+
+          alert(
+            'اختر المتجر للسعر.'
+          );
+
+          return;
+        }
+
+
+        const {
+          error
+        } =
+          await supabaseClient
+            .from('price_listings')
+            .upsert({
+
+              product_id:
+                selected,
+
+              store_id:
+                storeId,
+
+              price_new:
+                price,
+
+              approved:
+                true,
+
+              submitted_by:
+                profileData.id,
+
+              approved_by:
+                profileData.id,
+
+              updated_at:
+                new Date()
+                  .toISOString()
+
+            },{
+              onConflict:
+                'product_id,store_id'
+            });
+
+
+        if(error){
+
+          alert(
+            error.message
+          );
+
+          return;
+        }
+
+
+        alert(
+          'تم إضافة السعر ونشره مباشرة.'
+        );
+
+      }else{
+
+        /* مادة جديدة للمدير */
+
+        const {
+          data,
+          error
+        } =
+          await supabaseClient
+            .from('products')
+            .insert({
+
+              name:
+                name,
+
+              description:
+                null,
+
+              category:
+                document.getElementById(
+                  'cat'
+                )?.value.trim() ||
+                'عام',
+
+              unit:
+                document.getElementById(
+                  'unit'
+                )?.value.trim() ||
+                null,
+
+              image_url:
+                imageUrl,
+
+              active:
+                true,
+
+              created_by:
+                profileData.id
+
+            })
+            .select()
+            .single();
+
+
+        if(error){
+
+          alert(
+            error.message
+          );
+
+          return;
+        }
+
+
+        const storeId =
+          document.getElementById(
+            'adminAddStore'
+          )?.value || '';
+
+
+        if(
+          storeId &&
+          price !== null
+        ){
+
+          const {
+            error:e2
+          } =
+            await supabaseClient
+              .from('price_listings')
+              .insert({
+
+                product_id:
+                  data.id,
+
+                store_id:
+                  storeId,
+
+                price_new:
+                  price,
+
+                approved:
+                  true,
+
+                submitted_by:
+                  profileData.id,
+
+                approved_by:
+                  profileData.id
+
+              });
+
+
+          if(e2){
+
+            alert(
+              e2.message
+            );
+
+            return;
+          }
+        }
+
+
+        alert(
+
+          storeId &&
+          price !== null
+
+          ? 'تمت إضافة المادة والسعر ونشرهما مباشرة.'
+
+          : 'تمت إضافة المادة ونشرها مباشرة.'
+
+        );
+      }
+
+
+      /* تنظيف النموذج */
+
+      [
+        'pn',
+        'brand',
+        'unit',
+        'cat',
+        'pr'
+      ].forEach(function(i){
+
+        const x =
+          document.getElementById(i);
+
+        if(x){
+          x.value = '';
+        }
+
+      });
+
+
+      const imageInput =
+        document.getElementById(
+          'pimg'
+        );
+
+      if(imageInput){
+        imageInput.value = '';
+      }
+
+
+      const existingProduct =
+        document.getElementById(
+          'existingProduct'
+        );
+
+      if(existingProduct){
+        existingProduct.value = '';
+      }
+
+
+      if(
+        typeof window.refreshAll ===
+        'function'
+      ){
+
+        await window.refreshAll();
+
+      }
+
+
+      if(
+        typeof window.show ===
+        'function'
+      ){
+
+        window.show(
+          'home'
+        );
+
+      }
+
+
+      return;
+    }
+
+
+    /* =========================
+       التاجر
+       ========================= */
+
+    if(
+      profileData.role !==
+      'store' ||
+      !profileData.store_id ||
+      !profileData.can_edit_prices
+    ){
+
+      alert(
+        'حسابك غير مخول لإرسال الطلب.'
+      );
+
+      return;
+    }
+
+
+    if(price === null){
+
+      alert(
+        'اكتب السعر.'
+      );
+
+      return;
+    }
+
+
+    let imageUrl = null;
+
+
+    try{
+
+      if(
+        file &&
+        typeof window.uploadImage ===
+        'function'
+      ){
+
+        imageUrl =
+          await window.uploadImage(
+            file,
+            'materials'
+          );
+
+      }
+
+    }catch(err){
+
+      alert(
+        'فشل رفع الصورة: ' +
+        err.message
+      );
+
+      return;
+    }
+
+
+    const payload = {
+
+      request_type:
+        selected
+        ? 'price'
+        : 'product',
+
+      product_id:
+        selected || null,
+
+      store_id:
+        profileData.store_id,
+
+      price_new:
+        price,
+
+      product_name:
+        selected
+        ? null
+        : name,
+
+      product_description:
+        null,
+
+                   product_category:
+        document.getElementById(
+          'cat'
+        )?.value.trim() ||
+        'عام',
+
+      product_unit:
+        document.getElementById(
+          'unit'
+        )?.value.trim() ||
+        '',
+
+      product_image_url:
+        imageUrl,
+
+      submitted_by:
+        profileData.id,
+
+      status:
+        'pending'
+
+    };
+
+
+    const {
+      error
+    } =
+      await supabaseClient
+        .from('change_requests')
+        .insert(
+          payload
+        );
+
+
+    if(error){
+
+      const msg =
+        document.getElementById(
+          'addMsg'
+        );
+
+      if(msg){
+
+        msg.textContent =
+          'خطأ: ' +
+          error.message;
+
+      }
+
+      return;
+    }
+
+
+    const msg =
+      document.getElementById(
+        'addMsg'
+      );
+
+    if(msg){
+
+      msg.textContent =
+        'تم إرسال الطلب للمراجعة.';
+
+    }
+
+
+    /* تنظيف النموذج */
+
+    [
+      'pn',
+      'brand',
+      'unit',
+      'cat',
+      'pr'
+    ].forEach(function(i){
+
+      const x =
+        document.getElementById(i);
+
+      if(x){
+        x.value = '';
+      }
+
+    });
+
+
+    const imageInput =
+      document.getElementById(
+        'pimg'
+      );
+
+    if(imageInput){
+      imageInput.value = '';
+    }
+
+
+    const existingProduct =
+      document.getElementById(
+        'existingProduct'
+      );
+
+    if(existingProduct){
+      existingProduct.value = '';
+    }
+
+
+    if(
+      typeof window.show ===
+      'function'
+    ){
+
+      window.show(
+        'merchant'
+      );
+
+    }
+
+
+    if(
+      typeof window.renderMerchant ===
+      'function'
+    ){
+
+      await window.renderMerchant();
+
+    }
+
+  };
+
+
+  /*
+    ربط التنقل مع صفحات المتاجر
+    بدون مؤقتات.
+  */
+
+  const oldShow =
+    window.show;
+
+
+  if(
+    typeof oldShow ===
+    'function'
+  ){
+
+    window.show =
+      function(id){
+
+        const result =
+          oldShow.apply(
+            this,
+            arguments
+          );
+
+
+        /*
+          نعيد الرسم فقط عندما
+          يطلب المستخدم فتح الصفحة.
+        */
+
+        if(
+          id === 'stores'
+        ){
+
+          setTimeout(
+            function(){
+
+              if(
+                typeof window.renderStores ===
+                'function'
+              ){
+
+                window.renderStores();
+
+              }
+
+            },
+            0
+          );
+
+        }
+
+
+        if(
+          id === 'storeDetail'
+        ){
+
+          setTimeout(
+            function(){
+
+              if(
+                typeof window.renderStoreDetail ===
+                'function'
+              ){
+
+                window.renderStoreDetail();
+
+              }
+
+            },
+            0
+          );
+
+        }
+
+
+        return result;
+      };
+
+  }
+
+
+  /*
+    زر إضافة المادة.
+    يتم إنشاؤه مرة واحدة فقط.
+  */
+
+  function addButton(){
+
+    if(!profileData){
+      return;
+    }
+
+
+    const allowed =
+      profileData.role ===
+      'admin' ||
+
+      (
+        profileData.role ===
+        'store' &&
+
+        profileData.store_id &&
+
+        profileData.can_edit_prices
+      );
+
+
+    if(!allowed){
+      return;
+    }
+
+
+    const box =
+      document.getElementById(
+        'roleActions'
+      );
+
+
+    if(!box){
+      return;
+    }
+
+
+    if(
+      box.querySelector(
+        '[data-store-feature-add]'
+      )
+    ){
+
+      return;
+    }
+
+
+    const b =
+      document.createElement(
+        'button'
+      );
+
+
+    b.className =
+      'btn primary';
+
+    b.textContent =
+      'إضافة مادة جديدة';
+
+    b.setAttribute(
+      'data-store-feature-add',
+      '1'
+    );
+
+    b.onclick =
+      window.showAdd;
+
+
+    box.appendChild(
+      b
+    );
+  }
+
+
+  /*
+    لا يوجد setInterval هنا.
+    زر الإضافة لا يتم فحصه كل ثانية.
+  */
+
+
+  window.addEventListener(
+    'load',
+    function(){
+
+      setTimeout(
+        function(){
+
+          addButton();
+
+        },
+        700
       );
 
     }
@@ -1820,61 +1597,4 @@
 
 })();
 
-
-/* =========================================================
-   ربط ملف التحديثات الجديد app_updates.js
-   - لا نغيّر index.html
-   - لا نحمّل الملف أكثر من مرة
-   - إذا فشل الملف الجديد، يبقى store_features.js يعمل
-   ========================================================= */
-
-(function(){
-
-  'use strict';
-
-
-  if(
-    document.querySelector(
-      'script[data-saree-app-updates="1"]'
-    )
-  ){
-
-    return;
-  }
-
-
-  var s =
-    document.createElement(
-      'script'
-    );
-
-
-  s.src =
-    'app_updates.js';
-
-
-  s.async =
-    false;
-
-
-  s.setAttribute(
-    'data-saree-app-updates',
-    '1'
-  );
-
-
-  s.onerror =
-    function(){
-
-      console.warn(
-        'تعذر تحميل app_updates.js — تم إبقاء الموقع الحالي كما هو.'
-      );
-
-    };
-
-
-  document.head.appendChild(
-    s
-  );
-
-})();
+         
