@@ -1,3 +1,4 @@
+
 /* سعرلي سوريا — store_features.js
    نسخة موحدة
    - متجر واحد فقط للباركود
@@ -201,7 +202,7 @@
   }
 
   window.renderStores = async function(){
-
+console.log('renderStores يعمل');
     const box = el('storesList');
 
     if(!box) return;
