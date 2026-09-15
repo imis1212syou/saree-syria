@@ -585,6 +585,38 @@
 
                       <div class="price">
 
+  ...
+  ل.س
+</div>
+
+<div class="muted">
+  آخر تحديث:
+  ${esc(p.updated_at || '')}
+</div>
+
+${
+  canManageStore(st.id)
+  ? `
+    <button
+      type="button"
+      class="btn secondary"
+      style="margin-top:12px"
+      onclick="editStoreMaterial(
+        '${esc(p.id)}',
+        '${esc(pr.id)}',
+        '${esc(st.id)}',
+        '${esc(pr.name || '')}',
+        '${esc(pr.brand || '')}',
+        '${esc(pr.unit || '')}',
+        '${esc(pr.category || '')}',
+        '${esc(pr.barcode || '')}',
+        '${esc(price)}'
+      )">
+      ✏️ تعديل المادة
+    </button>
+  `
+  : ''
+}
                         ${
                           typeof window.f === 'function'
                           ? window.f(price)
@@ -1049,8 +1081,16 @@
     b.textContent =
       'إضافة مادة جديدة';
 
+    
 
-                 
+
+
+
+
+
+
+
+
 b.setAttribute(
       'data-store-feature-add',
       '1'
@@ -1091,7 +1131,144 @@ b.setAttribute(
 
     }
   );
+  /* =========================
+     تعديل المادة مباشرة
+     ========================= */
 
+  window.editStoreMaterial = async function(
+    listingId,
+    productId,
+    storeId,
+    name,
+    brand,
+    unit,
+    category,
+    barcode,
+    price
+  ){
+
+    if(!canManageStore(storeId)){
+      alert('ليس لديك صلاحية تعديل هذه المادة.');
+      return;
+    }
+
+    const newName = prompt(
+      'اسم المادة:',
+      name || ''
+    );
+
+    if(newName === null) return;
+
+    if(!newName.trim()){
+      alert('اسم المادة مطلوب.');
+      return;
+    }
+
+    const newBrand = prompt(
+      'العلامة التجارية:',
+      brand || ''
+    );
+
+    if(newBrand === null) return;
+
+    const newUnit = prompt(
+      'الوحدة:',
+      unit || ''
+    );
+
+    if(newUnit === null) return;
+
+    const newCategory = prompt(
+      'التصنيف:',
+      category || ''
+    );
+
+    if(newCategory === null) return;
+
+    const newBarcode = prompt(
+      'الباركود:',
+      barcode || ''
+    );
+
+    if(newBarcode === null) return;
+
+    const cleanBarcode =
+      newBarcode.replace(/\D/g,'');
+
+    const newPrice = prompt(
+      'السعر بالليرة السورية الجديدة:',
+      price ?? ''
+    );
+
+    if(newPrice === null) return;
+
+    const priceNumber =
+      Number(
+        String(newPrice)
+          .replace(/,/g,'.')
+          .trim()
+      );
+
+    if(
+      !Number.isFinite(priceNumber) ||
+      priceNumber < 0
+    ){
+      alert('السعر غير صحيح.');
+      return;
+    }
+
+    try{
+
+      /* تعديل بيانات المادة */
+
+      const productUpdate =
+        await supabaseClient
+          .from('products')
+          .update({
+            name: newName.trim(),
+            brand: newBrand.trim() || null,
+            unit: newUnit.trim() || null,
+            category: newCategory.trim() || null,
+            barcode: cleanBarcode || null
+          })
+          .eq('id',productId);
+
+      if(productUpdate.error){
+        throw productUpdate.error;
+      }
+
+      /* تعديل السعر */
+
+      const priceUpdate =
+        await supabaseClient
+          .from('price_listings')
+          .update({
+            price_new: priceNumber,
+            price: priceNumber,
+            approved: true,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id',listingId)
+          .eq('store_id',storeId);
+
+      if(priceUpdate.error){
+        throw priceUpdate.error;
+      }
+
+      alert('تم تعديل المادة بنجاح ✅');
+
+      await window.renderStoreDetail(storeId);
+
+    }catch(err){
+
+      console.error(err);
+
+      alert(
+        'تعذر تعديل المادة:\n' +
+        err.message
+      );
+    }
+  };
   /* =========================
      تشغيل
      ========================= */
@@ -1113,6 +1290,88 @@ b.setAttribute(
 
     }
   );
+window.editStoreMaterial = async function(
+  priceId,
+  productId,
+  storeId,
+  name,
+  brand,
+  unit,
+  category,
+  barcode,
+  price
+) {
+  try {
+    if (!canManageStore(storeId)) {
+      alert('ليس لديك صلاحية تعديل مواد هذا المتجر');
+      return;
+    }
 
+    const newName = prompt('اسم المادة:', name || '');
+    if (newName === null) return;
+
+    const newBrand = prompt('الماركة:', brand || '');
+    if (newBrand === null) return;
+
+    const newUnit = prompt('الوحدة:', unit || '');
+    if (newUnit === null) return;
+
+    const newCategory = prompt('التصنيف:', category || '');
+    if (newCategory === null) return;
+
+    const newBarcode = prompt('الباركود:', barcode || '');
+    if (newBarcode === null) return;
+
+    const newPriceText = prompt('السعر الجديد:', price || '');
+    if (newPriceText === null) return;
+
+    const newPrice = Number(newPriceText);
+
+    if (!newName.trim()) {
+      alert('اسم المادة مطلوب');
+      return;
+    }
+
+    if (!Number.isFinite(newPrice) || newPrice <= 0) {
+      alert('السعر غير صحيح');
+      return;
+    }
+
+    const { error: productError } = await supabase
+      .from('products')
+      .update({
+        name: newName.trim(),
+        brand: newBrand.trim(),
+        unit: newUnit.trim(),
+        category: newCategory.trim(),
+        barcode: newBarcode.trim() || null
+      })
+      .eq('id', productId);
+
+    if (productError) throw productError;
+
+    const { error: priceError } = await supabase
+      .from('price_listings')
+      .update({
+        price_new: newPrice,
+        approved: true,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', priceId)
+      .eq('store_id', storeId);
+
+    if (priceError) throw priceError;
+
+    alert('تم تعديل المادة والسعر بنجاح ✅');
+
+    await window.renderStoreDetail(storeId);
+
+  } catch (err) {
+    console.error(err);
+    alert(
+      'حدث خطأ أثناء التعديل: ' +
+      (err.message || 'خطأ غير معروف')
+    );
+  }
+};
 })();
-   
