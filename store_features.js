@@ -1340,7 +1340,7 @@ b.setAttribute(
 
           addButton();
 
-          getUserLocation();
+          
 
         },
         700
