@@ -119,13 +119,14 @@
         userLat = pos.coords.latitude;
         userLng = pos.coords.longitude;
 
-        if(
-          typeof window.renderStores === 'function' &&
-          el('stores')?.classList.contains('active')
-        ){
-          window.renderStores();
-        }
-
+if(
+  typeof window.renderStores === 'function' &&
+  el('stores')?.classList.contains('active')
+){
+  setTimeout(function(){
+    window.renderStores();
+  }, 100);
+}
       },
       function(){
         /*
