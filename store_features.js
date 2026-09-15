@@ -920,7 +920,7 @@ ${
 
       try{
 
-        const {error} =
+         const {error} =
           await supabaseClient
             .from('stores')
             .update({
@@ -958,7 +958,6 @@ ${
      إضافة مادة
      ========================= */
 
- 
   window.showAdd =
     function(){
 
@@ -1136,70 +1135,106 @@ b.setAttribute(
      تعديل المادة مباشرة
      ========================= */
 
-  window.editStoreMaterial = async function(
-    listingId,
-    productId,
-    storeId,
-    name,
-    brand,
-    unit,
-    category,
-    barcode,
-    price
-  ){
+ window.editStoreMaterial = async function(
+  listingId,
+  productId,
+  storeId,
+  name,
+  brand,
+  unit,
+  category,
+  barcode,
+  price
+){
+  if(!canManageStore(storeId)){
+    alert('ليس لديك صلاحية تعديل هذه المادة.');
+    return;
+  }
 
-    if(!canManageStore(storeId)){
-      alert('ليس لديك صلاحية تعديل هذه المادة.');
-      return;
+  const choice = prompt(
+`اختر العملية:
+
+1 - تعديل اسم المادة
+2 - تعديل الماركة
+3 - تعديل الوحدة
+4 - تعديل التصنيف
+5 - تعديل الباركود
+6 - تعديل السعر
+7 - حذف المادة
+
+اكتب رقم العملية:`
+  );
+
+  if(choice === null) return;
+
+  const option = String(choice).trim();
+
+  if(option === '7'){
+
+    const confirmDelete = confirm(
+      'هل أنت متأكد من حذف هذه المادة من هذا المتجر؟'
+    );
+
+    if(!confirmDelete) return;
+
+    try{
+
+      const { error } =
+        await supabaseClient
+          .from('price_listings')
+          .delete()
+          .eq('id',listingId)
+          .eq('store_id',storeId);
+
+      if(error) throw error;
+
+      alert('تم حذف المادة من المتجر بنجاح ✅');
+
+      await window.renderStoreDetail(storeId);
+
+    }catch(err){
+
+      console.error(err);
+
+      alert(
+        'تعذر حذف المادة:\n' +
+        (err.message || 'خطأ غير معروف')
+      );
     }
 
-    const newName = prompt(
-      'اسم المادة:',
-      name || ''
-    );
+    return;
+  }
 
-    if(newName === null) return;
+  let field = '';
+  let currentValue = '';
 
-    if(!newName.trim()){
-      alert('اسم المادة مطلوب.');
-      return;
-    }
+  if(option === '1'){
+    field = 'name';
+    currentValue = name || '';
+  }
+  else if(option === '2'){
+    field = 'brand';
+    currentValue = brand || '';
+  }
+  else if(option === '3'){
+    field = 'unit';
+    currentValue = unit || '';
+  }
+  else if(option === '4'){
+    field = 'category';
+    currentValue = category || '';
+  }
+  else if(option === '5'){
+    field = 'barcode';
+    currentValue = barcode || '';
+  }
+  else if(option === '6'){
 
-    const newBrand = prompt(
-      'العلامة التجارية:',
-      brand || ''
-    );
-
-    if(newBrand === null) return;
-
-    const newUnit = prompt(
-      'الوحدة:',
-      unit || ''
-    );
-
-    if(newUnit === null) return;
-
-    const newCategory = prompt(
-      'التصنيف:',
-      category || ''
-    );
-
-    if(newCategory === null) return;
-
-    const newBarcode = prompt(
-      'الباركود:',
-      barcode || ''
-    );
-
-    if(newBarcode === null) return;
-
-    const cleanBarcode =
-      newBarcode.replace(/\D/g,'');
-
-    const newPrice = prompt(
-      'السعر بالليرة السورية الجديدة:',
-      price ?? ''
-    );
+    const newPrice =
+      prompt(
+        'أدخل السعر الجديد:',
+        price || ''
+      );
 
     if(newPrice === null) return;
 
@@ -1220,27 +1255,7 @@ b.setAttribute(
 
     try{
 
-      /* تعديل بيانات المادة */
-
-      const productUpdate =
-        await supabaseClient
-          .from('products')
-          .update({
-            name: newName.trim(),
-            brand: newBrand.trim() || null,
-            unit: newUnit.trim() || null,
-            category: newCategory.trim() || null,
-            barcode: cleanBarcode || null
-          })
-          .eq('id',productId);
-
-      if(productUpdate.error){
-        throw productUpdate.error;
-      }
-
-      /* تعديل السعر */
-
-      const priceUpdate =
+      const { error } =
         await supabaseClient
           .from('price_listings')
           .update({
@@ -1252,11 +1267,9 @@ b.setAttribute(
           .eq('id',listingId)
           .eq('store_id',storeId);
 
-      if(priceUpdate.error){
-        throw priceUpdate.error;
-      }
+      if(error) throw error;
 
-      alert('تم تعديل المادة بنجاح ✅');
+      alert('تم تعديل السعر بنجاح ✅');
 
       await window.renderStoreDetail(storeId);
 
@@ -1265,12 +1278,56 @@ b.setAttribute(
       console.error(err);
 
       alert(
-        'تعذر تعديل المادة:\n' +
-        err.message
+        'تعذر تعديل السعر:\n' +
+        (err.message || 'خطأ غير معروف')
       );
     }
-  };
-  /* =========================
+
+    return;
+  }
+  else{
+    alert('اختر رقمًا من 1 إلى 7.');
+    return;
+  }
+
+  const newValue =
+    prompt(
+      'أدخل القيمة الجديدة:',
+      currentValue
+    );
+
+  if(newValue === null) return;
+
+  try{
+
+    const updateData = {};
+
+    updateData[field] =
+      newValue.trim() || null;
+
+    const { error } =
+      await supabaseClient
+        .from('products')
+        .update(updateData)
+        .eq('id',productId);
+
+    if(error) throw error;
+
+    alert('تم التعديل بنجاح ✅');
+
+    await window.renderStoreDetail(storeId);
+
+  }catch(err){
+
+    console.error(err);
+
+    alert(
+      'تعذر تعديل المادة:\n' +
+      (err.message || 'خطأ غير معروف')
+    );
+  }
+};
+   /* =========================
      تشغيل
      ========================= */
 
@@ -1291,5 +1348,237 @@ b.setAttribute(
 
     }
   );
+// ===============================
+// صلاحيات التاجر - المدير فقط
+// ===============================
+
+window.adminMerchantPermissions = async function(){
+
+  if(!isAdmin()){
+    alert('هذه الصفحة للمدير فقط.');
+    return;
+  }
+
+  try{
+
+    const { data: merchants, error } =
+      await supabaseClient
+        .from('profiles')
+        .select('id,name,role,store_id,can_edit_prices')
+        .eq('role','store')
+        .order('created_at',{ascending:false});
+
+    if(error) throw error;
+
+    const { data: stores, error: storesError } =
+      await supabaseClient
+        .from('stores')
+        .select('id,name')
+        .order('name');
+
+    if(storesError) throw storesError;
+
+    let html = `
+      <div class="card" style="margin-top:16px">
+        <h3>صلاحيات التجار</h3>
+        <p class="muted">
+          اربط التاجر بمتجر ثم فعّل أو عطّل صلاحية التعديل.
+        </p>
+    `;
+
+    if(!merchants || !merchants.length){
+
+      html += `
+        <div class="muted">
+          لا يوجد تجار مسجلون حتى الآن.
+        </div>
+      `;
+
+    }else{
+
+      merchants.forEach(function(merchant){
+
+        const store =
+          (stores || []).find(
+            s => s.id === merchant.store_id
+          );
+
+        html += `
+          <div class="card" style="margin-top:12px">
+
+            <strong>
+              ${esc(merchant.name || 'تاجر بدون اسم')}
+            </strong>
+
+            <div class="muted" style="margin-top:6px">
+              ${esc(merchant.id)}
+            </div>
+
+            <label style="display:block;margin-top:12px">
+              المتجر
+            </label>
+
+            <select
+              id="merchantStore_${merchant.id}"
+              class="input"
+              style="width:100%;margin-top:6px"
+            >
+
+              <option value="">
+                بدون متجر
+              </option>
+
+              ${(stores || []).map(function(store){
+
+                return `
+                  <option
+                    value="${store.id}"
+                    ${merchant.store_id === store.id ? 'selected' : ''}
+                  >
+                    ${esc(store.name)}
+                  </option>
+                `;
+
+              }).join('')}
+
+            </select>
+
+            <label
+              style="
+                display:flex;
+                align-items:center;
+                gap:8px;
+                margin-top:12px;
+              "
+            >
+
+              <input
+                type="checkbox"
+                id="merchantPermission_${merchant.id}"
+                ${merchant.can_edit_prices ? 'checked' : ''}
+              >
+
+              السماح للتاجر بإضافة وتعديل وحذف مواد وأسعار متجره
+
+            </label>
+
+            <button
+              type="button"
+              class="btn"
+              style="margin-top:12px"
+              onclick="
+                saveMerchantPermission(
+                  '${merchant.id}'
+                )
+              "
+            >
+              💾 حفظ الصلاحيات
+            </button>
+
+          </div>
+        `;
+
+      });
+
+    }
+
+    html += `</div>`;
+
+    const adminPage =
+      document.getElementById('admin');
+
+    if(!adminPage){
+      alert('لم يتم العثور على صفحة الإدارة.');
+      return;
+    }
+
+    let box =
+      document.getElementById('merchantPermissionsBox');
+
+    if(!box){
+
+      box =
+        document.createElement('div');
+
+      box.id =
+        'merchantPermissionsBox';
+
+      adminPage.appendChild(box);
+
+    }
+
+    box.innerHTML = html;
+
+  }catch(err){
+
+    console.error(err);
+
+    alert(
+      'تعذر تحميل صلاحيات التجار:\n' +
+      (err.message || 'خطأ غير معروف')
+    );
+  }
+};
+
+
+// حفظ صلاحيات تاجر
+window.saveMerchantPermission = async function(merchantId){
+
+  if(!isAdmin()){
+    alert('المدير فقط يستطيع تغيير الصلاحيات.');
+    return;
+  }
+
+  const storeSelect =
+    document.getElementById(
+      'merchantStore_' + merchantId
+    );
+
+  const permission =
+    document.getElementById(
+      'merchantPermission_' + merchantId
+    );
+
+  if(!storeSelect || !permission){
+    alert('تعذر قراءة بيانات الصلاحية.');
+    return;
+  }
+
+  const storeId =
+    storeSelect.value || null;
+
+  const canEdit =
+    permission.checked && !!storeId;
+
+  try{
+
+    const { error } =
+      await supabaseClient
+        .from('profiles')
+        .update({
+          store_id: storeId,
+          can_edit_prices: canEdit
+        })
+        .eq('id',merchantId);
+
+    if(error) throw error;
+
+    alert(
+      canEdit
+        ? 'تم ربط التاجر بالمتجر وتفعيل الصلاحية ✅'
+        : 'تم حفظ الصلاحيات وتعطيل التعديل ✅'
+    );
+
+    await window.adminMerchantPermissions();
+
+  }catch(err){
+
+    console.error(err);
+
+    alert(
+      'تعذر حفظ الصلاحيات:\n' +
+      (err.message || 'خطأ غير معروف')
+    );
+  }
+};
 })();
-         
