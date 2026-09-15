@@ -40,20 +40,26 @@
     );
   }
 
-  function canManageStore(storeId){
-    return !!(
-      profileData &&
-      (
-        profileData.role === 'admin' ||
-        (
-          profileData.role === 'store' &&
-          profileData.store_id &&
-          profileData.can_edit_prices === true &&
-          String(profileData.store_id) === String(storeId)
-        )
-      )
-    );
+   function canManageStore(storeId){
+  if(!profileData){
+    return false;
   }
+
+  if(String(profileData.role).toLowerCase() === 'admin'){
+    return true;
+  }
+
+  if(
+    String(profileData.role).toLowerCase() === 'store' &&
+    profileData.store_id &&
+    profileData.can_edit_prices === true &&
+    String(profileData.store_id) === String(storeId)
+  ){
+    return true;
+  }
+
+  return false;
+   }
 
   /* =========================
      الموقع والمسافة
