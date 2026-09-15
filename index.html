@@ -168,7 +168,15 @@
 <select id="accountType"><option value="user">حساب مستخدم</option><option value="store">حساب تاجر</option></select>
 <div class="actions"><button class="btn primary" onclick="signup()">إنشاء الحساب</button><button class="btn secondary" onclick="show('login')">لدي حساب</button><button class="btn secondary" onclick="enterVisitorFromLogin()">الدخول كزائر</button></div><p id="signupMsg" class="muted"></p></div></section>
 
-<section id="admin" class="page"><div class="hero"><h1>لوحة الإدارة والصلاحيات</h1><p id="role" class="muted"></p></div><div id="adminPanel"></div></section>
+<section id="admin" class="page">
+
+  <button
+    type="button"
+    class="btn"
+    onclick="adminMerchantPermissions()"
+  >
+    👑 صلاحيات التجار
+  </button><div class="hero"><h1>لوحة الإدارة والصلاحيات</h1><p id="role" class="muted"></p></div><div id="adminPanel"></div></section>
 <section id="merchant" class="page"><div class="hero"><h1>بوابة التاجر</h1><p id="merchantRole" class="muted"></p></div><div id="merchantPanel"></div></section>
 </div>
 
