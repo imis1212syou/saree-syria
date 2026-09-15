@@ -1,14 +1,19 @@
-/* سعرلي سوريا — إضافات المتاجر والمواد
-   الدفعة 1 من 2
-   نسخة نهائية بدون وميض
+/* سعرلي سوريا — store_features.js
+   نسخة موحدة
+   - متجر واحد فقط للباركود
+   - كاميرا + إدخال يدوي
+   - بدون توليد أو تنزيل باركود
+   - مسافة مستقلة لكل متجر
+   - Google Maps للاتجاهات
+   - تعديل مباشر لمواد التاجر
+   - بدون وميض أو بطاقات مكررة
 */
+
 (function(){
   'use strict';
 
   function esc(v){
-    if(typeof window.e === 'function'){
-      return window.e(v);
-    }
+    if(typeof window.e === 'function') return window.e(v);
 
     return String(v ?? '').replace(
       /[&<>"']/g,
@@ -28,7 +33,14 @@
     return document.getElementById(id);
   }
 
-  function canAdd(){
+  function isAdmin(){
+    return !!(
+      window.profileData &&
+      profileData.role === 'admin'
+    );
+  }
+
+  function canManageStore(storeId){
     return !!(
       profileData &&
       (
@@ -36,14 +48,138 @@
         (
           profileData.role === 'store' &&
           profileData.store_id &&
-          profileData.can_edit_prices
+          profileData.can_edit_prices === true &&
+          String(profileData.store_id) === String(storeId)
         )
       )
     );
   }
 
-  async function refreshStoresSafe(){
+  /* =========================
+     الموقع والمسافة
+     ========================= */
+
+  let userLat = null;
+  let userLng = null;
+
+  function distanceKm(lat1,lon1,lat2,lon2){
+
+    const R = 6371;
+
+    const dLat =
+      (lat2-lat1) * Math.PI / 180;
+
+    const dLon =
+      (lon2-lon1) * Math.PI / 180;
+
+    const a =
+      Math.sin(dLat/2) *
+      Math.sin(dLat/2) +
+      Math.cos(lat1*Math.PI/180) *
+      Math.cos(lat2*Math.PI/180) *
+      Math.sin(dLon/2) *
+      Math.sin(dLon/2);
+
+    return R *
+      2 *
+      Math.atan2(
+        Math.sqrt(a),
+        Math.sqrt(1-a)
+      );
+  }
+
+  function formatDistance(km){
+
+    if(km === null || Number.isNaN(km)){
+      return '';
+    }
+
+    if(km < 1){
+      return Math.round(km * 1000) + ' م';
+    }
+
+    return km.toFixed(1) + ' كم';
+  }
+
+  function getUserLocation(){
+
+    if(!navigator.geolocation){
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      function(pos){
+
+        userLat = pos.coords.latitude;
+        userLng = pos.coords.longitude;
+
+        if(
+          typeof window.renderStores === 'function' &&
+          el('stores')?.classList.contains('active')
+        ){
+          window.renderStores();
+        }
+
+      },
+      function(){
+        /*
+          الموقع اختياري.
+          المتجر يبقى ظاهرًا حتى لو رفض المستخدم.
+        */
+      },
+      {
+        enableHighAccuracy:true,
+        timeout:10000,
+        maximumAge:300000
+      }
+    );
+  }
+
+  function directionsUrl(st){
+
+    if(
+      st.latitude == null ||
+      st.longitude == null
+    ){
+      return '';
+    }
+
+    return (
+      'https://www.google.com/maps/dir/?api=1' +
+      '&destination=' +
+      encodeURIComponent(
+        st.latitude + ',' + st.longitude
+      )
+    );
+  }
+
+  function storeDistance(st){
+
+    if(
+      userLat === null ||
+      userLng === null ||
+      st.latitude == null ||
+      st.longitude == null
+    ){
+      return null;
+    }
+
+    return distanceKm(
+      userLat,
+      userLng,
+      Number(st.latitude),
+      Number(st.longitude)
+    );
+  }
+
+  /* =========================
+     المتاجر
+     ========================= */
+
+  async function refreshStores(){
+
     try{
+
       const {data,error} =
         await supabaseClient
           .from('stores')
@@ -51,57 +187,75 @@
           .order('name');
 
       if(error){
-        console.warn('stores:',error.message);
+        console.warn(error.message);
         return;
       }
 
       if(Array.isArray(data)){
-        stores=data;
+        stores = data;
       }
+
     }catch(err){
-      console.warn('stores refresh:',err);
+      console.warn(err);
     }
   }
 
-  window.renderStores=async function(){
-    const box=el('storesList');
-    if(!box)return;
+  window.renderStores = async function(){
 
-    await refreshStoresSafe();
+    const box = el('storesList');
+
+    if(!box) return;
+
+    await refreshStores();
 
     if(!stores.length){
-      box.innerHTML=
-        '<div class="card">'+
-        '<p class="muted">لا توجد متاجر مضافة حالياً.</p>'+
+
+      box.innerHTML =
+        '<div class="card">' +
+        '<p class="muted">لا توجد متاجر مضافة حالياً.</p>' +
         '</div>';
+
       return;
     }
 
-    box.innerHTML=stores.map(function(st){
+    let list = stores.slice();
 
-      const verified=st.verified
+    /*
+      إذا كان موقع الزائر ومواقع المتاجر متوفرين:
+      الأقرب أولاً.
+    */
+
+    list.sort(function(a,b){
+
+      const da = storeDistance(a);
+      const db = storeDistance(b);
+
+      if(da === null && db === null) return 0;
+      if(da === null) return 1;
+      if(db === null) return -1;
+
+      return da-db;
+    });
+
+    box.innerHTML = list.map(function(st){
+
+      const verified =
+        st.verified
         ? '<span class="pill">✓ موثّق</span>'
         : '';
 
-      const hours=st.opening_hours
-        ? '<div class="muted">🕐 '+esc(st.opening_hours)+'</div>'
-        : '';
+      const area =
+        [st.city,st.area]
+          .filter(Boolean)
+          .join(' — ');
 
-      const days=st.working_days
-        ? '<div class="muted">📅 '+esc(st.working_days)+'</div>'
-        : '';
+      const distance =
+        formatDistance(
+          storeDistance(st)
+        );
 
-      const phone=st.phone
-        ? '<div class="muted">📞 '+esc(st.phone)+'</div>'
-        : '';
-
-      const address=st.address
-        ? '<div class="muted">📍 '+esc(st.address)+'</div>'
-        : '';
-
-      const area=[st.city,st.area]
-        .filter(Boolean)
-        .join(' — ');
+      const maps =
+        directionsUrl(st);
 
       return `
         <div class="card">
@@ -110,6 +264,7 @@
                style="justify-content:space-between;align-items:center">
 
             <h3>${esc(st.name || 'متجر')}</h3>
+
             ${verified}
 
           </div>
@@ -120,24 +275,64 @@
             : ''
           }
 
-          ${address}
-          ${phone}
-          ${hours}
-          ${days}
-
-          <button
-            class="btn primary"
-            onclick="openStore('${st.id}')">
-            فتح صفحة المتجر
-          </button>
+          ${
+            st.address
+            ? `<div class="muted">📍 ${esc(st.address)}</div>`
+            : ''
+          }
 
           ${
-            profileData?.role === 'admin'
+            st.phone
+            ? `<div class="muted">📞 ${esc(st.phone)}</div>`
+            : ''
+          }
+
+          ${
+            st.opening_hours
+            ? `<div class="muted">🕐 ${esc(st.opening_hours)}</div>`
+            : ''
+          }
+
+          ${
+            distance
+            ? `
+              <div class="pill"
+                   style="display:inline-block;margin-top:8px">
+                📏 ${esc(distance)}
+              </div>
+            `
+            : ''
+          }
+
+          <div class="actions">
+
+            <button
+              class="btn primary"
+              onclick="openStore('${esc(st.id)}')">
+              فتح صفحة المتجر
+            </button>
+
+            ${
+              maps
+              ? `
+                <button
+                  class="btn secondary"
+                  onclick="window.open('${esc(maps)}','_blank')">
+                  🗺️ الاتجاهات
+                </button>
+              `
+              : ''
+            }
+
+          </div>
+
+          ${
+            isAdmin()
             ? `
               <button
                 class="btn secondary"
                 onclick="toggleStoreVerification(
-                  '${st.id}',
+                  '${esc(st.id)}',
                   ${st.verified ? 'false' : 'true'}
                 )">
                 ${
@@ -156,52 +351,75 @@
     }).join('');
   };
 
-  window.renderStoreDetail=async function(id){
+  /* =========================
+     صفحة المتجر
+     ========================= */
 
-    const body=el('storeDetailBody');
-    const title=el('storeDetailName');
+  window.renderStoreDetail = async function(id){
 
-    if(!body || !title)return;
+    const body = el('storeDetailBody');
+    const title = el('storeDetailName');
 
-    const storeId=id || window.currentStoreId;
+    if(!body || !title) return;
+
+    const storeId =
+      id || window.currentStoreId;
 
     if(!storeId){
-      body.innerHTML=
+
+      body.innerHTML =
         '<p class="muted">لم يتم تحديد المتجر.</p>';
+
       return;
     }
 
-    await refreshStoresSafe();
+    await refreshStores();
 
-    const st=stores.find(function(x){
-      return String(x.id)===String(storeId);
-    });
+    const st =
+      stores.find(function(x){
+        return String(x.id) === String(storeId);
+      });
 
     if(!st){
-      title.textContent='المتجر';
 
-      body.innerHTML=
-        '<div class="card">'+
-        '<p class="muted">المتجر غير موجود.</p>'+
+      title.textContent = 'المتجر';
+
+      body.innerHTML =
+        '<div class="card">' +
+        '<p class="muted">المتجر غير موجود.</p>' +
         '</div>';
 
       return;
     }
 
-    window.currentStoreId=st.id;
-    title.textContent=st.name || 'المتجر';
+    window.currentStoreId = st.id;
+
+    title.textContent =
+      st.name || 'المتجر';
 
     try{
-      if(typeof recordStoreVisit==='function'){
+
+      if(typeof recordStoreVisit === 'function'){
         await recordStoreVisit(st.id);
       }
+
     }catch(_){}
 
-    const area=[st.city,st.area]
-      .filter(Boolean)
-      .join(' — ');
+    const area =
+      [st.city,st.area]
+        .filter(Boolean)
+        .join(' — ');
 
-    let html=`
+    const distance =
+      formatDistance(
+        storeDistance(st)
+      );
+
+    const maps =
+      directionsUrl(st);
+
+    let html = `
+
       <div class="card">
 
         <div class="row"
@@ -230,6 +448,12 @@
         }
 
         ${
+          distance
+          ? `<p class="pill">📏 يبعد ${esc(distance)}</p>`
+          : ''
+        }
+
+        ${
           st.phone
           ? `<p>📞 الهاتف: ${esc(st.phone)}</p>`
           : ''
@@ -247,25 +471,52 @@
           : ''
         }
 
+        ${
+          maps
+          ? `
+            <button
+              class="btn primary"
+              onclick="window.open('${esc(maps)}','_blank')">
+              🗺️ فتح الاتجاهات في Google Maps
+            </button>
+          `
+          : ''
+        }
+
       </div>
+
     `;
 
-    let ps=[];
+    /* =========================
+       باركود واحد فقط
+       ========================= */
+
+    html += window.storeBarcodeHtml(st.id);
+
+    /* =========================
+       الأسعار
+       ========================= */
+
+    let ps = [];
 
     try{
-      const {data,error}=await supabaseClient
-        .from('price_listings')
-        .select('*,products(*)')
-        .eq('store_id',st.id)
-        .eq('approved',true)
-        .order('updated_at',{ascending:false});
+
+      const {data,error} =
+        await supabaseClient
+          .from('price_listings')
+          .select('*,products(*)')
+          .eq('store_id',st.id)
+          .eq('approved',true)
+          .order('updated_at',{ascending:false});
 
       if(!error && Array.isArray(data)){
-        ps=data;
+        ps = data;
       }
+
     }catch(_){}
 
-    html+=`
+    html += `
+
       <div class="card">
 
         <h3>أسعار المتجر</h3>
@@ -278,10 +529,33 @@
               ${
                 ps.map(function(p){
 
-                  const pr=p.products || {};
+                  const pr =
+                    p.products || {};
+
+                  const price =
+                    p.price_new ??
+                    p.price ??
+                    0;
 
                   return `
+
                     <div class="card">
+
+                      ${
+                        pr.image_url
+                        ? `
+                          <img
+                            src="${esc(pr.image_url)}"
+                            style="
+                              width:100%;
+                              max-height:180px;
+                              object-fit:contain;
+                              border-radius:14px;
+                            "
+                          >
+                        `
+                        : ''
+                      }
 
                       <h3>
                         ${esc(pr.name || 'مادة')}
@@ -301,27 +575,24 @@
 
                       ${
                         pr.barcode
-                        ? `<div class="muted">
+                        ? `
+                          <div class="muted">
                             الباركود: ${esc(pr.barcode)}
-                           </div>`
+                          </div>
+                        `
                         : ''
                       }
 
                       <div class="price">
+
                         ${
-                          typeof window.f==='function'
-                          ? window.f(
-                              p.price ??
-                              p.price_new ??
-                              0
-                            )
-                          : (
-                              p.price ??
-                              p.price_new ??
-                              0
-                            )
+                          typeof window.f === 'function'
+                          ? window.f(price)
+                          : price
                         }
+
                         ل.س
+
                       </div>
 
                       <div class="muted">
@@ -330,6 +601,7 @@
                       </div>
 
                     </div>
+
                   `;
 
                 }).join('')
@@ -345,847 +617,156 @@
         }
 
       </div>
+
     `;
 
-    /*
-      مهم:
-      الباركود يُدمج داخل نفس عملية الرسم.
-      لذلك لن يظهر ثم يختفي بسبب إعادة رسم منفصلة.
-    */
-    if(typeof window.storeBarcodeHtml==='function'){
-      html+=window.storeBarcodeHtml(st.id);
-    }
-
-    body.innerHTML=html;
+    body.innerHTML = html;
   };
 
-  window.toggleStoreVerification=async function(storeId,value){
+  /* =========================
+     باركود المتجر
+     ========================= */
 
-    if(
-      !profileData ||
-      profileData.role!=='admin'
-    ){
-      alert('هذه العملية للمدير فقط.');
-      return;
-    }
+  window.storeBarcodeHtml =
+    function(storeId){
 
+      return `
 
-    try{
+        <div class="card store-barcode-card">
 
-      const {error}=await supabaseClient
-        .from('stores')
-        .update({
-          verified:
-            value===true ||
-            value==='true'
-        })
-        .eq('id',storeId);
+          <h3>📷 باركود المتجر</h3>
 
-      if(error){
-        alert(
-          'تعذر تحديث التوثيق: '+
-          error.message
-        );
-        return;
-      }
-
-      await refreshStoresSafe();
-
-      if(typeof window.renderStores==='function'){
-        await window.renderStores();
-      }
-
-    }catch(err){
-
-      alert(
-        'حدث خطأ: '+
-        err.message
-      );
-
-    }
-  };
-
-  window.showAdd=function(){
-
-    if(!profileData){
-      alert('سجّل الدخول أولاً.');
-      show('login');
-      return;
-    }
-
-    if(profileData.role==='admin'){
-
-      show('add');
-
-      const box=el('merchantStoreBox');
-
-      if(box){
-
-        const opts=stores.map(function(s){
-          return `
-            <option value="${s.id}">
-              ${esc(s.name)}
-            </option>
-          `;
-        }).join('');
-
-        box.innerHTML=`
-          <label class="muted">
-            المتجر للسعر
-          </label>
-
-          <select id="adminAddStore">
-            <option value="">
-              اختر المتجر
-            </option>
-            ${opts}
-          </select>
-        `;
-      }
-
-      return;
-    }
-
-    if(profileData.role!=='store'){
-      alert(
-        'إضافة المواد متاحة للتاجر المربوط بمتجر والمصرح له، وللمدير.'
-      );
-      return;
-    }
-
-    if(!profileData.can_edit_prices){
-      alert('حسابك غير مصرح له حالياً.');
-      return;
-    }
-
-    if(!profileData.store_id){
-      alert(
-        'حسابك غير مربوط بمتجر حتى الآن.'
-      );
-      return;
-    }
-
-    show('add');
-  };
-
-  function injectHomeButton(){
-
-    const home=el('home');
-
-    if(!home || !canAdd()){
-      return;
-    }
-
-    if(
-      el('storeFeaturesAddBtn')
-    ){
-      return;
-    }
-
-    const btn=document.createElement('button');
-
-    btn.id='storeFeaturesAddBtn';
-    btn.className='btn primary';
-    btn.textContent='إضافة مادة جديدة';
-    btn.onclick=window.showAdd;
-
-    home.appendChild(btn);
-  }
-
-  window.addEventListener(
-    'load',
-    function(){
-
-      setTimeout(
-        function(){
-
-          injectHomeButton();
-
-          if(
-            el('stores')?.classList
-              .contains('active')
-          ){
-            window.renderStores();
-          }
-
-        },
-        700
-      );
-
-    }
-  );
-
-})();
-/* سعرلي سوريا — الدفعة 2 من 2
-   إضافة/تعديل مواد وأسعار التاجر مباشرة
-   + باركود المتجر
-*/
-(function(){
-  'use strict';
-
-  window.submitPrice = async function(){
-
-    const selected =
-      document.getElementById('existingProduct')?.value || '';
-
-    const name =
-      document.getElementById('pn')?.value.trim() || '';
-
-    const brand =
-      document.getElementById('brand')?.value.trim() || '';
-
-    const unit =
-      document.getElementById('unit')?.value.trim() || '';
-
-    const category =
-      document.getElementById('cat')?.value.trim() || 'عام';
-
-    const barcode =
-      document.getElementById('barcode')?.value
-        .replace(/\D/g,'')
-        .trim() || '';
-
-    const priceRaw =
-      document.getElementById('pr')?.value;
-
-    const price =
-      priceRaw === ''
-      ? null
-      : Number(priceRaw);
-const file =
-
-   document.getElementById('pimg')?.files?.[0] || null;
-
-    if(!selected && !name){
-      alert('اكتب اسم المادة الجديدة.');
-      return;
-    }
-
-    if(
-      price === null ||
-      Number.isNaN(price) ||
-      price < 0
-    ){
-      alert('اكتب السعر بشكل صحيح.');
-      return;
-    }
-
-    if(!profileData){
-      alert('سجّل الدخول أولاً.');
-      return;
-    }
-
-    /*
-      =========================
-      المدير
-      =========================
-    */
-
-    if(profileData.role === 'admin'){
-
-      let imageUrl=null;
-
-      try{
-
-        if(
-          file &&
-          typeof window.uploadImage === 'function'
-        ){
-          imageUrl=
-            await window.uploadImage(
-              file,
-              'materials'
-            );
-        }
-
-      }catch(err){
-
-        alert(
-          'فشل رفع الصورة: '+
-          err.message
-        );
-
-        return;
-      }
-
-      /*
-        مادة موجودة
-      */
-
-      if(selected){
-
-        const storeId=
-          document.getElementById(
-            'adminAddStore'
-          )?.value || '';
-
-        if(!storeId){
-          alert('اختر المتجر للسعر.');
-          return;
-        }
-
-        const {error}=await supabaseClient
-          .from('price_listings')
-          .upsert({
-            product_id:selected,
-            store_id:storeId,
-            price_new:price,
-            approved:true,
-             
-            submitted_by:profileData.id,
-            approved_by:profileData.id,
-            updated_at:new Date().toISOString()
-          },{
-            onConflict:'product_id,store_id'
-          });
-
-        if(error){
-          alert(error.message);
-          return;
-        }
-
-        alert(
-          'تم إضافة السعر ونشره مباشرة.'
-        );
-
-      }else{
-
-        /*
-          مادة جديدة للمدير
-        */
-
-        const {data,error}=
-          await supabaseClient
-            .from('products')
-            .insert({
-              name:name,
-              brand:brand || null,
-              description:null,
-              category:category,
-              unit:unit || null,
-              barcode:barcode || null,
-              image_url:imageUrl,
-              active:true,
-              created_by:profileData.id
-            })
-            .select()
-            .single();
-
-        if(error){
-          alert(error.message);
-          return;
-        }
-
-        const storeId=
-          document.getElementById(
-            'adminAddStore'
-          )?.value || '';
-
-        if(storeId){
-
-          const {error:e2}=
-            await supabaseClient
-              .from('price_listings')
-              .insert({
-                product_id:data.id,
-                store_id:storeId,
-                price_new:price,
-                approved:true,
-                 
-                submitted_by:profileData.id,
-                approved_by:profileData.id,
-                updated_at:new Date().toISOString()
-              });
-
-          if(e2){
-            alert(e2.message);
-            return;
-          }
-        }
-
-        alert(
-          storeId
-          ? 'تمت إضافة المادة والسعر ونشرهما مباشرة.'
-          : 'تمت إضافة المادة ونشرها مباشرة.'
-        );
-      }
-
-      [
-        'pn',
-        'brand',
-        'unit',
-        'cat',
-        'barcode',
-        'pr'
-      ].forEach(function(id){
-
-        const x=
-          document.getElementById(id);
-
-        if(x){
-          x.value='';
-        }
-
-      });
-
-      const imageInput=
-        document.getElementById('pimg');
-
-      if(imageInput){
-        imageInput.value='';
-      }
-
-      const existingProduct=
-        document.getElementById(
-          'existingProduct'
-        );
-
-      if(existingProduct){
-        existingProduct.value='';
-      }
-
-      if(typeof window.refreshAll==='function'){
-        await window.refreshAll();
-      }
-
-      if(typeof window.show==='function'){
-        window.show('home');
-      }
-
-      return;
-    }
-
-    /*
-      =========================
-      التاجر
-      =========================
-    */
-
-    if(
-      profileData.role !== 'store' ||
-      !profileData.store_id ||
-      !profileData.can_edit_prices
-    ){
-      alert(
-        'حسابك غير مخول لإدارة مواد وأسعار المتجر.'
-      );
-      return;
-    }
-
-    const storeId=profileData.store_id;
-
-    let imageUrl=null;
-
-    try{
-
-      if(
-        file &&
-        typeof window.uploadImage==='function'
-      ){
-        imageUrl=
-          await window.uploadImage(
-            file,
-            'materials'
-          );
-      }
-
-    }catch(err){
-
-      alert(
-        'فشل رفع الصورة: '+
-        err.message
-      );
-
-      return;
-    }
-
-    /*
-      إذا اختار مادة موجودة:
-      نعدّل معلوماتها ونضيف/نحدّث سعر المتجر.
-    */
-
-    if(selected){
-
-      const {error:productError}=
-        await supabaseClient
-          .from('products')
-          .update({
-            name:name || undefined,
-            brand:brand || null,
-            unit:unit || null,
-            category:category,
-            barcode:barcode || null,
-            image_url:imageUrl || undefined
-          })
-          .eq('id',selected);
-
-      if(productError){
-        alert(
-          'تعذر تعديل المادة: '+
-          productError.message
-        );
-        return;
-      }
-
-      const {error:priceError}=
-        await supabaseClient
-          .from('price_listings')
-          .upsert({
-            product_id:selected,
-            store_id:storeId,
-            price_new:price,
-            approved:true,
-             
-            submitted_by:profileData.id,
-            updated_at:new Date().toISOString()
-          },{
-            onConflict:'product_id,store_id'
-          });
-
-      if(priceError){
-        alert(
-          'تعذر حفظ السعر: '+
-          priceError.message
-        );
-        return;
-      }
-
-      alert(
-        'تم تعديل المادة والسعر مباشرة.'
-      );
-
-    }else{
-
-      /*
-        مادة جديدة للتاجر
-      */
-
-      const {data,error}=
-        await supabaseClient
-          .from('products')
-          .insert({
-            name:name,
-            brand:brand || null,
-            unit:unit || null,
-            category:category,
-            barcode:barcode || null,
-            image_url:imageUrl,
-            active:true,
-            created_by:profileData.id
-          })
-          .select()
-          .single();
-
-      if(error){
-        alert(
-          'تعذر إضافة المادة: '+
-          error.message
-        );
-        return;
-      }
-
-      const {error:priceError}=
-        await supabaseClient
-          .from('price_listings')
-          .insert({
-            product_id:data.id,
-            store_id:storeId,
-            price_new:price,
-            approved:true,
-             
-            submitted_by:profileData.id,
-            updated_at:new Date().toISOString()
-          });
-
-      if(priceError){
-        alert(
-          'تم إنشاء المادة لكن تعذر حفظ السعر: '+
-          priceError.message
-        );
-        return;
-      }
-
-      alert(
-        'تمت إضافة المادة والسعر ونشرهما مباشرة.'
-      );
-    }
-
-    [
-      'pn',
-      'brand',
-      'unit',
-      'cat',
-      'barcode',
-      'pr'
-    ].forEach(function(id){
-
-      const x=
-        document.getElementById(id);
-
-      if(x){
-        x.value='';
-      }
-
-    });
-
-    const imageInput=
-      document.getElementById('pimg');
-
-    if(imageInput){
-      imageInput.value='';
-    }
-
-    const existingProduct=
-      document.getElementById(
-        'existingProduct'
-      );
-
-    if(existingProduct){
-      existingProduct.value='';
-    }
-
-    if(typeof window.refreshAll==='function'){
-      await window.refreshAll();
-    }
-
-    if(typeof window.show==='function'){
-      window.show('merchant');
-    }
-
-    if(typeof window.renderMerchant==='function'){
-      await window.renderMerchant();
-    }
-  };
-
-
-  /*
-    ========================================
-    باركود المتجر
-    ========================================
-  */
-
-  function escB(v){
-
-    if(typeof window.e==='function'){
-      return window.e(v);
-    }
-
-    return String(v ?? '').replace(
-      /[&<>"']/g,
-      function(m){
-        return {
-          '&':'&amp;',
-          '<':'&lt;',
-          '>':'&gt;',
-          '"':'&quot;',
-          "'":'&#039;'
-        }[m];
-      }
-    );
-  }
-
-
-  function canManageStore(storeId){
-
-    return !!(
-      profileData &&
-      (
-        profileData.role==='admin' ||
-
-        (
-          profileData.role==='store' &&
-          profileData.store_id &&
-          profileData.can_edit_prices===true &&
-          String(profileData.store_id)===
-          String(storeId)
-        )
-      )
-    );
-  }
-
-
-  window.storeBarcodeHtml=function(storeId){
-
-    const internal=
-      canManageStore(storeId);
-
-    return `
-      <div class="card" id="storeBarcodeCard">
-
-        <h3>📷 باركود المتجر</h3>
-
-        <p class="muted">
-          امسح باركود مادة للبحث ضمن مواد هذا المتجر فقط.
-        </p>
-
-        <div class="actions">
+          <p class="muted">
+            امسح باركود المادة للبحث ضمن مواد هذا المتجر فقط.
+          </p>
 
           <button
             type="button"
             class="btn primary"
-            onclick="openStoreBarcode('${escB(storeId)}')">
+            onclick="openStoreBarcode('${esc(storeId)}')">
             📷 مسح بالكاميرا
           </button>
 
-          ${
-            internal
-            ? `
-              <button
-                type="button"
-                class="btn secondary"
-                onclick="generateStoreBarcode('${escB(storeId)}')">
-                ⚙️ توليد باركود
-              </button>
-            `
-            : ''
-          }
-
-        </div>
-
-        <input
-          id="storeBarcodeInput"
-          type="text"
-          inputmode="numeric"
-          autocomplete="off"
-          placeholder="أو أدخل الباركود يدوياً">
-
-        <div class="actions">
+          <input
+            id="storeBarcodeInput"
+            type="text"
+            inputmode="numeric"
+            autocomplete="off"
+            placeholder="أو أدخل الباركود يدوياً">
 
           <button
             type="button"
             class="btn secondary"
-            onclick="searchStoreBarcode('${escB(storeId)}')">
+            onclick="searchStoreBarcode('${esc(storeId)}')">
             🔍 بحث
           </button>
 
-          ${
-            internal
-            ? `
-              <button
-                type="button"
-                class="btn secondary"
-                onclick="downloadStoreBarcode('${escB(storeId)}')">
-                ⬇️ تنزيل الباركود
-              </button>
-            `
-            : ''
-          }
+          <div
+            id="storeBarcodeResult"
+            class="muted"
+            style="margin-top:12px">
+          </div>
 
         </div>
 
-        <div
-          id="storeBarcodeResult"
-          class="muted">
-        </div>
+      `;
+    };
 
-      </div>
-    `;
-  };
+  window.openStoreBarcode =
+    function(storeId){
 
+      window.__activeBarcodeStoreId =
+        storeId;
 
-  window.openStoreBarcode=function(storeId){
+      if(
+        typeof window.openBarcodeScannerForStore ===
+        'function'
+      ){
 
-    window.__activeBarcodeStoreId=
-      storeId;
-
-    if(
-      typeof window.openBarcodeScannerForStore===
-      'function'
-    ){
-
-      window.openBarcodeScannerForStore(
-        storeId
-      );
-
-      return;
-    }
-
-    if(
-      typeof window.openBarcodeScannerForAdd===
-      'function'
-    ){
-
-      window.openBarcodeScannerForAdd();
-      return;
-    }
-
-    alert(
-      'ماسح الباركود غير محمّل.'
-    );
-  };
-
-
-  window.handleStoreBarcodeScan=function(value){
-
-    const storeId=
-      window.__activeBarcodeStoreId ||
-      window.currentStoreId;
-
-    const input=
-      document.getElementById(
-        'storeBarcodeInput'
-      );
-
-    const code=
-      String(value || '')
-        .replace(/\D/g,'');
-
-    if(input){
-      input.value=code;
-    }
-
-    if(storeId && code){
-      window.searchStoreBarcode(
-        storeId,
-        code
-      );
-    }
-  };
-
-
-  window.searchStoreBarcode=
-    async function(storeId,value){
-
-      const input=
-        document.getElementById(
-          'storeBarcodeInput'
+        window.openBarcodeScannerForStore(
+          storeId
         );
 
-      const code=
+        return;
+      }
+
+      if(
+        typeof window.openBarcodeScannerForAdd ===
+        'function'
+      ){
+
+        window.openBarcodeScannerForAdd();
+
+        return;
+      }
+
+      alert('ماسح الباركود غير محمّل.');
+    };
+
+  window.handleStoreBarcodeScan =
+    function(value){
+
+      const storeId =
+        window.__activeBarcodeStoreId ||
+        window.currentStoreId;
+
+      const code =
+        String(value || '')
+          .replace(/\D/g,'');
+
+      const input =
+        el('storeBarcodeInput');
+
+      if(input){
+        input.value = code;
+      }
+
+      if(storeId && code){
+
+        window.searchStoreBarcode(
+          storeId,
+          code
+        );
+
+      }
+    };
+
+  window.searchStoreBarcode =
+    async function(storeId,value){
+
+      const input =
+        el('storeBarcodeInput');
+
+      const out =
+        el('storeBarcodeResult');
+
+      const code =
         String(
           value ||
           (input && input.value) ||
           ''
         ).replace(/\D/g,'');
 
-      const out=
-        document.getElementById(
-          'storeBarcodeResult'
-        );
-
       if(!code){
+
         alert(
           'أدخل أو امسح الباركود أولاً.'
         );
+
         return;
       }
 
       if(input){
-        input.value=code;
+        input.value = code;
       }
 
       if(out){
-        out.textContent=
-          'جاري البحث...';
+        out.textContent = 'جاري البحث...';
       }
 
       try{
 
-        /*
-          أولاً نبحث عن المادة بالباركود.
-        */
-
-        const r=
+        const r =
           await supabaseClient
             .from('products')
             .select('*')
@@ -1200,19 +781,14 @@ const file =
         if(!r.data){
 
           if(out){
-            out.textContent=
+            out.textContent =
               'لا توجد مادة بهذا الباركود.';
           }
 
           return;
         }
 
-        /*
-          بعدها نبحث عن سعرها
-          داخل المتجر المحدد فقط.
-        */
-
-        const q=
+        const q =
           await supabaseClient
             .from('price_listings')
             .select('*,products(*)')
@@ -1225,7 +801,7 @@ const file =
           throw q.error;
         }
 
-        const p=
+        const p =
           q.data &&
           q.data[0];
 
@@ -1233,13 +809,10 @@ const file =
 
           if(out){
 
-            out.innerHTML=
-              '<strong>'+
-              escB(
-                r.data.name ||
-                'مادة'
-              )+
-              '</strong><br>'+
+            out.innerHTML =
+              '<strong>' +
+              esc(r.data.name || 'مادة') +
+              '</strong><br>' +
               'المادة غير مسعّرة في هذا المتجر حالياً.';
 
           }
@@ -1247,46 +820,39 @@ const file =
           return;
         }
 
-        const price=
+        const price =
           p.price_new ??
           p.price ??
           0;
 
         if(out){
 
-          out.innerHTML=
-            '<strong>'+
-            escB(
-              r.data.name ||
-              'مادة'
-            )+
-            '</strong>'+
+          out.innerHTML =
+
+            '<strong>' +
+            esc(r.data.name || 'مادة') +
+            '</strong>' +
 
             (
               r.data.brand
-              ? '<br>'+escB(r.data.brand)
+              ? '<br>' + esc(r.data.brand)
               : ''
-            )+
+            ) +
 
             (
               r.data.unit
-              ? '<br>'+escB(r.data.unit)
+              ? '<br>' + esc(r.data.unit)
               : ''
-            )+
+            ) +
+
+            '<br><span class="price">' +
 
             (
-              r.data.barcode
-              ? '<br>الباركود: '+
-                escB(r.data.barcode)
-              : ''
-            )+
-
-            '<br><span class="price">'+
-            (
-              typeof window.f==='function'
+              typeof window.f === 'function'
               ? window.f(price)
               : price
-            )+
+            ) +
+
             ' ل.س</span>';
 
         }
@@ -1294,283 +860,241 @@ const file =
       }catch(err){
 
         if(out){
-          out.textContent=
-            'حدث خطأ: '+
+
+          out.textContent =
+            'حدث خطأ: ' +
             err.message;
+
         }
 
       }
     };
 
+  /* =========================
+     تعديل التوثيق
+     ========================= */
 
-  /*
-    توليد رقم باركود جديد.
-  */
+  window.toggleStoreVerification =
+    async function(storeId,value){
 
-  window.generateStoreBarcode=
-    function(storeId){
+      if(!isAdmin()){
 
-      if(!canManageStore(storeId)){
         alert(
-          'هذه العملية للمتجر المصرّح فقط.'
+          'هذه العملية للمدير فقط.'
         );
+
         return;
       }
 
-      const input=
-        document.getElementById(
-          'storeBarcodeInput'
+      try{
+
+        const {error} =
+          await supabaseClient
+            .from('stores')
+            .update({
+              verified:
+                value === true ||
+                value === 'true'
+            })
+            .eq('id',storeId);
+
+        if(error){
+
+          alert(
+            'تعذر تحديث التوثيق: ' +
+            error.message
+          );
+
+          return;
+        }
+
+        await refreshStores();
+
+        await window.renderStores();
+
+      }catch(err){
+
+        alert(
+          'حدث خطأ: ' +
+          err.message
         );
 
-      if(!input)return;
-
-      input.value=
-        (
-          '200'+
-          Date.now()
-            .toString()
-            .slice(-10)
-        ).slice(0,13);
-
-      const out=
-        document.getElementById(
-          'storeBarcodeResult'
-        );
-
-      if(out){
-
-        out.textContent=
-          'تم توليد باركود. احفظه مع المادة.';
-
-      }
-
-      /*
-        إذا كان حقل المادة موجوداً
-        ننسخ الرقم إليه تلقائياً أيضاً.
-      */
-
-      const productBarcode=
-        document.getElementById(
-          'barcode'
-        );
-
-      if(productBarcode){
-        productBarcode.value=
-          input.value;
       }
     };
 
+  /* =========================
+     إضافة مادة
+     ========================= */
 
-  /*
-    تنزيل صورة الباركود.
-  */
+  window.showAdd =
+    function(){
 
-  window.downloadStoreBarcode=
-    function(storeId){
-
-      if(!canManageStore(storeId)){
-        alert(
-          'هذه العملية للمتجر المصرّح فقط.'
-        );
-        return;
-      }
-
-      const input=
-        document.getElementById(
-          'storeBarcodeInput'
-        );
-
-      const code=
-        String(
-          input &&
-          input.value ||
-          ''
-        ).replace(/\D/g,'');
-
-      if(!code){
+      if(!profileData){
 
         alert(
-          'أدخل أو ولّد الباركود أولاً.'
+          'سجّل الدخول أولاً.'
         );
+
+        show('login');
 
         return;
       }
 
-      const canvas=
-        document.createElement(
-          'canvas'
-        );
+      if(profileData.role === 'admin'){
 
-      const ctx=
-        canvas.getContext('2d');
+        show('add');
 
-      canvas.width=900;
-      canvas.height=300;
+        const box =
+          el('merchantStoreBox');
 
-      ctx.fillStyle='#fff';
-      ctx.fillRect(
-        0,
-        0,
-        900,
-        300
-      );
+        if(box){
 
-      ctx.fillStyle='#000';
+          box.innerHTML = `
 
-      let x=50;
+            <label class="muted">
+              المتجر للسعر
+            </label>
 
-      for(
-        let i=0;
-        i<code.length;
-        i++
-      ){
+            <select id="adminAddStore">
 
-        const d=
-          Number(code[i]);
+              <option value="">
+                اختر المتجر
+              </option>
 
-        const w=
-          2+(d%4);
+              ${
+                stores.map(function(s){
 
-        ctx.fillRect(
-          x,
-          30,
-          w,
-          190
-        );
+                  return `
+                    <option value="${esc(s.id)}">
+                      ${esc(s.name)}
+                    </option>
+                  `;
 
-        x+=
-          w+
-          2+
-          (d%2);
+                }).join('')
+              }
+
+            </select>
+
+          `;
+
+        }
+
+        return;
       }
-
-      ctx.font=
-        '32px Arial';
-
-      ctx.textAlign=
-        'center';
-
-      ctx.fillText(
-        code,
-        450,
-        260
-      );
-
-      const a=
-        document.createElement('a');
-
-      a.download=
-        'barcode-'+
-        code+
-        '.png';
-
-      a.href=
-        canvas.toDataURL(
-          'image/png'
-        );
-
-      a.click();
-    };
-
-
-  /*
-    تنظيف حقول الباركود من أي أحرف.
-  */
-
-  document.addEventListener(
-    'input',
-    function(e){
 
       if(
-        e.target &&
-        (
-          e.target.id===
-          'storeBarcodeInput' ||
-
-          e.target.id===
-          'barcode'
-        )
+        profileData.role !== 'store'
       ){
 
-        e.target.value=
-          e.target.value.replace(
-            /\D/g,
-            ''
-          );
+        alert(
+          'إضافة المواد متاحة للتاجر المصرح له وللمدير.'
+        );
+
+        return;
       }
 
-    }
-  );
+      if(
+        !profileData.store_id ||
+        !profileData.can_edit_prices
+      ){
 
+        alert(
+          'حسابك غير مصرح له حالياً.'
+        );
 
-  /*
-    زر إضافة المادة في منطقة الحساب.
-    يظهر مرة واحدة فقط.
-  */
+        return;
+      }
+
+      show('add');
+    };
+
+  /* =========================
+     زر إضافة واحد فقط
+     ========================= */
 
   function addButton(){
 
-    if(!profileData){
-      return;
-    }
+    if(!profileData) return;
 
-    const allowed=
-      profileData.role==='admin' ||
-
+    const allowed =
+      profileData.role === 'admin' ||
       (
-        profileData.role==='store' &&
+        profileData.role === 'store' &&
         profileData.store_id &&
         profileData.can_edit_prices
       );
 
-    if(!allowed){
-      return;
-    }
+    if(!allowed) return;
 
-    const box=
-      document.getElementById(
-        'roleActions'
-      );
+    const box =
+      el('roleActions');
 
-    if(!box){
-      return;
-    }
+    if(!box) return;
 
     if(
       box.querySelector(
         '[data-store-feature-add]'
       )
     ){
+
       return;
     }
 
-    const b=
-      document.createElement(
-        'button'
-      );
+    const b =
+      document.createElement('button');
 
-    b.className=
+    b.className =
       'btn primary';
 
-    b.textContent=
+    b.textContent =
       'إضافة مادة جديدة';
 
-    b.setAttribute(
+
+                 
+b.setAttribute(
       'data-store-feature-add',
       '1'
     );
 
-    b.onclick=
+    b.onclick =
       window.showAdd;
 
     box.appendChild(b);
   }
 
+  /* =========================
+     تنظيف الباركود
+     ========================= */
 
-  /*
-    لا يوجد setInterval.
-    لا يوجد إعادة رسم مستمرة.
-  */
+  document.addEventListener(
+    'input',
+    function(event){
+
+      if(
+        event.target &&
+        (
+          event.target.id ===
+          'barcode' ||
+
+          event.target.id ===
+          'storeBarcodeInput'
+        )
+      ){
+
+        event.target.value =
+          event.target.value.replace(
+            /\D/g,
+            ''
+          );
+
+      }
+
+    }
+  );
+
+  /* =========================
+     تشغيل
+     ========================= */
 
   window.addEventListener(
     'load',
@@ -1581,6 +1105,8 @@ const file =
 
           addButton();
 
+          getUserLocation();
+
         },
         700
       );
@@ -1589,7 +1115,4 @@ const file =
   );
 
 })();
-
-
-             
-
+   
