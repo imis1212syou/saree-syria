@@ -64,11 +64,11 @@
     var q = c
       .from('price_listings')
       .select(
-        'id,store_id,product_id,price,price_new,status,updated_at,products!inner(id,name,brand,unit,barcode,image_url)'
+        'id,store_id,product_id,price,price_new,approved,updated_at,products!inner(id,name,brand,unit,barcode,image_url)'
       )
       .eq('store_id',id)
       .eq('products.barcode',code)
-      .eq('status','approved')
+      .eq('approved',true)
       .limit(1)
       .maybeSingle();
 
