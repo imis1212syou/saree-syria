@@ -257,7 +257,7 @@
         .from('price_listings')
         .select('*,products(*)')
         .eq('store_id',st.id)
-        .eq('status','approved')
+        .eq('approved',true)
         .order('updated_at',{ascending:false});
 
       if(!error && Array.isArray(data)){
@@ -369,7 +369,7 @@
       return;
     }
 
-   
+
     try{
 
       const {error}=await supabaseClient
@@ -553,7 +553,8 @@
       ? null
       : Number(priceRaw);
 const file =
-      document.getElementById('pimg')?.files?.[0] || null;
+
+   document.getElementById('pimg')?.files?.[0] || null;
 
     if(!selected && !name){
       alert('اكتب اسم المادة الجديدة.');
@@ -1217,7 +1218,7 @@ const file =
             .select('*,products(*)')
             .eq('store_id',storeId)
             .eq('product_id',r.data.id)
-            .eq('status','approved')
+            .eq('approved',true)
             .limit(1);
 
         if(q.error){
@@ -1589,4 +1590,6 @@ const file =
 
 })();
 
+
+             
 
