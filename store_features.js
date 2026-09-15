@@ -958,6 +958,7 @@ ${
      إضافة مادة
      ========================= */
 
+ 
   window.showAdd =
     function(){
 
@@ -1290,88 +1291,5 @@ b.setAttribute(
 
     }
   );
-window.editStoreMaterial = async function(
-  priceId,
-  productId,
-  storeId,
-  name,
-  brand,
-  unit,
-  category,
-  barcode,
-  price
-) {
-  try {
-    if (!canManageStore(storeId)) {
-      alert('ليس لديك صلاحية تعديل مواد هذا المتجر');
-      return;
-    }
-
-    const newName = prompt('اسم المادة:', name || '');
-    if (newName === null) return;
-
-    const newBrand = prompt('الماركة:', brand || '');
-    if (newBrand === null) return;
-
-    const newUnit = prompt('الوحدة:', unit || '');
-    if (newUnit === null) return;
-
-    const newCategory = prompt('التصنيف:', category || '');
-    if (newCategory === null) return;
-
-    const newBarcode = prompt('الباركود:', barcode || '');
-    if (newBarcode === null) return;
-
-    const newPriceText = prompt('السعر الجديد:', price || '');
-    if (newPriceText === null) return;
-
-    const newPrice = Number(newPriceText);
-
-    if (!newName.trim()) {
-      alert('اسم المادة مطلوب');
-      return;
-    }
-
-    if (!Number.isFinite(newPrice) || newPrice <= 0) {
-      alert('السعر غير صحيح');
-      return;
-    }
-
-    const { error: productError } = await supabase
-      .from('products')
-      .update({
-        name: newName.trim(),
-        brand: newBrand.trim(),
-        unit: newUnit.trim(),
-        category: newCategory.trim(),
-        barcode: newBarcode.trim() || null
-      })
-      .eq('id', productId);
-
-    if (productError) throw productError;
-
-    const { error: priceError } = await supabase
-      .from('price_listings')
-      .update({
-        price_new: newPrice,
-        approved: true,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', priceId)
-      .eq('store_id', storeId);
-
-    if (priceError) throw priceError;
-
-    alert('تم تعديل المادة والسعر بنجاح ✅');
-
-    await window.renderStoreDetail(storeId);
-
-  } catch (err) {
-    console.error(err);
-    alert(
-      'حدث خطأ أثناء التعديل: ' +
-      (err.message || 'خطأ غير معروف')
-    );
-  }
-};
 })();
+         
