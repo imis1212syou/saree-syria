@@ -397,16 +397,279 @@ async function uploadImage(file,folder){
  return supabaseClient.storage.from('product-images').getPublicUrl(path).data.publicUrl;
 }
 async function submitPrice(){
- const selected=$('existingProduct').value,n=$('pn').value.trim(),v=Number($('pr').value),file=$('pimg').files[0];
- if(Number.isNaN(v)||v<0)return alert('اكتب السعر بشكل صحيح.');
- if(!selected&&!n)return alert('اكتب اسم المادة الجديدة.');
- if(!profileData||profileData.role!=='store'||!profileData.store_id||!profileData.can_edit_prices)return alert('حسابك غير مخول لإرسال الطلب.');
 
- let imageUrl=null;try{if(file)imageUrl=await uploadImage(file,'materials')}catch(err){return alert('فشل رفع الصورة: '+err.message)}
- const payload={request_type:selected?'price':'product',product_id:selected||null,store_id:profileData.store_id,price_new:v,product_name:selected?null:n,product_description:null,product_category:$('cat').value.trim()||'عام',product_unit:$('unit').value.trim(),product_image_url:imageUrl,submitted_by:profileData.id,status:'pending'};
- const {error}=await supabaseClient.from('change_requests').insert(payload);
- if(error)return $('addMsg').textContent='خطأ: '+error.message;
- $('addMsg').textContent='تم إرسال الطلب للمراجعة.';['pn','brand','unit','cat','pr'].forEach(id=>$(id).value='');$('pimg').value='';$('existingProduct').value='';show('merchant');
+  const selected = $('existingProduct').value;
+  const n = $('pn').value.trim();
+  const brand = $('brand').value.trim();
+  const unit = $('unit').value.trim();
+  const category = $('cat').value.trim() || 'عام';
+  const v = Number($('pr').value);
+  const file = $('pimg').files[0];
+
+  if(Number.isNaN(v) || v < 0){
+    return alert('اكتب السعر بشكل صحيح.');
+  }
+
+  if(!selected && !n){
+    return alert('اكتب اسم المادة الجديدة.');
+  }
+
+  if(!profileData){
+    return alert('يجب تسجيل الدخول.');
+  }
+
+  const isAdmin =
+    String(profileData.role).toLowerCase() === 'admin';
+
+  const isStore =
+    String(profileData.role).toLowerCase() === 'store';
+
+  if(
+    !isAdmin &&
+    (
+      !isStore ||
+      !profileData.store_id ||
+      profileData.can_edit_prices !== true
+    )
+  ){
+    return alert('حسابك غير مخول لإضافة مادة أو سعر.');
+  }
+
+  let storeId = null;
+
+  if(isAdmin){
+
+    const storeSelect =
+      $('merchantStoreSelect');
+
+    if(storeSelect && storeSelect.value){
+      storeId = storeSelect.value;
+    }else{
+      storeId =
+        profileData.store_id || null;
+    }
+
+    if(!storeId){
+
+      const availableStores =
+        stores || [];
+
+      if(availableStores.length === 1){
+        storeId =
+          availableStores[0].id;
+      }else{
+        return alert(
+          'اختر المتجر الذي تريد إضافة المادة إليه.'
+        );
+      }
+    }
+
+  }else{
+
+    storeId =
+      profileData.store_id;
+  }
+
+  let imageUrl = null;
+
+  try{
+
+    if(file){
+      imageUrl =
+        await uploadImage(
+          file,
+          'materials'
+        );
+    }
+
+  }catch(err){
+
+    return alert(
+      'فشل رفع الصورة: ' +
+      err.message
+    );
+  }
+
+
+  /*
+   * =========================
+   * إضافة مباشرة للمدير
+   * =========================
+   */
+
+  if(isAdmin){
+
+    try{
+
+      let productId = selected || null;
+
+      /*
+       * مادة جديدة
+       */
+      if(!productId){
+
+        const {data:newProduct,error:productError} =
+          await supabaseClient
+            .from('products')
+            .insert({
+              name: n,
+              brand: brand || null,
+              unit: unit || null,
+              category: category,
+              barcode: $('barcode')?.value?.replace(/\D/g,'') || null,
+              image_url: imageUrl
+            })
+            .select()
+            .single();
+
+        if(productError)
+          throw productError;
+
+        productId =
+          newProduct.id;
+
+      }
+
+
+      /*
+       * إضافة السعر للمتجر
+       */
+
+      const {error:priceError} =
+        await supabaseClient
+          .from('price_listings')
+          .insert({
+            product_id: productId,
+            store_id: storeId,
+            price_new: v,
+            approved: true,
+            updated_at: new Date().toISOString()
+          });
+
+      if(priceError)
+        throw priceError;
+
+      alert(
+        'تمت إضافة المادة والسعر مباشرة بنجاح ✅'
+      );
+
+      ['pn','brand','unit','cat','pr']
+        .forEach(function(id){
+
+          const field = $(id);
+
+          if(field)
+            field.value = '';
+
+        });
+
+      if($('pimg'))
+        $('pimg').value = '';
+
+      if($('existingProduct'))
+        $('existingProduct').value = '';
+
+      if($('barcode'))
+        $('barcode').value = '';
+
+      show('admin');
+
+      if(typeof window.renderProducts === 'function'){
+        await window.renderProducts();
+      }
+
+      return;
+
+    }catch(err){
+
+      console.error(err);
+
+      return alert(
+        'تعذر إضافة المادة:\n' +
+        (err.message || 'خطأ غير معروف')
+      );
+    }
+  }
+
+
+  /*
+   * =========================
+   * إضافة التاجر
+   * =========================
+   */
+
+  const payload = {
+    request_type: selected
+      ? 'price'
+      : 'product',
+
+    product_id:
+      selected || null,
+
+    store_id:
+      storeId,
+
+    price_new:
+      v,
+
+    product_name:
+      selected ? null : n,
+
+    product_description:
+      null,
+
+    product_category:
+      category,
+
+    product_unit:
+      unit,
+
+    product_image_url:
+      imageUrl,
+
+    submitted_by:
+      profileData.id,
+
+    status:
+      'pending'
+  };
+
+
+  const {error} =
+    await supabaseClient
+      .from('change_requests')
+      .insert(payload);
+
+  if(error){
+
+    return $('addMsg').textContent =
+      'خطأ: ' + error.message;
+
+  }
+
+  $('addMsg').textContent =
+    'تم إرسال الطلب للمراجعة.';
+
+  ['pn','brand','unit','cat','pr']
+    .forEach(function(id){
+
+      const field = $(id);
+
+      if(field)
+        field.value = '';
+
+    });
+
+  if($('pimg'))
+    $('pimg').value = '';
+
+  if($('existingProduct'))
+    $('existingProduct').value = '';
+
+  if($('barcode'))
+    $('barcode').value = '';
+
+  show('merchant');
 }
 async function loadMerchantStoreVisitorCount(){
   try{
