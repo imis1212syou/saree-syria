@@ -369,6 +369,7 @@
       return;
     }
 
+   
     try{
 
       const {error}=await supabaseClient
@@ -551,8 +552,7 @@
       priceRaw === ''
       ? null
       : Number(priceRaw);
-
-    const file =
+const file =
       document.getElementById('pimg')?.files?.[0] || null;
 
     if(!selected && !name){
@@ -630,7 +630,7 @@
             store_id:storeId,
             price_new:price,
             approved:true,
-            status:'approved',
+             
             submitted_by:profileData.id,
             approved_by:profileData.id,
             updated_at:new Date().toISOString()
@@ -690,7 +690,7 @@
                 store_id:storeId,
                 price_new:price,
                 approved:true,
-                status:'approved',
+                 
                 submitted_by:profileData.id,
                 approved_by:profileData.id,
                 updated_at:new Date().toISOString()
@@ -834,7 +834,7 @@
             store_id:storeId,
             price_new:price,
             approved:true,
-            status:'approved',
+             
             submitted_by:profileData.id,
             updated_at:new Date().toISOString()
           },{
@@ -891,7 +891,7 @@
             store_id:storeId,
             price_new:price,
             approved:true,
-            status:'approved',
+             
             submitted_by:profileData.id,
             updated_at:new Date().toISOString()
           });
@@ -1588,3 +1588,5 @@
   );
 
 })();
+
+
