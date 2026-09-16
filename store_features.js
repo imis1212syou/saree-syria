@@ -3803,38 +3803,23 @@
     window.uploadImage ||
     uploadImage;
 
-  window.buildAllQRCodes =
-    function(){
+  window.buildAllQRCodes = function(){
+  if(typeof QRCode === 'undefined') return;
 
-      if(typeof QRCode === 'undefined')
-        return;
+  stores.forEach(s=>{
+    const box = $('qr_'+s.id);
+    if(!box) return;
 
-      (stores||[]).forEach(s => {
+    box.innerHTML='';
 
-        const box =
-          $('qr_'+s.id);
-
-        if(!box)
-          return;
-
-        box.innerHTML = '';
-
-        new QRCode(
-          box,
-          {
-            text:
-              window.storeUrl(s.id),
-
-            width:160,
-
-            height:160,
-
-            correctLevel:
-              QRCode.CorrectLevel.H
-          }
-        );
-      });
-    };
+    new QRCode(box,{
+      text: storeUrl(s.id),
+      width:160,
+      height:160,
+      correctLevel:QRCode.CorrectLevel.H
+    });
+  });
+};
 
   window.printStoreQR =
     function(id){
