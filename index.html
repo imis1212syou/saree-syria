@@ -837,7 +837,7 @@ supabaseClient.auth.onAuthStateChange((event)=>{
   $('visitorName').value=hasVisitor?currentName():'';
   renderTopAccount();renderRoleActions();
   show('home');
-  renderProducts();renderStores();renderCategories();renderBasket();renderFavorites();
+  renderProducts();renderStores();renderStoresWithCompanies();renderCategories();renderBasket();renderFavorites();
   setTimeout(async()=>{
     try{
       const remember=localStorage.getItem('saree_remember_login')==='1';
