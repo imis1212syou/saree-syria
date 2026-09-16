@@ -3803,7 +3803,7 @@
     window.uploadImage ||
     uploadImage;
 
-  window.buildAllQRCodes = function(){
+  window.buildAllQRCodesWithFeatures = function(){
   if(typeof QRCode === 'undefined') return;
 
   stores.forEach(s=>{
