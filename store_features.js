@@ -162,8 +162,6 @@ console.log('renderStores يعمل');
           .join(' — ');
 
 
-      const maps =
-        directionsUrl(st);
 
       return `
         <div class="card">
@@ -319,8 +317,6 @@ console.log('renderStores يعمل');
         .join(' — ');
 
 
-    const maps =
-      directionsUrl(st);
 
     let html = `
 
