@@ -360,7 +360,7 @@
     `;
   }
 
-  window.renderStores = async function(){
+  window.renderStoresWithCompanies = async function(){
     const box = $('storesList');
 
     if(!box) return;
