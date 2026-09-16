@@ -146,22 +146,8 @@ console.log('renderStores يعمل');
 
     let list = stores.slice();
 
-    /*
-      إذا كان موقع الزائر ومواقع المتاجر متوفرين:
-      الأقرب أولاً.
-    */
 
-    list.sort(function(a,b){
-
-      const da = storeDistance(a);
-      const db = storeDistance(b);
-
-      if(da === null && db === null) return 0;
-      if(da === null) return 1;
-      if(db === null) return -1;
-
-      return da-db;
-    });
+   
 
     box.innerHTML = list.map(function(st){
 
