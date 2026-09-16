@@ -161,10 +161,6 @@ console.log('renderStores يعمل');
           .filter(Boolean)
           .join(' — ');
 
-      const distance =
-        formatDistance(
-          storeDistance(st)
-        );
 
       const maps =
         directionsUrl(st);
@@ -322,10 +318,6 @@ console.log('renderStores يعمل');
         .filter(Boolean)
         .join(' — ');
 
-    const distance =
-      formatDistance(
-        storeDistance(st)
-      );
 
     const maps =
       directionsUrl(st);
