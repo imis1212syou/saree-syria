@@ -3564,12 +3564,11 @@
       window.loadAdminStoreVisitorCounts();
       window.loadSiteLinks();
 
-      setTimeout(
-        buildAllQRCodes,
-        30
-      );
-    };
-
+      setTimeout(function(){
+  if(typeof window.buildAllQRCodes === 'function'){
+    window.buildAllQRCodes();
+  }
+}, 500);
   function bindAdminAccordions(){
 
     document
