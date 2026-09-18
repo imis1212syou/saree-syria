@@ -605,14 +605,6 @@
     if(box){ box.classList.remove('hidden'); box.scrollIntoView({behavior:'smooth',block:'start'}); }
   };
 
-  window.setStoreVerification = async function(storeId, verified){
-    if(!isAdmin()) return alert('المدير فقط يستطيع توثيق المتجر.');
-    const value = verified === true || String(verified) === 'true';
-    const {error}=await supabaseClient.from('stores').update({verified:value}).eq('id',storeId);
-    if(error) return alert('تعذر تحديث حالة التوثيق: '+(error.message||'خطأ غير معروف'));
-    await window.renderAdmin();
-  };
-
   window.saveMerchantPermission = async function(merchantId){
     if(!isAdmin()) return alert('المدير فقط يستطيع تغيير الصلاحيات.');
     const checked=document.querySelector(`input[name="merchant-store-${CSS.escape(merchantId)}"]:checked`);
@@ -629,20 +621,76 @@
 
   window.saveUser = window.saveUser || (async()=>{});
 
+  window.adminAddCompany = async function(){
+    if(!isAdmin()) return alert('المدير فقط يستطيع إضافة شركة.');
+    const name=$('companyName')?.value.trim();
+    if(!name) return alert('اكتب اسم الشركة.');
+    const payload={
+      name,
+      phone:$('companyPhone')?.value.trim()||null,
+      address:$('companyAddress')?.value.trim()||null,
+      whatsapp_url:$('companyWhatsapp')?.value.trim()||null,
+      verified:!!$('companyVerified')?.checked,
+      active:true
+    };
+    const {error}=await supabaseClient.from('companies').insert(payload);
+    if(error) return alert('تعذر إضافة الشركة: '+error.message);
+    alert('تمت إضافة الشركة بنجاح ✅');
+    await window.renderAdmin();
+  };
+
+  window.editAdminCompany = async function(id){
+    if(!isAdmin()) return;
+    const {data,error}=await supabaseClient.from('companies').select('*').eq('id',id).single();
+    if(error) return alert(error.message);
+    const name=prompt('اسم الشركة:',data.name||'');
+    if(name===null) return;
+    const phone=prompt('هاتف الشركة:',data.phone||'');
+    if(phone===null) return;
+    const address=prompt('عنوان الشركة:',data.address||'');
+    if(address===null) return;
+    const whatsapp_url=prompt('رابط واتساب الشركة:',data.whatsapp_url||'');
+    if(whatsapp_url===null) return;
+    const {error:upErr}=await supabaseClient.from('companies').update({name:name.trim(),phone:phone.trim()||null,address:address.trim()||null,whatsapp_url:whatsapp_url.trim()||null,updated_at:new Date().toISOString()}).eq('id',id);
+    if(upErr) return alert('تعذر تعديل الشركة: '+upErr.message);
+    alert('تم تعديل الشركة بنجاح.');
+    await window.renderAdmin();
+  };
+
+  window.toggleAdminCompanyVerification = async function(id){
+    if(!isAdmin()) return;
+    const {data,error}=await supabaseClient.from('companies').select('verified').eq('id',id).single();
+    if(error) return alert(error.message);
+    const {error:upErr}=await supabaseClient.from('companies').update({verified:!data.verified,updated_at:new Date().toISOString()}).eq('id',id);
+    if(upErr) return alert(upErr.message);
+    await window.renderAdmin();
+  };
+
+  window.deleteAdminCompany = async function(id){
+    if(!isAdmin()) return;
+    if(!confirm('حذف هذه الشركة؟ سيتم إبقاء المتاجر المرتبطة بها بدون شركة.')) return;
+    const {error}=await supabaseClient.from('companies').delete().eq('id',id);
+    if(error) return alert('تعذر حذف الشركة: '+error.message);
+    alert('تم حذف الشركة.');
+    await window.renderAdmin();
+  };
+
   window.renderAdmin = async function(){
     if(!isAdmin()) return;
     window.show('admin');
     $('role').textContent='لوحة تحكم المدير: إدارة الطلبات والمتاجر والتجار والصلاحيات والإحصاءات.';
-    const [rq,pr,st,us]=await Promise.all([
+    const [rq,pr,st,us,co]=await Promise.all([
       supabaseClient.from('change_requests').select('*').eq('status','pending').order('created_at',{ascending:false}),
       supabaseClient.from('products').select('*').order('name'),
       supabaseClient.from('stores').select('*').order('name'),
-      supabaseClient.from('profiles').select('id,name,role,store_id,can_edit_prices').order('created_at',{ascending:false})
+      supabaseClient.from('profiles').select('id,name,role,store_id,can_edit_prices,verified').order('created_at',{ascending:false}),
+      supabaseClient.from('companies').select('*').order('name')
     ]);
-    const error=rq.error||pr.error||st.error||us.error;
+    const error=rq.error||pr.error||st.error||us.error||co.error;
     if(error){ $('adminPanel').innerHTML=`<div class="card dangerbox">خطأ: ${esc(error.message)}</div>`; return; }
     requests=rq.data||[]; products=pr.data||products||[]; stores=st.data||stores||[];
     const users=us.data||[];
+    const companies=co.data||[];
     const merchants=users.filter(u=>u.role==='store'&&u.id!==ADMIN_UID);
     const pending=requests.length ? requests.map(r=>`<div class="priceRow"><div class="accordionHead" data-toggle-id="req_${esc(r.id)}"><b>${esc(r.product_name||'طلب تعديل سعر')}</b><span>▾</span></div><div id="req_${esc(r.id)}" class="accordionBody hidden"><div class="muted">${r.price_new!=null?fmt(r.price_new)+' ل.س جديدة':''}<br>${r.created_at?esc(new Date(r.created_at).toLocaleString('ar')):''}</div><div class="actions"><button class="btn approve" onclick="approveRequest('${esc(r.id)}')">موافقة ونشر</button><button class="btn reject" onclick="rejectRequest('${esc(r.id)}')">رفض</button></div></div></div>`).join('') : '<p class="muted">لا توجد طلبات معلقة.</p>';
     const merchantHtml=merchants.length ? merchants.map(u=>{
@@ -651,8 +699,11 @@
         <div class="accordionHead" data-toggle-id="merchant_${esc(u.id)}"><div><b>${esc(u.name||'تاجر')}</b><div class="muted">${current?`مرتبط بـ ${esc(current.name)}`:'غير مرتبط بمتجر'} • ${u.can_edit_prices?'الصلاحية مفعّلة':'الصلاحية متوقفة'}</div></div><span>▾</span></div>
         <div id="merchant_${esc(u.id)}" class="accordionBody hidden">
           <p class="muted">اضغط «ربط التاجر بالمتجر» لعرض قائمة المتاجر. يمكن اختيار متجر واحد فقط.</p>
-          ${current ? `<div class="notice ${current.verified?'':'pending'}">${current.verified?'✓ المتجر موثّق من المدير.':'المتجر غير موثّق بعد.'}</div><button type="button" class="btn ${current.verified?'danger':'primary'}" onclick="setStoreVerification('${esc(current.id)}',${current.verified?'false':'true'})">${current.verified?'إلغاء توثيق المتجر':'توثيق المتجر'}</button>` : ''}
+          <div class="actions">
           <button type="button" class="btn secondary" data-link-merchant="${esc(u.id)}">ربط التاجر بالمتجر</button>
+          <button type="button" class="btn secondary" onclick="toggleAdminMerchantVerification('${esc(u.id)}')">${u.verified?'إلغاء توثيق التاجر':'توثيق التاجر'}</button>
+          <button type="button" class="btn danger" onclick="deleteAdminMerchant('${esc(u.id)}')">حذف التاجر</button>
+        </div>
           <div id="merchantStores_${esc(u.id)}" class="hidden" style="margin-top:10px">
             <div class="card"><b>اختر متجرًا واحدًا</b>${(stores||[]).map(s=>`<label class="merchantStoreOption"><input type="radio" name="merchant-store-${esc(u.id)}" value="${esc(s.id)}" ${String(u.store_id)===String(s.id)?'checked':''}> ${esc(s.name)}${s.city?' — '+esc(s.city):''}</label>`).join('') || '<p class="muted">لا توجد متاجر.</p>'}
             <label class="rememberRow"><input id="merchantPermission_${esc(u.id)}" type="checkbox" ${u.can_edit_prices?'checked':''}> تفعيل صلاحيات إضافة وتعديل وحذف مواد وأسعار هذا المتجر</label>
@@ -661,12 +712,29 @@
         </div>
       </div>`;
     }).join('') : '<p class="muted">لا توجد حسابات تجار حالياً.</p>';
-    const storesHtml=(stores||[]).length ? (stores||[]).map(s=>`<div class="priceRow"><div class="accordionHead" data-toggle-id="storeAdmin_${esc(s.id)}"><div><b>${esc(s.name)}</b><div class="muted">${esc([s.city,s.area].filter(Boolean).join(' — '))}</div></div><span>▾</span></div><div id="storeAdmin_${esc(s.id)}" class="accordionBody hidden">${storeImage(s)?`<img class="img storeLogo" src="${esc(storeImage(s))}" alt="${esc(s.name)}">`:''}<div class="muted">${esc(s.address||'')}</div>${s.phone?`<div class="muted">📞 ${esc(s.phone)}</div>`:''}${storeCompany(s)?`<div class="pill companyBadge">🏢 ${esc(storeCompany(s))}</div>`:''}${storeWhatsapp(s)?`<div class="muted">واتساب: ${esc(storeWhatsapp(s))}</div>`:''}<div class="muted">زوار المتجر الفريدون: <b id="sv_${esc(s.id)}">—</b></div><div id="qr_${esc(s.id)}" class="qrbox"></div><div class="actions"><button type="button" class="btn secondary" onclick="openStore('${esc(s.id)}')">فتح صفحة المتجر</button><button type="button" class="btn secondary" onclick="printStoreQR('${esc(s.id)}')">طباعة QR</button></div></div><div id="qr_visible_${esc(s.id)}" class="qrbox"></div></div>`).join('') : '<p class="muted">لا توجد متاجر.</p>';
+    const storesHtml=(stores||[]).length ? (stores||[]).map(s=>`<div class="priceRow"><div class="accordionHead" data-toggle-id="storeAdmin_${esc(s.id)}"><div><b>${esc(s.name)}</b><div class="muted">${esc([s.city,s.area].filter(Boolean).join(' — '))}</div></div><span>▾</span></div><div id="storeAdmin_${esc(s.id)}" class="accordionBody hidden">${storeImage(s)?`<img class="img storeLogo" src="${esc(storeImage(s))}" alt="${esc(s.name)}">`:''}<div class="muted">${esc(s.address||'')}</div>${s.phone?`<div class="muted">📞 ${esc(s.phone)}</div>`:''}${storeCompany(s)?`<div class="pill companyBadge">🏢 ${esc(storeCompany(s))}</div>`:''}${storeWhatsapp(s)?`<div class="muted">واتساب: ${esc(storeWhatsapp(s))}</div>`:''}<div class="muted">زوار المتجر الفريدون: <b id="sv_${esc(s.id)}">—</b></div><div id="qr_${esc(s.id)}" class="qrbox"></div><div class="actions">
+          <button type="button" class="btn secondary" onclick="openStore('${esc(s.id)}')">فتح صفحة المتجر</button>
+          <button type="button" class="btn secondary" onclick="printStoreQR('${esc(s.id)}')">طباعة QR</button>
+          <button type="button" class="btn primary" onclick="openAdminStoreEdit('${esc(s.id)}')">تعديل المتجر</button>
+          <button type="button" class="btn secondary" onclick="toggleAdminStoreVerification('${esc(s.id)}')">${s.verified?'إلغاء توثيق المتجر':'توثيق المتجر'}</button>
+          <button type="button" class="btn danger" onclick="deleteAdminStore('${esc(s.id)}')">حذف المتجر</button>
+        </div></div></div>`).join('') : '<p class="muted">لا توجد متاجر.</p>';
     const usersHtml=users.filter(u=>u.id!==ADMIN_UID).length ? users.filter(u=>u.id!==ADMIN_UID).map(u=>`<div class="priceRow"><div class="accordionHead" data-toggle-id="user_${esc(u.id)}"><b>${esc(u.name||u.id)}</b><span>▾</span></div><div id="user_${esc(u.id)}" class="accordionBody hidden"><div class="muted">الدور: ${esc(u.role||'user')}${u.store_id?' • مرتبط بمتجر':''}</div><div class="actions"><button type="button" class="btn secondary" onclick="setAccountToUser('${esc(u.id)}')">تحويل إلى مستخدم وإزالة الربط</button></div></div></div>`).join('') : '<p class="muted">لا توجد حسابات.</p>';
     $('adminPanel').innerHTML=`
       <div class="grid"><div class="card"><div class="name">${requests.length}</div><div class="muted">طلبات معلقة</div></div><div class="card"><div class="name">${(stores||[]).length}</div><div class="muted">متاجر</div></div><div class="card"><div class="name">${(products||[]).length}</div><div class="muted">منتجات</div></div><div class="card"><div class="name">${users.length}</div><div class="muted">حسابات</div></div><div class="card"><div class="name" id="visitorCount">—</div><div class="muted">زوار الموقع الفريدون</div></div></div>
       <div class="card"><div class="accordionHead" data-toggle-id="adminRequestsBody"><h2>طلبات التجار</h2><span>▾</span></div><div id="adminRequestsBody" class="accordionBody hidden">${pending}</div></div>
       <div class="card"><h2>إضافة متجر</h2><div class="two"><input id="sn" placeholder="اسم المتجر"><input id="scity" placeholder="المدينة"><input id="sarea" placeholder="المنطقة"><input id="saddr" placeholder="العنوان"><input id="sphone" placeholder="الهاتف"><input id="swhatsapp" placeholder="رابط واتساب المتجر"><input id="scompany" placeholder="اسم الشركة (اختياري)"><input id="shours" placeholder="ساعات الدوام"><input id="sdays" placeholder="أيام العمل"><input id="simg" type="file" accept="image/*"></div><button class="btn primary" onclick="adminAddStore()">إضافة المتجر</button></div>
+      <div class="card"><h2>إدارة الشركات</h2>
+        <div class="two">
+          <input id="companyName" placeholder="اسم الشركة">
+          <input id="companyPhone" placeholder="هاتف الشركة">
+          <input id="companyAddress" placeholder="عنوان الشركة">
+          <input id="companyWhatsapp" placeholder="رابط واتساب الشركة">
+        </div>
+        <label class="rememberRow"><input id="companyVerified" type="checkbox"> الشركة موثقة</label>
+        <button type="button" class="btn primary" onclick="adminAddCompany()">إضافة الشركة</button>
+        <div id="adminCompaniesList" style="margin-top:12px">${companies.length ? companies.map(c=>`<div class="priceRow" id="companyAdminRow_${esc(c.id)}"><div class="name">${esc(c.name)}</div><div class="muted">${esc(c.phone||'')} ${c.address?'• '+esc(c.address):''}</div><div class="pill">${c.verified?'✓ موثقة':'غير موثقة'}</div><div class="actions"><button type="button" class="btn secondary" onclick="editAdminCompany('${esc(c.id)}')">تعديل الشركة</button><button type="button" class="btn secondary" onclick="toggleAdminCompanyVerification('${esc(c.id)}')">${c.verified?'إلغاء التوثيق':'توثيق الشركة'}</button><button type="button" class="btn danger" onclick="deleteAdminCompany('${esc(c.id)}')">حذف الشركة</button></div></div>`).join('') : '<p class="muted">لا توجد شركات.</p>'}</div>
+      </div>
       <div id="adminMerchantPermissionsBox" class="card"><div class="accordionHead" data-toggle-id="adminMerchantsBody"><div><h2>إدارة وربط التجار</h2><div class="muted">كل تاجر يمكن ربطه بمتجر واحد، وتفعيل الصلاحية بشكل مستقل.</div></div><span>▾</span></div><div id="adminMerchantsBody" class="accordionBody">${merchantHtml}</div></div>
       <div class="card"><div class="accordionHead" data-toggle-id="adminStoresBody"><h2>إدارة المتاجر</h2><span>▾</span></div><div id="adminStoresBody" class="accordionBody hidden">${storesHtml}</div></div>
       <div class="card"><div class="accordionHead" data-toggle-id="adminUsersBody"><h2>الحسابات</h2><span>▾</span></div><div id="adminUsersBody" class="accordionBody hidden">${usersHtml}</div></div>
@@ -681,16 +749,7 @@
     window.loadVisitorCount();
     window.loadAdminStoreVisitorCounts();
     window.loadSiteLinks();
-    setTimeout(window.buildAllQRCodes,30);
-    setTimeout(function(){
-      if(typeof QRCode==='undefined' || typeof window.storeUrl!=='function') return;
-      (stores||[]).forEach(s=>{
-        const box=$('qr_visible_'+s.id);
-        if(!box) return;
-        box.innerHTML='';
-        new QRCode(box,{text:window.storeUrl(s.id),width:160,height:160,correctLevel:QRCode.CorrectLevel.H});
-      });
-    },60);
+    setTimeout(buildAllQRCodes,30);
   };
 
   function bindAdminAccordions(){
@@ -742,17 +801,8 @@
   window.uploadImage = window.uploadImage || uploadImage;
 
   window.buildAllQRCodes = function(){
-    if(typeof QRCode==='undefined'){
-      setTimeout(window.buildAllQRCodes,300);
-      return;
-    }
-    if(typeof window.storeUrl!=='function') return;
-    (stores||[]).forEach(s=>{
-      const box=$('qr_'+s.id);
-      if(!box) return;
-      box.innerHTML='';
-      new QRCode(box,{text:window.storeUrl(s.id),width:160,height:160,correctLevel:QRCode.CorrectLevel.H});
-    });
+    if(typeof QRCode==='undefined') return;
+    (stores||[]).forEach(s=>{ const box=$('qr_'+s.id); if(!box) return; box.innerHTML=''; new QRCode(box,{text:window.storeUrl(s.id),width:160,height:160,correctLevel:QRCode.CorrectLevel.H}); });
   };
 
   window.printStoreQR = function(id){
