@@ -129,7 +129,7 @@
     const st=storeById(id); if(!st)return;
     if(!confirm('حذف المتجر «'+(st.name||'')+'»؟\n\nسيتم أولاً محاولة الحذف الفعلي. إذا كانت هناك بيانات مرتبطة تمنع الحذف، لن يتم تغيير البيانات تلقائياً.')) return;
 
-    const {error}=await supabaseClient.from('stores').delete().eq('id',id);
+    const {error}=await supabaseClient.rpc('admin_delete_store',{p_store_id:id});
     if(error){
       alert('تعذر حذف المتجر من قاعدة البيانات. السبب:\n'+error.message+'\n\nلم يتم تغيير المتجر تلقائياً حفاظاً على البيانات المرتبطة به.');
       return;
@@ -230,9 +230,9 @@
   }
 
   function injectAdminControls(){
-    if(!isAdmin() || !$('adminPanel'))return;
-    injectMerchantButtons();
-    injectStoreButtons();
+    // أزرار إدارة المتاجر والتجار أصبحت تُرسم مباشرة داخل renderAdmin.
+    // لا نستخدم حقن DOM حتى لا تتكرر الأزرار أو تختفي بسبب اختلاف بنية الصفحة.
+    return;
   }
 
   const originalRenderAdmin=window.renderAdmin;
