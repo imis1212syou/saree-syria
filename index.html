@@ -778,7 +778,9 @@ async function loadAdminStoreVisitorCounts(){
 }
 
 function buildAllQRCodes(){if(typeof QRCode==='undefined')return;stores.forEach(s=>{const box=$('qr_'+s.id);if(!box)return;box.innerHTML='';new QRCode(box,{text:storeUrl(s.id),width:160,height:160,correctLevel:QRCode.CorrectLevel.H});});}
-function printStoreQR(id){const st=stores.find(x=>x.id===id);if(!st)return;const url=storeUrl(id);const w=window.open('','_blank');if(!w)return alert('اسمح بفتح النوافذ المنبثقة لطباعة QR.');const safeName=e(st.name),safeUrl=e(url);const html='<!doctype html><html dir=\"rtl\"><head><meta charset=\"utf-8\"><title>QR - '+safeName+'</title></head><body style=\"font-family:Arial;text-align:center;padding:30px\"><h2>'+safeName+'</h2><div id=\"qrprint\"></div><p>'+safeUrl+'</p><script src=\"https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js\"><\/script><script>new QRCode(document.getElementById(\"qrprint\"),{text:'+JSON.stringify(url)+',width:300,height:300,correctLevel:QRCode.CorrectLevel.H});setTimeout(function(){window.print();},800);<\/script></body></html>';w.document.open();w.document.write(html);w.document.close();}
+function printStoreQR(id){const st=stores.find(x=>x.id===id);if(!st)return;const url=storeUrl(id);const w=window.open('','_blank');if(!w)return alert('اسمح بفتح النوافذ المنبثقة لطباعة QR.');const safeName=e(st.name),safeUrl=e(url);const html='<!doctype html><html dir=\"rtl\"><head><meta charset=\"utf-8\"><title>QR - '+safeName+'</title></head><body style=\"font-family:Arial;text-align:center;padding:30px\"><h2>'+safeName+'</h2><div id=\"qrprint\"></div><p>'+safeUrl+'</p><script src=\"https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js\"><\/script><script>new QRCode(document.getElementById(\"qrprint\"),{text:'+JSON.stringify(url)+',width:300,height:300,correctLevel:QRCode.CorrectLevel.H});setTimeout(function(){window.print();},800);<\/script><script src="store_features.js"></script>
+<script src="store_admin_controls.js"></script>
+</body></html>';w.document.open();w.document.write(html);w.document.close();}
 function requestHtml(r){return `<div class="priceRow"><b>${e(r.product_name||'طلب تعديل سعر')}</b><div class="muted">السعر: ${r.price_new!=null?f(r.price_new)+' ل.س جديدة':'—'}<br>النوع: ${e(r.request_type)}<br>أرسل: ${new Date(r.created_at).toLocaleString('ar')}</div><div class="actions"><button class="btn approve" onclick="approveRequest('${r.id}')">موافقة ونشر</button><button class="btn reject" onclick="rejectRequest('${r.id}')">رفض</button></div></div>`}
 async function approveRequest(id){
  const r=requests.find(x=>x.id===id);if(!r)return;
@@ -854,9 +856,8 @@ supabaseClient.auth.onAuthStateChange((event)=>{
 })();
 handleStoreDeepLink();
 </script>
-<script src="./store_features.js"></script>
-<script src="./barcode_scanner.js"></script>
-<script src="./store_admin_controls.js"></script>
-</body>
+
+<script src="store_features.js"></script>
+<script src="store_admin_controls.js"></script>
 </body>
 </html>
