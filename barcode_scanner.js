@@ -5,7 +5,7 @@
 (function(){
   'use strict';
   let scanner=null, nativeStream=null, nativeTimer=null;
-  let mode=null, activeStoreId=null, closing=false;
+  let mode=null, activeStoreId=null, closing=false, handling=false;
 
   const el=id=>document.getElementById(id);
   const normalize=v=>String(v??'').replace(/\D/g,'').trim();
@@ -118,17 +118,28 @@
   }
 
   async function handleBarcode(value){
-    const code=normalize(value);if(!code||closing)return;
+    const code=normalize(value);
+    if(!code||closing||handling)return;
+    handling=true;
     const currentMode=mode,storeId=activeStoreId;
-    await window.closeBarcodeScanner();
     if(currentMode==='add'){
       const input=el('barcode');
       if(input){input.value=code;input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}));}
       if(el('barcodeMsg'))el('barcodeMsg').textContent='✅ تم قراءة الباركود: '+code;
       await fillProductFromBarcode(code);
+      await window.closeBarcodeScanner();
       return;
     }
-    if(currentMode==='store'&&storeId)window.handleStoreBarcodeScan?.(code,storeId);
+    if(currentMode==='store'&&storeId){
+      const input=el('barcodeManualModal');
+      if(input) input.value=code;
+      status('✅ تم قراءة الباركود: '+code+' — جاري البحث...');
+      try{
+        if(typeof window.handleStoreBarcodeScan==='function') await window.handleStoreBarcodeScan(code,storeId);
+      }finally{
+        setTimeout(()=>window.closeBarcodeScanner(),700);
+      }
+    }
   }
 
   async function fillProductFromBarcode(code){

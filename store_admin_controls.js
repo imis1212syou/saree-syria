@@ -119,7 +119,8 @@
 
   window.toggleAdminCompanyVerification=async function(id){
     if(!onlyAdmin())return;const c=await getCompany(id).catch(e=>null);if(!c)return alert('الشركة غير موجودة.');
-    const {error}=await supabaseClient.from('companies').update({verified:!c.verified}).eq('id',id);if(error)return alert(error.message);await refreshEverything();
+    const {error}=await supabaseClient.rpc('admin_update_company',{p_id:id,p_name:c.name,p_phone:c.phone||null,p_address:c.address||null,p_whatsapp_url:c.whatsapp_url||null,p_image_url:c.image_url||null,p_verified:!c.verified,p_active:c.active!==false});
+    if(error)return alert(error.message);alert(c.verified?'تم إلغاء توثيق الشركة.':'تم توثيق الشركة.');await refreshEverything();
   };
 
   window.deleteAdminCompany=async function(id){

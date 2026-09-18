@@ -18,7 +18,7 @@
   );
   const userStoreId = () => profileData?.store_id || null;
   const storeImage = st => st?.image_url || st?.logo_url || '';
-  const storeCompany = st => st?.company_name || st?.company || '';
+  const storeCompany = st => st?.companies?.name || st?.company?.name || st?.company_name || st?.company || '';
   const storeWhatsapp = st => st?.whatsapp_url || st?.whatsapp || '';
   const mapsUrl = st => {
     if(st?.latitude != null && st?.longitude != null){
@@ -76,7 +76,7 @@
   };
 
   async function refreshStores(){
-    const {data,error} = await supabaseClient.from('stores').select('*').eq('active',true).order('name');
+    const {data,error} = await supabaseClient.from('stores').select('*,companies(id,name,verified,active)').eq('active',true).order('name');
     if(error) throw error;
     stores = Array.isArray(data) ? data : [];
     return stores;
@@ -625,53 +625,17 @@
     if(!isAdmin()) return alert('المدير فقط يستطيع إضافة شركة.');
     const name=$('companyName')?.value.trim();
     if(!name) return alert('اكتب اسم الشركة.');
-    const payload={
-      name,
-      phone:$('companyPhone')?.value.trim()||null,
-      address:$('companyAddress')?.value.trim()||null,
-      whatsapp_url:$('companyWhatsapp')?.value.trim()||null,
-      verified:!!$('companyVerified')?.checked,
-      active:true
-    };
-    const {error}=await supabaseClient.from('companies').insert(payload);
+    const {error}=await supabaseClient.rpc('admin_add_company',{
+      p_name:name,
+      p_phone:$('companyPhone')?.value.trim()||null,
+      p_address:$('companyAddress')?.value.trim()||null,
+      p_whatsapp_url:$('companyWhatsapp')?.value.trim()||null,
+      p_image_url:null,
+      p_verified:!!$('companyVerified')?.checked
+    });
     if(error) return alert('تعذر إضافة الشركة: '+error.message);
     alert('تمت إضافة الشركة بنجاح ✅');
-    await window.renderAdmin();
-  };
-
-  window.editAdminCompany = async function(id){
-    if(!isAdmin()) return;
-    const {data,error}=await supabaseClient.from('companies').select('*').eq('id',id).single();
-    if(error) return alert(error.message);
-    const name=prompt('اسم الشركة:',data.name||'');
-    if(name===null) return;
-    const phone=prompt('هاتف الشركة:',data.phone||'');
-    if(phone===null) return;
-    const address=prompt('عنوان الشركة:',data.address||'');
-    if(address===null) return;
-    const whatsapp_url=prompt('رابط واتساب الشركة:',data.whatsapp_url||'');
-    if(whatsapp_url===null) return;
-    const {error:upErr}=await supabaseClient.from('companies').update({name:name.trim(),phone:phone.trim()||null,address:address.trim()||null,whatsapp_url:whatsapp_url.trim()||null,updated_at:new Date().toISOString()}).eq('id',id);
-    if(upErr) return alert('تعذر تعديل الشركة: '+upErr.message);
-    alert('تم تعديل الشركة بنجاح.');
-    await window.renderAdmin();
-  };
-
-  window.toggleAdminCompanyVerification = async function(id){
-    if(!isAdmin()) return;
-    const {data,error}=await supabaseClient.from('companies').select('verified').eq('id',id).single();
-    if(error) return alert(error.message);
-    const {error:upErr}=await supabaseClient.from('companies').update({verified:!data.verified,updated_at:new Date().toISOString()}).eq('id',id);
-    if(upErr) return alert(upErr.message);
-    await window.renderAdmin();
-  };
-
-  window.deleteAdminCompany = async function(id){
-    if(!isAdmin()) return;
-    if(!confirm('حذف هذه الشركة؟ سيتم إبقاء المتاجر المرتبطة بها بدون شركة.')) return;
-    const {error}=await supabaseClient.from('companies').delete().eq('id',id);
-    if(error) return alert('تعذر حذف الشركة: '+error.message);
-    alert('تم حذف الشركة.');
+    await window.refreshAll();
     await window.renderAdmin();
   };
 
@@ -682,7 +646,7 @@
     const [rq,pr,st,us,co]=await Promise.all([
       supabaseClient.from('change_requests').select('*').eq('status','pending').order('created_at',{ascending:false}),
       supabaseClient.from('products').select('*').order('name'),
-      supabaseClient.from('stores').select('*').order('name'),
+      supabaseClient.from('stores').select('*,companies(id,name,verified,active)').order('name'),
       supabaseClient.from('profiles').select('id,name,role,store_id,can_edit_prices,verified').order('created_at',{ascending:false}),
       supabaseClient.from('companies').select('*').order('name')
     ]);
@@ -723,7 +687,7 @@
     $('adminPanel').innerHTML=`
       <div class="grid"><div class="card"><div class="name">${requests.length}</div><div class="muted">طلبات معلقة</div></div><div class="card"><div class="name">${(stores||[]).length}</div><div class="muted">متاجر</div></div><div class="card"><div class="name">${(products||[]).length}</div><div class="muted">منتجات</div></div><div class="card"><div class="name">${users.length}</div><div class="muted">حسابات</div></div><div class="card"><div class="name" id="visitorCount">—</div><div class="muted">زوار الموقع الفريدون</div></div></div>
       <div class="card"><div class="accordionHead" data-toggle-id="adminRequestsBody"><h2>طلبات التجار</h2><span>▾</span></div><div id="adminRequestsBody" class="accordionBody hidden">${pending}</div></div>
-      <div class="card"><h2>إضافة متجر</h2><div class="two"><input id="sn" placeholder="اسم المتجر"><input id="scity" placeholder="المدينة"><input id="sarea" placeholder="المنطقة"><input id="saddr" placeholder="العنوان"><input id="sphone" placeholder="الهاتف"><input id="swhatsapp" placeholder="رابط واتساب المتجر"><input id="scompany" placeholder="اسم الشركة (اختياري)"><input id="shours" placeholder="ساعات الدوام"><input id="sdays" placeholder="أيام العمل"><input id="simg" type="file" accept="image/*"></div><button class="btn primary" onclick="adminAddStore()">إضافة المتجر</button></div>
+      <div class="card"><h2>إضافة متجر</h2><div class="two"><input id="sn" placeholder="اسم المتجر"><input id="scity" placeholder="المدينة"><input id="sarea" placeholder="المنطقة"><input id="saddr" placeholder="العنوان"><input id="sphone" placeholder="الهاتف"><input id="swhatsapp" placeholder="رابط واتساب المتجر"><select id="scompany"><option value="">بدون شركة</option>${companies.map(c=>`<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')}</select><input id="shours" placeholder="ساعات الدوام"><input id="sdays" placeholder="أيام العمل"><input id="simg" type="file" accept="image/*"></div><button class="btn primary" onclick="adminAddStore()">إضافة المتجر</button></div>
       <div class="card"><h2>إدارة الشركات</h2>
         <div class="two">
           <input id="companyName" placeholder="اسم الشركة">
@@ -779,7 +743,7 @@
     if(!name) return alert('اكتب اسم المتجر.');
     let image=null;
     try{ image=await uploadImage($('simg')?.files?.[0]||null,'stores'); }catch(err){ return alert('فشل رفع صورة المتجر: '+err.message); }
-    const payload={name,city:$('scity').value.trim(),area:$('sarea').value.trim(),address:$('saddr').value.trim(),phone:$('sphone').value.trim(),opening_hours:$('shours').value.trim(),working_days:$('sdays').value.trim(),image_url:image,whatsapp_url:$('swhatsapp').value.trim()||null,verified:true,active:true};
+    const payload={name,city:$('scity').value.trim(),area:$('sarea').value.trim(),address:$('saddr').value.trim(),phone:$('sphone').value.trim(),opening_hours:$('shours').value.trim(),working_days:$('sdays').value.trim(),image_url:image,whatsapp_url:$('swhatsapp').value.trim()||null,company_id:$('scompany')?.value||null,verified:true,active:true};
     const {error}=await supabaseClient.from('stores').insert(payload);
     if(error) return alert(error.message);
     alert('تمت إضافة المتجر ✅');
