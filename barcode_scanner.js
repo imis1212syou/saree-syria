@@ -501,58 +501,49 @@ async function handleBarcode(barcode) {
     try {
 
       /*
-       * أولاً نبحث عن المنتج بواسطة الباركود.
+       * البحث يجب أن يبدأ من أسعار المتجر المحدد، وليس من جدول
+       * products العام؛ لأن نفس الباركود يمكن أن يكون له مادة
+       * مستقلة في متجر آخر.
        */
-
-      const { data: product, error } =
-        await supabaseClient
-          .from('products')
-          .select('*')
-          .eq('barcode', barcode)
-          .limit(1)
-          .maybeSingle();
-
-      if (error) {
-        throw error;
-      }
-
-      if (!product) {
-
-        showResult(
-          'لم نجد المادة',
-          'لا توجد مادة بهذا الباركود.'
-        );
-
-        return;
-      }
-
-      /*
-       * ثم نبحث عن سعرها داخل المتجر المحدد فقط.
-       */
-
       const {
-        data: listing,
+        data: listings,
         error: priceError
       } =
         await supabaseClient
           .from('price_listings')
           .select(
-            'id,price_new,store_id,product_id,approved,updated_at'
+            'id,price_new,store_id,product_id,approved,updated_at,products(*)'
           )
           .eq('store_id', storeId)
-          .eq('product_id', product.id)
           .eq('approved', true)
           .order(
             'updated_at',
             { ascending:false }
-          )
-          .limit(1)
-          .maybeSingle();
+          );
 
       if (priceError) {
         throw priceError;
       }
- const store =
+
+      const listing =
+        (Array.isArray(listings) ? listings : [])
+          .find(function (row) {
+            return cleanBarcode(row?.products?.barcode || row?.barcode || '') === barcode;
+          });
+
+      const product = listing?.products || null;
+
+      if (!listing || !product) {
+
+        showResult(
+          'لم نجد المادة',
+          'لا توجد مادة بهذا الباركود داخل هذا المتجر.'
+        );
+
+        return;
+      }
+
+      const store =
         Array.isArray(window.stores)
           ? window.stores.find(
               function (x) {
@@ -561,16 +552,6 @@ async function handleBarcode(barcode) {
               }
             )
           : null;
-
-      if (!listing) {
-
-        showResult(
-          product.name || 'المادة',
-          'المادة موجودة، لكن لا يوجد لها سعر معتمد في هذا المتجر حالياً.'
-        );
-
-        return;
-      }
 
       const newPrice =
         Number(
