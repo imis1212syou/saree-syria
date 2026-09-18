@@ -36,7 +36,6 @@
         <input id="sa_hours" value="${esc(st.opening_hours)}" placeholder="ساعات الدوام">
         <input id="sa_days" value="${esc(st.working_days)}" placeholder="أيام العمل">
         <select id="sa_company"><option value="">بدون شركة</option></select>
-        <input id="sa_company_name" value="${esc(companyName)}" placeholder="اسم الشركة القديم (للتوافق)">
         <input id="sa_image" type="file" accept="image/*">
       </div>
       <label class="muted"><input id="sa_verified" type="checkbox" ${st.verified?'checked':''}> المتجر موثّق</label>
@@ -64,10 +63,9 @@
     const file=$('sa_image')?.files?.[0];
     if(file){try{image_url=await window.uploadImage(file,'stores')}catch(e){return alert('فشل رفع الصورة: '+e.message)}}
     const companyId=$('sa_company')?.value||null;
-    const companyName=$('sa_company')?.selectedOptions?.[0]?.textContent||$('sa_company_name')?.value.trim()||null;
     const payload={name,city:$('sa_city').value.trim()||null,area:$('sa_area').value.trim()||null,address:$('sa_address').value.trim()||null,phone:$('sa_phone').value.trim()||null,whatsapp_url:$('sa_whatsapp').value.trim()||null,opening_hours:$('sa_hours').value.trim()||null,working_days:$('sa_days').value.trim()||null,image_url,verified:!!$('sa_verified').checked,active:!!$('sa_active').checked,company_id:companyId};
     $('sa_msg').textContent='جاري الحفظ...';
-    const {error}=await supabaseClient.from('stores').update(payload).eq('id',id);
+    const {error}=await supabaseClient.from('stores').update(payload).eq('id',id).select('id').maybeSingle();
     if(error){$('sa_msg').textContent=error.message;return}
     closeAdminEditor(); alert('تم تعديل المتجر بنجاح.'); await refreshEverything();
   }
@@ -119,8 +117,7 @@
 
   window.toggleAdminCompanyVerification=async function(id){
     if(!onlyAdmin())return;const c=await getCompany(id).catch(e=>null);if(!c)return alert('الشركة غير موجودة.');
-    const {error}=await supabaseClient.rpc('admin_update_company',{p_id:id,p_name:c.name,p_phone:c.phone||null,p_address:c.address||null,p_whatsapp_url:c.whatsapp_url||null,p_image_url:c.image_url||null,p_verified:!c.verified,p_active:c.active!==false});
-    if(error)return alert(error.message);alert(c.verified?'تم إلغاء توثيق الشركة.':'تم توثيق الشركة.');await refreshEverything();
+    const {error}=await supabaseClient.from('companies').update({verified:!c.verified}).eq('id',id);if(error)return alert(error.message);await refreshEverything();
   };
 
   window.deleteAdminCompany=async function(id){
