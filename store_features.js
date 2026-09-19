@@ -548,7 +548,7 @@
         ${st?.image_url ? `<img class="img storeLogo" src="${esc(st.image_url)}" alt="${esc(st.name)}">` : ''}
         <div class="name">${esc(st?.name||'لا يوجد متجر مرتبط')}</div>
         <div class="notice ${can?'':'pending'}">${can?'الصلاحية مفعّلة لإدارة مواد وأسعار متجرك فقط.':'الصلاحية غير مفعّلة. المدير هو من يربط المتجر ويفعّل الصلاحية.'}</div>
-        ${st ? `<div class="card" style="margin-top:10px"><div class="name" id="merchantVisitorCount">—</div><div class="muted">زوار المتجر الفريدون</div></div>` : ''}
+        ${st ? `<div class="card" style="margin-top:10px"><div class="name" id="merchantVisitorCount">—</div><div class="muted">إجمالي زيارات المتجر</div></div>` : ''}
         <div class="actions">
           ${st ? `<button type="button" class="btn primary" onclick="openStore('${esc(st.id)}')">فتح متجري</button>` : ''}
           <button type="button" class="btn primary" ${can?'':'disabled'} onclick="showAdd()">إضافة مادة / سعر</button>
@@ -559,10 +559,23 @@
     if(typeof window.loadMerchantStoreVisitorCount==='function') window.loadMerchantStoreVisitorCount();
   };
 
+  window.recordStoreVisit = async function(storeId){
+    if(!storeId) return;
+    try{
+      let visitorId = localStorage.getItem('saree_store_visitor_id');
+      if(!visitorId){
+        visitorId = (crypto && crypto.randomUUID) ? crypto.randomUUID() : ('v_' + Date.now() + '_' + Math.random().toString(36).slice(2));
+        localStorage.setItem('saree_store_visitor_id', visitorId);
+      }
+      const {error}=await supabaseClient.from('store_visits').insert({store_id:storeId,visitor_id:visitorId});
+      if(error) throw error;
+    }catch(err){ console.warn('store visit:', err); }
+  };
+
   window.loadMerchantStoreVisitorCount = async function(){
     if(!profileData || role()!=='store' || !profileData.store_id) return;
     try{
-      const {data,error}=await supabaseClient.rpc('merchant_store_visitor_count',{p_store_id:profileData.store_id});
+      const {data,error}=await supabaseClient.rpc('store_visit_count',{p_store_id:profileData.store_id});
       if(!error && $('merchantVisitorCount')) $('merchantVisitorCount').textContent=fmt(data||0);
     }catch(err){ console.warn('merchant visitor count:',err); }
   };
