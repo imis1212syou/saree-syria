@@ -30,45 +30,6 @@
     return '';
   };
 
-  // ===== كود الزيارات =====
-  window.recordStoreVisit = async function(storeId){
-    if(!storeId || typeof supabaseClient?.rpc !== 'function') return;
-    try{
-      let visitor = '';
-      try{
-        visitor = typeof window.visitorId === 'function'
-          ? window.visitorId()
-          : (localStorage.getItem('visitor_id') || '');
-      }catch(_){}
-      const {error} = await supabaseClient.rpc('record_store_visit',{
-        p_store_id: storeId,
-        p_visitor_id: visitor || null
-      });
-      if(error) throw error;
-    }catch(err){
-      console.warn('record store visit:',err);
-    }
-  };
-
-  window.recordCompanyVisit = async function(companyId){
-    if(!companyId || typeof supabaseClient?.rpc !== 'function') return;
-    try{
-      let visitor = '';
-      try{
-        visitor = typeof window.visitorId === 'function'
-          ? window.visitorId()
-          : (localStorage.getItem('visitor_id') || '');
-      }catch(_){}
-      const {error} = await supabaseClient.rpc('record_company_visit',{
-        p_company_id: companyId,
-        p_visitor_id: visitor || null
-      });
-      if(error) throw error;
-    }catch(err){
-      console.warn('record company visit:',err);
-    }
-  };
-
   window.__sareeLocation = window.__sareeLocation || {lat:null,lng:null,requested:false,ready:false};
 
   function haversine(lat1,lon1,lat2,lon2){
@@ -144,16 +105,6 @@
   function renderCompanyDetail(name,list){
     if(!$('companyDetail')) return;
     $('companyDetailName').textContent = name || 'الشركة';
-
-    const companyId =
-      list.find(st => st?.companies?.id)?.companies?.id ||
-      (window.companies || []).find?.(
-        c => String(c.name || '').trim() === String(name || '').trim()
-      )?.id || null;
-
-    if(companyId && typeof window.recordCompanyVisit==='function')
-      window.recordCompanyVisit(companyId).catch(()=>{});
-
     $('companyDetailBody').innerHTML = `
       <div class="card">
         <span class="pill companyBadge">🏢 ${esc(name || 'متاجر مستقلة')}</span>
@@ -597,7 +548,7 @@
         ${st?.image_url ? `<img class="img storeLogo" src="${esc(st.image_url)}" alt="${esc(st.name)}">` : ''}
         <div class="name">${esc(st?.name||'لا يوجد متجر مرتبط')}</div>
         <div class="notice ${can?'':'pending'}">${can?'الصلاحية مفعّلة لإدارة مواد وأسعار متجرك فقط.':'الصلاحية غير مفعّلة. المدير هو من يربط المتجر ويفعّل الصلاحية.'}</div>
-        ${st ? `<div class="card" style="margin-top:10px"><div class="name" id="merchantVisitorTotal">—</div><div class="muted">إجمالي زيارات المتجر</div><div class="muted" id="merchantVisitorUnique">الزوار الفريدون: —</div></div>` : ''}
+        ${st ? `<div class="card" style="margin-top:10px"><div class="name" id="merchantVisitorCount">—</div><div class="muted">زوار المتجر الفريدون</div></div>` : ''}
         <div class="actions">
           ${st ? `<button type="button" class="btn primary" onclick="openStore('${esc(st.id)}')">فتح متجري</button>` : ''}
           <button type="button" class="btn primary" ${can?'':'disabled'} onclick="showAdd()">إضافة مادة / سعر</button>
@@ -611,11 +562,8 @@
   window.loadMerchantStoreVisitorCount = async function(){
     if(!profileData || role()!=='store' || !profileData.store_id) return;
     try{
-      const {data,error}=await supabaseClient.rpc('merchant_store_visitor_stats',{p_store_id:profileData.store_id});
-      if(error) throw error;
-      const row=Array.isArray(data)?data[0]:data;
-      if($('merchantVisitorTotal')) $('merchantVisitorTotal').textContent=fmt(row?.total_visits||0);
-      if($('merchantVisitorUnique')) $('merchantVisitorUnique').textContent='الزوار الفريدون: '+fmt(row?.unique_visitors||0);
+      const {data,error}=await supabaseClient.rpc('merchant_store_visitor_count',{p_store_id:profileData.store_id});
+      if(!error && $('merchantVisitorCount')) $('merchantVisitorCount').textContent=fmt(data||0);
     }catch(err){ console.warn('merchant visitor count:',err); }
   };
 
@@ -630,12 +578,7 @@
     try{
       const {data,error}=await supabaseClient.rpc('admin_store_visitor_counts');
       if(error || !Array.isArray(data)) return;
-      data.forEach(row=>{
-        const total=$('sv_total_'+row.store_id);
-        const unique=$('sv_unique_'+row.store_id);
-        if(total) total.textContent=fmt(row.total_visits ?? row.visitor_count ?? 0);
-        if(unique) unique.textContent=fmt(row.unique_visitors||0);
-      });
+      data.forEach(row=>{ const node=$('sv_'+row.store_id); if(node) node.textContent=fmt(row.visitor_count||0); });
     }catch(err){ console.warn(err); }
   };
 
@@ -732,20 +675,6 @@
     await window.renderAdmin();
   };
 
-  window.loadAdminCompanyVisitorCounts = async function(){
-    if(!isAdmin()) return;
-    try{
-      const {data,error}=await supabaseClient.rpc('admin_company_visitor_counts');
-      if(error || !Array.isArray(data)) return;
-      data.forEach(row=>{
-        const total=$('cv_total_'+row.company_id);
-        const unique=$('cv_unique_'+row.company_id);
-        if(total) total.textContent=fmt(row.total_visits ?? row.visitor_count ?? 0);
-        if(unique) unique.textContent=fmt(row.unique_visitors||0);
-      });
-    }catch(err){ console.warn('admin company visitor counts:',err); }
-  };
-
   window.renderAdmin = async function(){
     if(!isAdmin()) return;
     window.show('admin');
@@ -783,7 +712,7 @@
         </div>
       </div>`;
     }).join('') : '<p class="muted">لا توجد حسابات تجار حالياً.</p>';
-    const storesHtml=(stores||[]).length ? (stores||[]).map(s=>`<div class="priceRow"><div class="accordionHead" data-toggle-id="storeAdmin_${esc(s.id)}"><div><b>${esc(s.name)}</b><div class="muted">${esc([s.city,s.area].filter(Boolean).join(' — '))}</div></div><span>▾</span></div><div id="storeAdmin_${esc(s.id)}" class="accordionBody hidden">${storeImage(s)?`<img class="img storeLogo" src="${esc(storeImage(s))}" alt="${esc(s.name)}">`:''}<div class="muted">${esc(s.address||'')}</div>${s.phone?`<div class="muted">📞 ${esc(s.phone)}</div>`:''}${storeCompany(s)?`<div class="pill companyBadge">🏢 ${esc(storeCompany(s))}</div>`:''}${storeWhatsapp(s)?`<div class="muted">واتساب: ${esc(storeWhatsapp(s))}</div>`:''}<div class="muted">إجمالي زيارات المتجر: <b id="sv_total_${esc(s.id)}">—</b></div><div class="muted">الزوار الفريدون: <b id="sv_unique_${esc(s.id)}">—</b></div><div id="qr_${esc(s.id)}" class="qrbox"></div><div class="actions">
+    const storesHtml=(stores||[]).length ? (stores||[]).map(s=>`<div class="priceRow"><div class="accordionHead" data-toggle-id="storeAdmin_${esc(s.id)}"><div><b>${esc(s.name)}</b><div class="muted">${esc([s.city,s.area].filter(Boolean).join(' — '))}</div></div><span>▾</span></div><div id="storeAdmin_${esc(s.id)}" class="accordionBody hidden">${storeImage(s)?`<img class="img storeLogo" src="${esc(storeImage(s))}" alt="${esc(s.name)}">`:''}<div class="muted">${esc(s.address||'')}</div>${s.phone?`<div class="muted">📞 ${esc(s.phone)}</div>`:''}${storeCompany(s)?`<div class="pill companyBadge">🏢 ${esc(storeCompany(s))}</div>`:''}${storeWhatsapp(s)?`<div class="muted">واتساب: ${esc(storeWhatsapp(s))}</div>`:''}<div class="muted">زوار المتجر الفريدون: <b id="sv_${esc(s.id)}">—</b></div><div id="qr_${esc(s.id)}" class="qrbox"></div><div class="actions">
           <button type="button" class="btn secondary" onclick="openStore('${esc(s.id)}')">فتح صفحة المتجر</button>
           <button type="button" class="btn secondary" onclick="printStoreQR('${esc(s.id)}')">طباعة QR</button>
           <button type="button" class="btn primary" onclick="openAdminStoreEdit('${esc(s.id)}')">تعديل المتجر</button>
@@ -798,7 +727,7 @@
       <div class="card"><h2>إدارة الشركات</h2>
         <p class="muted">إضافة وتعديل وتوثيق وحذف الشركات. ربط المتجر بالشركة يتم من شاشة تعديل المتجر.</p>
         <button type="button" class="btn primary" onclick="openAdminCompanyCreate()">إضافة الشركة</button>
-        <div id="adminCompaniesList" style="margin-top:12px">${companies.length ? companies.map(c=>`<div class="priceRow" id="companyAdminRow_${esc(c.id)}"><div class="name">${esc(c.name)}</div><div class="muted">${esc(c.phone||'')} ${c.address?'• '+esc(c.address):''}</div><div class="muted">إجمالي الزيارات: <b id="cv_total_${esc(c.id)}">—</b> • الفريدون: <b id="cv_unique_${esc(c.id)}">—</b></div><div class="pill">${c.verified?'✓ موثقة':'غير موثقة'}</div><div class="actions"><button type="button" class="btn secondary" onclick="openAdminCompanyEdit('${esc(c.id)}')">تعديل الشركة</button><button type="button" class="btn secondary" onclick="toggleAdminCompanyVerification('${esc(c.id)}')">${c.verified?'إلغاء التوثيق':'توثيق الشركة'}</button><button type="button" class="btn danger" onclick="deleteAdminCompany('${esc(c.id)}')">حذف الشركة</button></div></div>`).join('') : '<p class="muted">لا توجد شركات.</p>'}</div>
+        <div id="adminCompaniesList" style="margin-top:12px">${companies.length ? companies.map(c=>`<div class="priceRow" id="companyAdminRow_${esc(c.id)}"><div class="name">${esc(c.name)}</div><div class="muted">${esc(c.phone||'')} ${c.address?'• '+esc(c.address):''}</div><div class="pill">${c.verified?'✓ موثقة':'غير موثقة'}</div><div class="actions"><button type="button" class="btn secondary" onclick="openAdminCompanyEdit('${esc(c.id)}')">تعديل الشركة</button><button type="button" class="btn secondary" onclick="toggleAdminCompanyVerification('${esc(c.id)}')">${c.verified?'إلغاء التوثيق':'توثيق الشركة'}</button><button type="button" class="btn danger" onclick="deleteAdminCompany('${esc(c.id)}')">حذف الشركة</button></div></div>`).join('') : '<p class="muted">لا توجد شركات.</p>'}</div>
       </div>
       <div id="adminMerchantPermissionsBox" class="card"><div class="accordionHead" data-toggle-id="adminMerchantsBody"><div><h2>إدارة وربط التجار</h2><div class="muted">كل تاجر يمكن ربطه بمتجر واحد، وتفعيل الصلاحية بشكل مستقل.</div></div><span>▾</span></div><div id="adminMerchantsBody" class="accordionBody">${merchantHtml}</div></div>
       <div class="card"><div class="accordionHead" data-toggle-id="adminStoresBody"><h2>إدارة المتاجر</h2><span>▾</span></div><div id="adminStoresBody" class="accordionBody hidden">${storesHtml}</div></div>
@@ -813,7 +742,6 @@
     });
     window.loadVisitorCount();
     window.loadAdminStoreVisitorCounts();
-    window.loadAdminCompanyVisitorCounts();
     window.loadSiteLinks();
     setTimeout(buildAllQRCodes,30);
   };
