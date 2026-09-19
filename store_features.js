@@ -32,50 +32,6 @@
 
   window.__sareeLocation = window.__sareeLocation || {lat:null,lng:null,requested:false,ready:false};
 
-  // نظام الزيارات: كل فتح للمتجر/الشركة يسجل زيارة مستقلة.
-  // يبقى الزائر الفريد معروفاً عبر نفس visitor_id.
-  function visitVisitorId(){
-    try{
-      const key = 'saree_visitor_id';
-      let id = localStorage.getItem(key);
-      if(!id){
-        id = (crypto && crypto.randomUUID) ? crypto.randomUUID() :
-          ('v_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2));
-        localStorage.setItem(key,id);
-      }
-      return id;
-    }catch(e){
-      return null;
-    }
-  }
-
-  window.recordStoreVisit = async function(storeId){
-    if(!storeId) return;
-    try{
-      const {error} = await supabaseClient.rpc('record_store_visit',{
-        p_store_id: storeId,
-        p_visitor_id: visitVisitorId()
-      });
-      if(error) throw error;
-    }catch(err){
-      console.warn('store visit:',err);
-    }
-  };
-
-  window.recordCompanyVisit = async function(companyId){
-    if(!companyId) return;
-    try{
-      const {error} = await supabaseClient.rpc('record_company_visit',{
-        p_company_id: companyId,
-        p_visitor_id: visitVisitorId()
-      });
-      if(error) throw error;
-    }catch(err){
-      console.warn('company visit:',err);
-    }
-  };
-
-
   function haversine(lat1,lon1,lat2,lon2){
     const rad = n => Number(n) * Math.PI / 180;
     const R = 6371;
@@ -146,26 +102,13 @@
     renderCompanyDetail(name,list);
   };
 
-  async function loadCompanyVisitStats(companyId){
-    if(!companyId || !$('companyVisitTotal')) return;
-    try{
-      const {data,error}=await supabaseClient.rpc('admin_company_visitor_stats',{p_company_id:companyId});
-      if(error) return;
-      $('companyVisitTotal').textContent=fmt(data?.[0]?.total_visits ?? 0);
-      $('companyVisitUnique').textContent=fmt(data?.[0]?.unique_visitors ?? 0);
-    }catch(err){ console.warn('company visitor stats:',err); }
-  }
-
   function renderCompanyDetail(name,list){
     if(!$('companyDetail')) return;
     $('companyDetailName').textContent = name || 'الشركة';
-    const companyId = list.map(st=>st.company_id || st.companies?.id).find(Boolean) || null;
-    if(companyId && typeof window.recordCompanyVisit==='function') window.recordCompanyVisit(companyId).catch(()=>{});
     $('companyDetailBody').innerHTML = `
       <div class="card">
         <span class="pill companyBadge">🏢 ${esc(name || 'متاجر مستقلة')}</span>
         <div class="name">${list.length} متاجر</div>
-        ${companyId ? `<div class="muted" style="margin-top:8px">إجمالي زيارات الشركة: <b id="companyVisitTotal">—</b> • الزوار الفريدون: <b id="companyVisitUnique">—</b></div>` : ''}
         <p class="muted">هذه الصفحة تجمع المتاجر التابعة للشركة وتعرض بياناتها الأساسية ووسائل التواصل المتاحة.</p>
       </div>
       <div class="grid">
@@ -173,7 +116,6 @@
       </div>`;
     window.show('companyDetail');
     window.scrollTo(0,0);
-    if(companyId) loadCompanyVisitStats(companyId);
   }
 
   function renderStoreCard(st){
@@ -606,7 +548,7 @@
         ${st?.image_url ? `<img class="img storeLogo" src="${esc(st.image_url)}" alt="${esc(st.name)}">` : ''}
         <div class="name">${esc(st?.name||'لا يوجد متجر مرتبط')}</div>
         <div class="notice ${can?'':'pending'}">${can?'الصلاحية مفعّلة لإدارة مواد وأسعار متجرك فقط.':'الصلاحية غير مفعّلة. المدير هو من يربط المتجر ويفعّل الصلاحية.'}</div>
-        ${st ? `<div class="card" style="margin-top:10px"><div class="name" id="merchantVisitorCount">—</div><div class="muted">إجمالي زيارات المتجر • الفريدون: <span id="merchantUniqueVisitorCount">—</span></div></div>` : ''}
+        ${st ? `<div class="card" style="margin-top:10px"><div class="name" id="merchantVisitorCount">—</div><div class="muted">زوار المتجر الفريدون</div></div>` : ''}
         <div class="actions">
           ${st ? `<button type="button" class="btn primary" onclick="openStore('${esc(st.id)}')">فتح متجري</button>` : ''}
           <button type="button" class="btn primary" ${can?'':'disabled'} onclick="showAdd()">إضافة مادة / سعر</button>
@@ -620,25 +562,15 @@
   window.loadMerchantStoreVisitorCount = async function(){
     if(!profileData || role()!=='store' || !profileData.store_id) return;
     try{
-      const {data,error}=await supabaseClient.rpc('merchant_store_visitor_stats',{p_store_id:profileData.store_id});
-      if(!error){
-        const row=Array.isArray(data)?data[0]:data;
-        if($('merchantVisitorCount')) $('merchantVisitorCount').textContent=fmt(row?.total_visits ?? 0);
-        if($('merchantUniqueVisitorCount')) $('merchantUniqueVisitorCount').textContent=fmt(row?.unique_visitors ?? 0);
-      }
+      const {data,error}=await supabaseClient.rpc('merchant_store_visitor_count',{p_store_id:profileData.store_id});
+      if(!error && $('merchantVisitorCount')) $('merchantVisitorCount').textContent=fmt(data||0);
     }catch(err){ console.warn('merchant visitor count:',err); }
   };
 
   window.loadVisitorCount = async function(){
     if(!isAdmin()) return;
-    try{
-      const [totalRes,uniqueRes]=await Promise.all([
-        supabaseClient.rpc('admin_visitor_count'),
-        supabaseClient.rpc('admin_unique_visitor_count')
-      ]);
-      if(!totalRes.error && $('visitorCount')) $('visitorCount').textContent=fmt(totalRes.data||0);
-      if(!uniqueRes.error && $('uniqueVisitorCount')) $('uniqueVisitorCount').textContent=fmt(uniqueRes.data||0);
-    }catch(err){ console.warn(err); }
+    try{ const {data,error}=await supabaseClient.rpc('admin_visitor_count'); if(!error && $('visitorCount')) $('visitorCount').textContent=fmt(data||0); }
+    catch(err){ console.warn(err); }
   };
 
   window.loadAdminStoreVisitorCounts = async function(){
@@ -646,12 +578,7 @@
     try{
       const {data,error}=await supabaseClient.rpc('admin_store_visitor_counts');
       if(error || !Array.isArray(data)) return;
-      data.forEach(row=>{
-        const node=$('sv_'+row.store_id);
-        const unique=$('suv_'+row.store_id);
-        if(node) node.textContent=fmt(row.total_visits ?? row.visitor_count ?? 0);
-        if(unique) unique.textContent=fmt(row.unique_visitors ?? 0);
-      });
+      data.forEach(row=>{ const node=$('sv_'+row.store_id); if(node) node.textContent=fmt(row.visitor_count||0); });
     }catch(err){ console.warn(err); }
   };
 
