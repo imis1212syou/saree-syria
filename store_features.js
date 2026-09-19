@@ -105,10 +105,6 @@
   function renderCompanyDetail(name,list){
     if(!$('companyDetail')) return;
     $('companyDetailName').textContent = name || 'الشركة';
-    const company = (window.companies || []).find?.(c => String(c.name || '').trim() === String(name || '').trim());
-    const companyId = company?.id || list.find(st => st?.companies?.id)?.companies?.id || null;
-    if(companyId && typeof window.recordCompanyVisit==='function') window.recordCompanyVisit(companyId).catch(()=>{});
-
     $('companyDetailBody').innerHTML = `
       <div class="card">
         <span class="pill companyBadge">🏢 ${esc(name || 'متاجر مستقلة')}</span>
@@ -552,6 +548,7 @@
         ${st?.image_url ? `<img class="img storeLogo" src="${esc(st.image_url)}" alt="${esc(st.name)}">` : ''}
         <div class="name">${esc(st?.name||'لا يوجد متجر مرتبط')}</div>
         <div class="notice ${can?'':'pending'}">${can?'الصلاحية مفعّلة لإدارة مواد وأسعار متجرك فقط.':'الصلاحية غير مفعّلة. المدير هو من يربط المتجر ويفعّل الصلاحية.'}</div>
+        ${st ? `<div class="card" style="margin-top:10px"><div class="name" id="merchantVisitorCount">—</div><div class="muted">زوار المتجر الفريدون</div></div>` : ''}
         <div class="actions">
           ${st ? `<button type="button" class="btn primary" onclick="openStore('${esc(st.id)}')">فتح متجري</button>` : ''}
           <button type="button" class="btn primary" ${can?'':'disabled'} onclick="showAdd()">إضافة مادة / سعر</button>
@@ -559,6 +556,30 @@
         </div>
       </div>
       <div class="card"><h2>طلباتك</h2>${error?`<p class="muted">${esc(error.message)}</p>`:reqs.length?reqs.map(r=>`<div class="priceRow"><b>${esc(r.product_name||'طلب تعديل سعر')}</b><div class="muted">${r.price_new!=null?fmt(r.price_new)+' ل.س جديدة':''} • ${r.created_at?esc(new Date(r.created_at).toLocaleString('ar')):''}</div><span class="pill">${r.status==='pending'?'قيد المراجعة':r.status==='approved'?'مقبول':'مرفوض'}</span>${r.reason?`<div class="muted">السبب: ${esc(r.reason)}</div>`:''}</div>`).join(''):'<p class="muted">لا توجد طلبات.</p>'}</div>`;
+    if(typeof window.loadMerchantStoreVisitorCount==='function') window.loadMerchantStoreVisitorCount();
+  };
+
+  window.loadMerchantStoreVisitorCount = async function(){
+    if(!profileData || role()!=='store' || !profileData.store_id) return;
+    try{
+      const {data,error}=await supabaseClient.rpc('merchant_store_visitor_count',{p_store_id:profileData.store_id});
+      if(!error && $('merchantVisitorCount')) $('merchantVisitorCount').textContent=fmt(data||0);
+    }catch(err){ console.warn('merchant visitor count:',err); }
+  };
+
+  window.loadVisitorCount = async function(){
+    if(!isAdmin()) return;
+    try{ const {data,error}=await supabaseClient.rpc('admin_visitor_count'); if(!error && $('visitorCount')) $('visitorCount').textContent=fmt(data||0); }
+    catch(err){ console.warn(err); }
+  };
+
+  window.loadAdminStoreVisitorCounts = async function(){
+    if(!isAdmin()) return;
+    try{
+      const {data,error}=await supabaseClient.rpc('admin_store_visitor_counts');
+      if(error || !Array.isArray(data)) return;
+      data.forEach(row=>{ const node=$('sv_'+row.store_id); if(node) node.textContent=fmt(row.visitor_count||0); });
+    }catch(err){ console.warn(err); }
   };
 
   window.saveSiteLinks = async function(){
@@ -654,6 +675,140 @@
     await window.renderAdmin();
   };
 
+  // استيراد المواد والأسعار دفعة واحدة من CSV — إضافة مستقلة لا تغيّر مسار الإضافة اليدوية.
+  function parseBulkCsv(text){
+    text=String(text||'').replace(/^\uFEFF/,'').replace(/\r\n?/g,'\n');
+    const rows=[]; let row=[], cell='', quoted=false;
+    for(let i=0;i<text.length;i++){
+      const ch=text[i], next=text[i+1];
+      if(quoted){
+        if(ch==='"' && next==='"'){cell+='"';i++;}
+        else if(ch==='"') quoted=false;
+        else cell+=ch;
+      }else{
+        if(ch==='"') quoted=true;
+        else if(ch===','){row.push(cell);cell='';}
+        else if(ch==='\n'){row.push(cell);rows.push(row);row=[];cell='';}
+        else cell+=ch;
+      }
+    }
+    if(cell!=='' || row.length){row.push(cell);rows.push(row);}
+    if(!rows.length)return [];
+    const clean=v=>String(v??'').trim();
+    const headers=rows[0].map(clean);
+    return rows.slice(1).filter(r=>r.some(v=>clean(v)!=='')).map(r=>{
+      const o={};headers.forEach((h,i)=>o[h]=clean(r[i]));return o;
+    });
+  }
+
+  function bulkField(row,names){
+    for(const n of names){
+      if(row[n]!=null && String(row[n]).trim()!=='') return String(row[n]).trim();
+    }
+    return '';
+  }
+
+  function normalizeBulkHeaderRow(row){
+    const out={};
+    Object.keys(row||{}).forEach(k=>{
+      const key=String(k).trim().toLowerCase();
+      out[key]=row[k];
+    });
+    const pick=(keys)=>{for(const k of keys){if(out[k]!=null&&String(out[k]).trim()!=='')return String(out[k]).trim();}return '';};
+    return {
+      storeName:pick(['store_name','store name','اسم المتجر','المتجر','store']),
+      storeId:pick(['store_id','store id','معرف المتجر']),
+      name:pick(['product_name','product name','اسم المادة','اسم المنتج','المادة','المنتج','name']),
+      brand:pick(['brand','العلامة التجارية','العلامة']),
+      unit:pick(['unit','size','الوزن','الحجم','الوحدة','الوزن / الحجم']),
+      category:pick(['category','التصنيف','الفئة']),
+      barcode:normBarcode(pick(['barcode','باركود','الباركود','رمز الباركود'])),
+      price:pick(['price_new','price','price new','السعر','السعر الجديد'])
+    };
+  }
+
+  window.downloadBulkImportTemplate=function(){
+    if(!isAdmin()) return alert('هذا الخيار للمدير فقط.');
+    const csv='store_name,product_name,brand,unit,category,barcode,price_new\nاسم المتجر,اسم المادة,,1 لتر,التصنيف,1234567890123,50\n';
+    const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
+    const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='materials_import_template.csv';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  };
+
+  window.importMaterialsCsv=async function(input){
+    if(!isAdmin()) return alert('هذا الخيار للمدير فقط.');
+    const file=input?.files?.[0]; if(!file)return;
+    const msg=$('bulkImportMsg'), result=$('bulkImportResult'), btn=$('bulkImportBtn');
+    if(msg)msg.textContent='جاري قراءة الملف...'; if(result)result.innerHTML=''; if(btn)btn.disabled=true;
+    try{
+      const text=await file.text();
+      const raw=parseBulkCsv(text);
+      if(!raw.length)throw Error('ملف CSV فارغ أو لا يحتوي على بيانات.');
+      const rows=raw.map(normalizeBulkHeaderRow);
+      const missing=[];
+      rows.forEach((r,i)=>{
+        const problems=[];
+        if(!r.storeName&&!r.storeId)problems.push('اسم المتجر');
+        if(!r.name)problems.push('اسم المادة');
+        if(r.price==='')problems.push('السعر');
+        if(r.price!=='' && (!Number.isFinite(Number(r.price))||Number(r.price)<0))problems.push('السعر غير صحيح');
+        if(problems.length)missing.push(`السطر ${i+2}: ${problems.join('، ')}`);
+      });
+      if(missing.length)throw Error('يوجد نقص أو خطأ في البيانات:\n'+missing.slice(0,20).join('\n')+(missing.length>20?'\n...':''));
+
+      const {data:storeRows,error:storeError}=await supabaseClient.from('stores').select('id,name').order('name');
+      if(storeError)throw storeError;
+      const storeList=storeRows||[];
+      const byName=new Map(storeList.map(st=>[String(st.name||'').trim().toLowerCase(),st]));
+      const byId=new Map(storeList.map(st=>[String(st.id),st]));
+      const seen=new Set(), stats={success:0,skipped:0,errors:0}; const errors=[]; const created=[];
+      for(let i=0;i<rows.length;i++){
+        const r=rows[i];
+        try{
+          let st=null;
+          if(r.storeId) st=byId.get(String(r.storeId))||null;
+          if(!st && r.storeName) st=byName.get(r.storeName.toLowerCase())||null;
+          if(!st)throw Error('المتجر غير موجود أو اسم المتجر غير مطابق تماماً.');
+          const duplicateKey=`${st.id}|${r.barcode||'name:'+r.name.toLowerCase()+'|'+r.unit.toLowerCase()}`;
+          if(seen.has(duplicateKey)){stats.skipped++;continue;}
+          seen.add(duplicateKey);
+
+          let existing=null;
+          if(r.barcode){
+            const {data:listings,error}=await supabaseClient.from('price_listings').select('id,product_id,products(*)').eq('store_id',st.id).eq('approved',true);
+            if(error)throw error;
+            existing=(listings||[]).find(x=>normBarcode(x.products?.barcode)===r.barcode)||null;
+          }
+          if(existing){
+            stats.skipped++;
+            errors.push(`السطر ${i+2}: الباركود ${r.barcode} موجود مسبقاً في متجر «${st.name}» — تم تخطيه حفاظاً على بيانات المتجر.`);
+            continue;
+          }
+
+          const productPayload={name:r.name,brand:r.brand||null,unit:r.unit||null,category:r.category||'عام',barcode:r.barcode||null,image_url:null,active:true,created_by:profileData.id};
+          const {data:p,error:productError}=await supabaseClient.from('products').insert(productPayload).select().single();
+          if(productError)throw productError;
+          created.push({productId:p.id,storeId:st.id});
+          const {error:listingError}=await supabaseClient.from('price_listings').insert({product_id:p.id,store_id:st.id,price_new:Number(r.price),price:Number(r.price),approved:true,submitted_by:profileData.id,approved_by:profileData.id});
+          if(listingError){
+            await supabaseClient.from('products').delete().eq('id',p.id);
+            throw listingError;
+          }
+          stats.success++;
+        }catch(err){stats.errors++;errors.push(`السطر ${i+2}: ${err.message||'خطأ غير معروف'}`);}
+      }
+      if(msg)msg.textContent=`اكتمل الاستيراد: تم إدخال ${stats.success}، تم تخطي ${stats.skipped}، أخطاء ${stats.errors}.`;
+      if(result){
+        result.innerHTML=`<div class="notice">تم إدخال ${stats.success} مادة/سعر بنجاح. تم تخطي ${stats.skipped}، والأخطاء: ${stats.errors}.</div>`+(errors.length?`<div class="card dangerbox" style="margin-top:10px"><b>التفاصيل</b><div class="muted" style="white-space:pre-line;margin-top:8px">${esc(errors.slice(0,50).join('\n'))}</div></div>`:'');
+      }
+      input.value='';
+      await window.refreshAll?.();
+      const newMsg=$('bulkImportMsg');if(newMsg)newMsg.textContent=`اكتمل الاستيراد: ${stats.success} ناجح، ${stats.skipped} متخطى، ${stats.errors} خطأ.`;
+    }catch(err){
+      if(msg)msg.textContent='تعذر الاستيراد: '+(err.message||'خطأ غير معروف');
+      if(result)result.innerHTML=`<div class="card dangerbox">${esc(err.message||'تعذر قراءة الملف')}</div>`;
+    }finally{if(btn)btn.disabled=false;}
+  };
+
   window.renderAdmin = async function(){
     if(!isAdmin()) return;
     window.show('admin');
@@ -691,7 +846,7 @@
         </div>
       </div>`;
     }).join('') : '<p class="muted">لا توجد حسابات تجار حالياً.</p>';
-    const storesHtml=(stores||[]).length ? (stores||[]).map(s=>`<div class="priceRow"><div class="accordionHead" data-toggle-id="storeAdmin_${esc(s.id)}"><div><b>${esc(s.name)}</b><div class="muted">${esc([s.city,s.area].filter(Boolean).join(' — '))}</div></div><span>▾</span></div><div id="storeAdmin_${esc(s.id)}" class="accordionBody hidden">${storeImage(s)?`<img class="img storeLogo" src="${esc(storeImage(s))}" alt="${esc(s.name)}">`:''}<div class="muted">${esc(s.address||'')}</div>${s.phone?`<div class="muted">📞 ${esc(s.phone)}</div>`:''}${storeCompany(s)?`<div class="pill companyBadge">🏢 ${esc(storeCompany(s))}</div>`:''}${storeWhatsapp(s)?`<div class="muted">واتساب: ${esc(storeWhatsapp(s))}</div>`:''}<div id="qr_${esc(s.id)}" class="qrbox"></div><div class="actions">
+    const storesHtml=(stores||[]).length ? (stores||[]).map(s=>`<div class="priceRow"><div class="accordionHead" data-toggle-id="storeAdmin_${esc(s.id)}"><div><b>${esc(s.name)}</b><div class="muted">${esc([s.city,s.area].filter(Boolean).join(' — '))}</div></div><span>▾</span></div><div id="storeAdmin_${esc(s.id)}" class="accordionBody hidden">${storeImage(s)?`<img class="img storeLogo" src="${esc(storeImage(s))}" alt="${esc(s.name)}">`:''}<div class="muted">${esc(s.address||'')}</div>${s.phone?`<div class="muted">📞 ${esc(s.phone)}</div>`:''}${storeCompany(s)?`<div class="pill companyBadge">🏢 ${esc(storeCompany(s))}</div>`:''}${storeWhatsapp(s)?`<div class="muted">واتساب: ${esc(storeWhatsapp(s))}</div>`:''}<div class="muted">زوار المتجر الفريدون: <b id="sv_${esc(s.id)}">—</b></div><div id="qr_${esc(s.id)}" class="qrbox"></div><div class="actions">
           <button type="button" class="btn secondary" onclick="openStore('${esc(s.id)}')">فتح صفحة المتجر</button>
           <button type="button" class="btn secondary" onclick="printStoreQR('${esc(s.id)}')">طباعة QR</button>
           <button type="button" class="btn primary" onclick="openAdminStoreEdit('${esc(s.id)}')">تعديل المتجر</button>
@@ -700,7 +855,7 @@
         </div></div></div>`).join('') : '<p class="muted">لا توجد متاجر.</p>';
     const usersHtml=users.filter(u=>u.id!==ADMIN_UID).length ? users.filter(u=>u.id!==ADMIN_UID).map(u=>`<div class="priceRow"><div class="accordionHead" data-toggle-id="user_${esc(u.id)}"><b>${esc(u.name||u.id)}</b><span>▾</span></div><div id="user_${esc(u.id)}" class="accordionBody hidden"><div class="muted">الدور: ${esc(u.role||'user')}${u.store_id?' • مرتبط بمتجر':''}</div><div class="actions"><button type="button" class="btn secondary" onclick="setAccountToUser('${esc(u.id)}')">تحويل إلى مستخدم وإزالة الربط</button></div></div></div>`).join('') : '<p class="muted">لا توجد حسابات.</p>';
     $('adminPanel').innerHTML=`
-      <div class="grid"><div class="card"><div class="name">${requests.length}</div><div class="muted">طلبات معلقة</div></div><div class="card"><div class="name">${(stores||[]).length}</div><div class="muted">متاجر</div></div><div class="card"><div class="name">${(products||[]).length}</div><div class="muted">منتجات</div></div><div class="card"><div class="name">${users.length}</div><div class="muted">حسابات</div></div></div>
+      <div class="grid"><div class="card"><div class="name">${requests.length}</div><div class="muted">طلبات معلقة</div></div><div class="card"><div class="name">${(stores||[]).length}</div><div class="muted">متاجر</div></div><div class="card"><div class="name">${(products||[]).length}</div><div class="muted">منتجات</div></div><div class="card"><div class="name">${users.length}</div><div class="muted">حسابات</div></div><div class="card"><div class="name" id="visitorCount">—</div><div class="muted">زوار الموقع الفريدون</div></div></div>
       <div class="card"><div class="accordionHead" data-toggle-id="adminRequestsBody"><h2>طلبات التجار</h2><span>▾</span></div><div id="adminRequestsBody" class="accordionBody hidden">${pending}</div></div>
       <div class="card"><h2>إضافة متجر</h2><div class="two"><input id="sn" placeholder="اسم المتجر"><input id="scity" placeholder="المدينة"><input id="sarea" placeholder="المنطقة"><input id="saddr" placeholder="العنوان"><input id="sphone" placeholder="الهاتف"><input id="swhatsapp" placeholder="رابط واتساب المتجر"><select id="scompany"><option value="">بدون شركة</option>${companies.map(c=>`<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')}</select><input id="shours" placeholder="ساعات الدوام"><input id="sdays" placeholder="أيام العمل"><input id="simg" type="file" accept="image/*"></div><button class="btn primary" onclick="adminAddStore()">إضافة المتجر</button></div>
       <div class="card"><h2>إدارة الشركات</h2>
@@ -711,6 +866,7 @@
       <div id="adminMerchantPermissionsBox" class="card"><div class="accordionHead" data-toggle-id="adminMerchantsBody"><div><h2>إدارة وربط التجار</h2><div class="muted">كل تاجر يمكن ربطه بمتجر واحد، وتفعيل الصلاحية بشكل مستقل.</div></div><span>▾</span></div><div id="adminMerchantsBody" class="accordionBody">${merchantHtml}</div></div>
       <div class="card"><div class="accordionHead" data-toggle-id="adminStoresBody"><h2>إدارة المتاجر</h2><span>▾</span></div><div id="adminStoresBody" class="accordionBody hidden">${storesHtml}</div></div>
       <div class="card"><div class="accordionHead" data-toggle-id="adminUsersBody"><h2>الحسابات</h2><span>▾</span></div><div id="adminUsersBody" class="accordionBody hidden">${usersHtml}</div></div>
+      <div class="card"><h2>📥 استيراد المواد والأسعار دفعة واحدة</h2><p class="muted">ارفع ملف CSV واحداً يحتوي على اسم المتجر واسم المادة والتصنيف والباركود والسعر. لا تحتاج إلى معرفة store_id؛ يكفي اسم المتجر المطابق لما هو مسجل في الموقع.</p><div class="actions"><button type="button" class="btn secondary" onclick="downloadBulkImportTemplate()">تحميل نموذج CSV</button><label class="btn primary" style="display:inline-block;margin:0;cursor:pointer">اختيار ملف CSV<input id="bulkImportFile" type="file" accept=".csv,text/csv" style="display:none" onchange="importMaterialsCsv(this)"></label></div><p id="bulkImportMsg" class="muted"></p><div id="bulkImportResult"></div></div>
       <div class="card"><h2>روابط الموقع</h2><p class="muted">هذه الإعدادات للمدير فقط.</p><div class="two"><input id="siteWhatsapp" placeholder="رابط واتساب الموقع"><input id="siteTelegram" placeholder="رابط تلغرام الموقع"></div><button class="btn primary" onclick="saveSiteLinks()">حفظ روابط الموقع</button><p id="siteLinksMsg" class="muted"></p></div>
       <div class="actions"><button class="btn secondary" onclick="show('home')">العودة للموقع</button><button class="btn secondary" onclick="logout()">تسجيل الخروج</button></div>`;
     bindAdminAccordions();
@@ -719,6 +875,8 @@
       box?.classList.toggle('hidden');
       if(box) btn.textContent=box.classList.contains('hidden')?'ربط التاجر بالمتجر':'إخفاء قائمة المتاجر';
     });
+    window.loadVisitorCount();
+    window.loadAdminStoreVisitorCounts();
     window.loadSiteLinks();
     setTimeout(buildAllQRCodes,30);
   };
