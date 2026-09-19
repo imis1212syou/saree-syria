@@ -249,9 +249,6 @@
     const st = (stores || []).find(x=>String(x.id)===String(storeId));
     if(!st){ title.textContent='المتجر'; body.innerHTML='<div class="card muted">المتجر غير موجود أو غير متاح حالياً.</div>'; return; }
     if(typeof window.recordStoreVisit==='function') window.recordStoreVisit(st.id).catch(()=>{});
-    const companyId = st?.companies?.id || null;
-    if(companyId && typeof window.recordCompanyVisit==='function')
-      window.recordCompanyVisit(companyId).catch(()=>{});
     title.textContent = st.name || 'المتجر';
     let listings=[];
     try{ listings = await loadApprovedStoreListings(st.id); }catch(err){ console.warn('store listings:',err); }
