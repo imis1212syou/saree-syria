@@ -10,7 +10,7 @@
 *{box-sizing:border-box}body{margin:0;background:#080d11;color:#f1f4f5;font-family:Arial,Tahoma,sans-serif}.app{max-width:950px;margin:auto;padding:16px 14px 92px}.logo{font-size:25px;font-weight:800;color:#35d07f}.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:15px}.status,.muted{color:#9da9ae;font-size:13px;line-height:1.7}.card,.hero,.stat{background:#12191d;border:1px solid #202b30;border-radius:18px;padding:16px}.hero{margin-bottom:14px}h1{margin:0 0 8px;font-size:24px}h2{margin:0 0 12px;font-size:19px}.actions,.row{display:flex;gap:9px;flex-wrap:wrap;margin-top:14px}.btn{border:0;border-radius:11px;padding:12px 15px;font-weight:bold;cursor:pointer}.btn:disabled{opacity:.45;cursor:not-allowed}.primary{background:#35d07f;color:#06100a}.secondary{background:#1a2429;color:#fff;border:1px solid #303b40}.danger{background:#6d2525;color:#fff}.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:11px}.pill{display:inline-block;background:#183b2b;color:#54dc92;border-radius:999px;padding:5px 9px;font-size:11px}.name{font-size:18px;font-weight:800;margin:9px 0 4px}.price{font-size:24px;font-weight:900;color:#35d07f;margin-top:10px}.old{color:#7f8b90;font-size:12px}.meta{display:flex;justify-content:space-between;gap:8px;color:#98a5aa;font-size:12px;margin-top:8px}.page{display:none}.page.active{display:block}.nav{position:fixed;bottom:0;left:0;right:0;background:#0d1418;border-top:1px solid #263137;z-index:10}.navin{max-width:700px;margin:auto;display:grid;grid-template-columns:repeat(5,1fr)}.nav button{background:none;border:0;color:#9da9ae;padding:11px 4px;font-size:11px}.notice{padding:10px;border-radius:10px;background:#17231d;color:#7ff0aa;margin-top:10px}.pending{background:#3b3218;color:#f4d878}.dangerbox{background:#35191b;color:#ff9da2}.img{width:100%;height:160px;object-fit:cover;border-radius:12px;margin-bottom:8px}.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}.table{width:100%;border-collapse:collapse;font-size:12px}.table th,.table td{border-bottom:1px solid #29343a;padding:9px;text-align:right;vertical-align:top}.hidden{display:none!important}.searchbar{position:sticky;top:0;background:#080d11;padding:5px 0 10px;z-index:3}.priceRow{padding:10px;border:1px solid #263137;border-radius:12px;margin-top:8px}.approve{background:#173a28;color:#70e6a2}.reject{background:#402020;color:#ff9b9b}input,select{width:100%;padding:12px;margin-top:9px;border-radius:10px;border:1px solid #303b40;background:#0d1418;color:#fff}label{display:block;margin-top:10px}@media(max-width:650px){.grid,.two{grid-template-columns:1fr}.app{padding-top:12px}.table{font-size:11px}}
 .verse{margin-top:2px;color:#aeb8bd;font-size:12px}.storeContact{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.storeContact a{text-decoration:none}.barcodeSearch{display:flex;gap:8px;align-items:center;margin:12px 0}.barcodeSearch input{margin:0;flex:1}.accordionHead{display:flex;justify-content:space-between;align-items:center;cursor:pointer}.accordionBody{margin-top:10px}.adminGroup{margin-top:12px}.companyBadge{background:#1b2d36;color:#b7e6ff}.qrbox{background:#fff;border-radius:12px;padding:10px;width:max-content;margin-top:10px}.qrbox img{display:block}
 
-.rememberRow{display:flex;align-items:center;gap:10px;margin:12px 0;color:#aeb8bd;cursor:pointer}.rememberRow input{width:20px;height:20px;accent-color:#35d07f}
+.adSlot{margin:0 0 14px}.adCard{position:relative;display:flex;gap:12px;align-items:center;background:#12191d;border:1px solid #303b40;border-radius:16px;padding:10px;overflow:hidden}.adImage{width:130px;height:82px;object-fit:cover;border-radius:11px;flex:none}.adContent{min-width:0;flex:1}.adBody{margin-top:4px}.adButton{display:inline-block;text-decoration:none;margin-top:8px}.adLabel{position:absolute;top:7px;left:7px;font-size:9px;padding:3px 6px;border-radius:999px;background:#263137;color:#aeb8bd}.rememberRow{display:flex;align-items:center;gap:10px;margin:12px 0;color:#aeb8bd;cursor:pointer}.rememberRow input{width:20px;height:20px;accent-color:#35d07f}
 .storeLogo{height:150px;object-fit:cover}.storeDetailLogo{height:220px;object-fit:cover}.storeLogoPlaceholder{height:150px;border-radius:12px;background:#0d1418;border:1px dashed #303b40;display:flex;align-items:center;justify-content:center;color:#6f7c82}.companyButton{border:0;cursor:pointer}.companyButton:hover{filter:brightness(1.1)}.merchantStoreOption{display:flex;gap:8px;align-items:center;margin-top:10px}.merchantStoreOption input{width:20px;height:20px;margin:0}.storeProductCard .materialImage{height:170px;object-fit:contain;background:#0d1418}
 </style>
 </head>
@@ -23,7 +23,7 @@
 </section>
 
 <section id="home" class="page active">
-<div class="hero"><h1>مقارنة أسعار المنتجات في سوريا</h1><p class="muted">الأرخص يظهر أولاً. التاجر لا يستطيع نشر سعر أو مادة جديدة للعامة قبل موافقة المدير.</p><div id="roleActions" class="actions"></div></div>
+<div class="hero"><h1>مقارنة أسعار المنتجات في سوريا</h1><p class="muted">الأرخص يظهر أولاً. التاجر لا يستطيع نشر سعر أو مادة جديدة للعامة قبل موافقة المدير.</p><div id="roleActions" class="actions"></div></div><div id="adsHome" class="adSlot hidden"></div>
 <div class="grid"><div class="stat"><b id="pc">0</b> منتجات</div><div class="stat"><b id="sc">0</b> متاجر</div><div class="stat"><b id="approvedCount">0</b> أسعار معتمدة</div><div class="stat"><b id="basketCount">0</b> في السلة</div></div>
 <div class="searchbar"><input id="search" placeholder="ابحث عن منتج أو علامة أو تصنيف أو مدينة..." oninput="renderProducts()"><div class="two"><select id="cityFilter" onchange="renderProducts()"><option value="">كل المدن</option></select><select id="catFilter" onchange="renderProducts()"><option value="">كل التصنيفات</option></select></div></div>
 <h2>أفضل الأسعار حالياً</h2><div id="products" class="grid"></div>
@@ -31,8 +31,8 @@
 
 <section id="basket" class="page"><div class="hero"><h1>سلة المشتريات</h1><p class="muted">أرخص سعر لكل مادة.</p></div><div id="basketList"></div></section>
 <section id="favorites" class="page"><div class="hero"><h1>المفضلة والتنبيهات</h1></div><div id="favoritesList"></div></section>
-<section id="stores" class="page"><div class="hero"><h1>المتاجر والشركات</h1><p class="muted">يمكنك تصفح المتاجر، صفحات الشركات، المسافة من موقعك، والتواصل المباشر مع المتجر.</p><button type="button" class="btn secondary" onclick="requestSareeLocation()">📍 تحديد موقعي</button></div><h2>الشركات</h2><div id="companiesList" class="grid"></div><h2>المتاجر</h2><div id="storesList" class="grid"></div></section>
-<section id="storeDetail" class="page"><div class="hero"><button class="btn secondary" onclick="openNav('stores')">← المتاجر</button><h1 id="storeDetailName">المتجر</h1><div id="storeDetailBody"></div></div></section>
+<section id="stores" class="page"><div id="adsStores" class="adSlot hidden"></div><div class="hero"><h1>المتاجر والشركات</h1><p class="muted">يمكنك تصفح المتاجر، صفحات الشركات، المسافة من موقعك، والتواصل المباشر مع المتجر.</p><button type="button" class="btn secondary" onclick="requestSareeLocation()">📍 تحديد موقعي</button></div><h2>الشركات</h2><div id="companiesList" class="grid"></div><h2>المتاجر</h2><div id="storesList" class="grid"></div></section>
+<section id="storeDetail" class="page"><div id="adsStoreDetail" class="adSlot hidden"></div><div class="hero"><button class="btn secondary" onclick="openNav('stores')">← المتاجر</button><h1 id="storeDetailName">المتجر</h1><div id="storeDetailBody"></div></div></section>
 <section id="companyDetail" class="page"><div class="hero"><button class="btn secondary" onclick="openNav('stores')">← المتاجر والشركات</button><h1 id="companyDetailName">الشركة</h1><div id="companyDetailBody"></div></div></section>
 <section id="categories" class="page"><div class="hero"><h1>التصنيفات</h1></div><div id="cats" class="grid"></div></section>
 <section id="add" class="page">
@@ -179,7 +179,7 @@
     onclick="adminMerchantPermissions()"
   >
     👑 صلاحيات التجار
-  </button><div class="hero"><h1>لوحة الإدارة والصلاحيات</h1><p id="role" class="muted"></p></div><div id="adminPanel"></div></section>
+  </button><button type="button" class="btn" onclick="openAdminAds()">📢 إدارة الإعلانات</button><div class="hero"><h1>لوحة الإدارة والصلاحيات</h1><p id="role" class="muted"></p></div><div id="adminPanel"></div></section>
 <section id="merchant" class="page"><div class="hero"><h1>بوابة التاجر</h1><p id="merchantRole" class="muted"></p></div><div id="merchantPanel"></div></section>
 </div>
 
@@ -854,5 +854,6 @@ handleStoreDeepLink();
 <script src="barcode_scanner.js?v=7"></script>
 <script src="store_features.js?v=8"></script>
 <script src="store_admin_controls.js?v=7"></script>
+<script src="ads.js?v=1"></script>
 </body>
 </html>
