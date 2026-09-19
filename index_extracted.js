@@ -1,191 +1,4 @@
-<!doctype html>
-<html lang="ar" dir="rtl">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>سعرلي سوريا</title>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<style>
-*{box-sizing:border-box}body{margin:0;background:#080d11;color:#f1f4f5;font-family:Arial,Tahoma,sans-serif}.app{max-width:950px;margin:auto;padding:16px 14px 92px}.logo{font-size:25px;font-weight:800;color:#35d07f}.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:15px}.status,.muted{color:#9da9ae;font-size:13px;line-height:1.7}.card,.hero,.stat{background:#12191d;border:1px solid #202b30;border-radius:18px;padding:16px}.hero{margin-bottom:14px}h1{margin:0 0 8px;font-size:24px}h2{margin:0 0 12px;font-size:19px}.actions,.row{display:flex;gap:9px;flex-wrap:wrap;margin-top:14px}.btn{border:0;border-radius:11px;padding:12px 15px;font-weight:bold;cursor:pointer}.btn:disabled{opacity:.45;cursor:not-allowed}.primary{background:#35d07f;color:#06100a}.secondary{background:#1a2429;color:#fff;border:1px solid #303b40}.danger{background:#6d2525;color:#fff}.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:11px}.pill{display:inline-block;background:#183b2b;color:#54dc92;border-radius:999px;padding:5px 9px;font-size:11px}.name{font-size:18px;font-weight:800;margin:9px 0 4px}.price{font-size:24px;font-weight:900;color:#35d07f;margin-top:10px}.old{color:#7f8b90;font-size:12px}.meta{display:flex;justify-content:space-between;gap:8px;color:#98a5aa;font-size:12px;margin-top:8px}.page{display:none}.page.active{display:block}.nav{position:fixed;bottom:0;left:0;right:0;background:#0d1418;border-top:1px solid #263137;z-index:10}.navin{max-width:700px;margin:auto;display:grid;grid-template-columns:repeat(5,1fr)}.nav button{background:none;border:0;color:#9da9ae;padding:11px 4px;font-size:11px}.notice{padding:10px;border-radius:10px;background:#17231d;color:#7ff0aa;margin-top:10px}.pending{background:#3b3218;color:#f4d878}.dangerbox{background:#35191b;color:#ff9da2}.img{width:100%;height:160px;object-fit:cover;border-radius:12px;margin-bottom:8px}.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}.table{width:100%;border-collapse:collapse;font-size:12px}.table th,.table td{border-bottom:1px solid #29343a;padding:9px;text-align:right;vertical-align:top}.hidden{display:none!important}.searchbar{position:sticky;top:0;background:#080d11;padding:5px 0 10px;z-index:3}.priceRow{padding:10px;border:1px solid #263137;border-radius:12px;margin-top:8px}.approve{background:#173a28;color:#70e6a2}.reject{background:#402020;color:#ff9b9b}input,select{width:100%;padding:12px;margin-top:9px;border-radius:10px;border:1px solid #303b40;background:#0d1418;color:#fff}label{display:block;margin-top:10px}@media(max-width:650px){.grid,.two{grid-template-columns:1fr}.app{padding-top:12px}.table{font-size:11px}}
-.verse{margin-top:2px;color:#aeb8bd;font-size:12px}.storeContact{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.storeContact a{text-decoration:none}.barcodeSearch{display:flex;gap:8px;align-items:center;margin:12px 0}.barcodeSearch input{margin:0;flex:1}.accordionHead{display:flex;justify-content:space-between;align-items:center;cursor:pointer}.accordionBody{margin-top:10px}.adminGroup{margin-top:12px}.companyBadge{background:#1b2d36;color:#b7e6ff}.qrbox{background:#fff;border-radius:12px;padding:10px;width:max-content;margin-top:10px}.qrbox img{display:block}
 
-.adSlot{margin:0 0 14px}.adCard{position:relative;display:flex;gap:12px;align-items:center;background:#12191d;border:1px solid #303b40;border-radius:16px;padding:10px;overflow:hidden}.adImage{width:130px;height:82px;object-fit:cover;border-radius:11px;flex:none}.adContent{min-width:0;flex:1}.adBody{margin-top:4px}.adButton{display:inline-block;text-decoration:none;margin-top:8px}.adLabel{position:absolute;top:7px;left:7px;font-size:9px;padding:3px 6px;border-radius:999px;background:#263137;color:#aeb8bd}.rememberRow{display:flex;align-items:center;gap:10px;margin:12px 0;color:#aeb8bd;cursor:pointer}.rememberRow input{width:20px;height:20px;accent-color:#35d07f}
-.storeLogo{height:150px;object-fit:cover}.storeDetailLogo{height:220px;object-fit:cover}.storeLogoPlaceholder{height:150px;border-radius:12px;background:#0d1418;border:1px dashed #303b40;display:flex;align-items:center;justify-content:center;color:#6f7c82}.companyButton{border:0;cursor:pointer}.companyButton:hover{filter:brightness(1.1)}.merchantStoreOption{display:flex;gap:8px;align-items:center;margin-top:10px}.merchantStoreOption input{width:20px;height:20px;margin:0}.storeProductCard .materialImage{height:170px;object-fit:contain;background:#0d1418}
-</style>
-</head>
-<body>
-<div class="app">
-<div class="top"><div><div class="logo">سعرلي سوريا</div><div class="muted verse">﴿وَكَفَىٰ بِاللَّهِ وَكِيلًا﴾</div><div id="status" class="status">زائر</div></div><button id="topAccountBtn" class="btn secondary" onclick="confirmLogout()">تسجيل الخروج</button></div>
-
-<section id="welcome" class="page">
-<div class="hero"><h1>أهلاً بك في سعرلي سوريا</h1><p class="muted">اكتب أي اسم للمتابعة كزائر، بدون بريد إلكتروني أو كلمة مرور.</p><input id="visitorName" placeholder="اكتب اسمك"><button class="btn primary" onclick="enterVisitor()">دخول للموقع</button><div class="actions"><button class="btn secondary" onclick="show('login')">دخول الحساب</button><button class="btn secondary" onclick="show('signup')">إنشاء حساب</button></div></div>
-</section>
-
-<section id="home" class="page active">
-<div class="hero"><h1>مقارنة أسعار المنتجات في سوريا</h1><p class="muted">الأرخص يظهر أولاً. التاجر لا يستطيع نشر سعر أو مادة جديدة للعامة قبل موافقة المدير.</p><div id="roleActions" class="actions"></div></div><div id="adsHome" class="adSlot hidden"></div>
-<div class="grid"><div class="stat"><b id="pc">0</b> منتجات</div><div class="stat"><b id="sc">0</b> متاجر</div><div class="stat"><b id="approvedCount">0</b> أسعار معتمدة</div><div class="stat"><b id="basketCount">0</b> في السلة</div></div>
-<div class="searchbar"><input id="search" placeholder="ابحث عن منتج أو علامة أو تصنيف أو مدينة..." oninput="renderProducts()"><div class="two"><select id="cityFilter" onchange="renderProducts()"><option value="">كل المدن</option></select><select id="catFilter" onchange="renderProducts()"><option value="">كل التصنيفات</option></select></div></div>
-<h2>أفضل الأسعار حالياً</h2><div id="products" class="grid"></div>
-</section>
-
-<section id="basket" class="page"><div class="hero"><h1>سلة المشتريات</h1><p class="muted">أرخص سعر لكل مادة.</p></div><div id="basketList"></div></section>
-<section id="favorites" class="page"><div class="hero"><h1>المفضلة والتنبيهات</h1></div><div id="favoritesList"></div></section>
-<section id="stores" class="page"><div id="adsStores" class="adSlot hidden"></div><div class="hero"><h1>المتاجر والشركات</h1><p class="muted">يمكنك تصفح المتاجر، صفحات الشركات، المسافة من موقعك، والتواصل المباشر مع المتجر.</p><button type="button" class="btn secondary" onclick="requestSareeLocation()">📍 تحديد موقعي</button></div><h2>الشركات</h2><div id="companiesList" class="grid"></div><h2>المتاجر</h2><div id="storesList" class="grid"></div></section>
-<section id="storeDetail" class="page"><div id="adsStoreDetail" class="adSlot hidden"></div><div class="hero"><button class="btn secondary" onclick="openNav('stores')">← المتاجر</button><h1 id="storeDetailName">المتجر</h1><div id="storeDetailBody"></div></div></section>
-<section id="companyDetail" class="page"><div class="hero"><button class="btn secondary" onclick="openNav('stores')">← المتاجر والشركات</button><h1 id="companyDetailName">الشركة</h1><div id="companyDetailBody"></div></div></section>
-<section id="categories" class="page"><div class="hero"><h1>التصنيفات</h1></div><div id="cats" class="grid"></div></section>
-<section id="add" class="page">
-
-  <div class="hero">
-    <h1 id="addHeading">إضافة مادة أو سعر</h1>
-    <p class="muted">
-      كل طلب يحتاج موافقة المدير قبل ظهوره للعامة.
-    </p>
-  </div>
-
-  <div class="card">
-
-    <!-- اختيار مادة موجودة -->
-    <select id="existingProduct">
-      <option value="">إضافة مادة جديدة</option>
-    </select>
-
-    <!-- اسم المادة -->
-    <input
-      id="pn"
-      type="text"
-      placeholder="اسم المادة الجديدة">
-
-    <!-- العلامة التجارية -->
-    <input
-      id="brand"
-      type="text"
-      placeholder="العلامة التجارية (اختياري)">
-
-    <!-- الوزن / الحجم -->
-    <input
-      id="unit"
-      type="text"
-      placeholder="الوزن / الحجم مثل 1 لتر">
-
-    <!-- ========================= -->
-    <!-- قسم الباركود -->
-    <!-- ========================= -->
-
-    <div class="barcodeBox">
-
-      <label class="muted">
-        الباركود
-      </label>
-
-      <!-- زر الكاميرا -->
-      <div class="actions">
-
-        <button
-          type="button"
-          class="btn secondary"
-          onclick="openBarcodeScannerForAdd()">
-
-          📷 مسح الباركود بالكاميرا
-
-        </button>
-
-      </div>
-
-      <!-- إدخال يدوي -->
-      <input
-        id="barcode"
-        type="text"
-        inputmode="numeric"
-        autocomplete="off"
-        pattern="[0-9]*"
-        placeholder="أو اكتب رقم الباركود هنا">
-
-      <!-- رسالة المسح -->
-      <p
-        id="barcodeMsg"
-        class="muted">
-      </p>
-
-    </div>
-
-    <!-- التصنيف -->
-    <input
-      id="cat"
-      type="text"
-      placeholder="التصنيف">
-
-    <!-- السعر -->
-    <input
-      id="pr"
-      type="number"
-      step="0.01"
-      min="0"
-      placeholder="السعر بالليرة السورية الجديدة">
-
-    <!-- المتجر -->
-    <div id="merchantStoreBox"></div>
-
-    <!-- ========================= -->
-    <!-- صورة المادة - اختيارية -->
-    <!-- ========================= -->
-
-    <label class="muted">
-      صورة المادة (اختياري)
-    </label>
-
-    <input
-      id="pimg"
-      type="file"
-      accept="image/*">
-
-    <!-- إرسال -->
-    <button
-      type="button"
-      class="btn primary"
-      id="addSubmitBtn"
-      onclick="submitPrice()">
-
-      إرسال للمراجعة
-
-    </button>
-
-    <!-- رسالة -->
-    <p
-      id="addMsg"
-      class="muted">
-    </p>
-
-  </div>
-
-</section>
-
-<section id="login" class="page"><div class="hero"><h1>تسجيل الدخول</h1><p class="muted">إذا كان لديك حساب، سجّل الدخول بالبريد وكلمة المرور.</p></div><div class="card">
-<input id="email" type="email" placeholder="البريد الإلكتروني"><input id="pass" type="password" placeholder="كلمة المرور">
-<label class="rememberRow"><input id="rememberLogin" type="checkbox"> حفظ تسجيل الدخول على هذا الجهاز (التاجر / المدير)</label>
-<div class="actions"><button class="btn primary" onclick="login()">تسجيل الدخول</button><button class="btn secondary" onclick="forgotPassword()">نسيت كلمة السر؟</button><button class="btn secondary" onclick="show('signup')">إنشاء حساب</button><button class="btn secondary" onclick="enterVisitorFromLogin()">الدخول كزائر</button></div><p id="msg" class="muted"></p></div></section>
-
-<section id="signup" class="page"><div class="hero"><h1>إنشاء حساب</h1><p class="muted">كل بريد إلكتروني يمكنه امتلاك حساب واحد فقط. حساب التاجر يبدأ بدون متجر وبدون صلاحيات حتى يوافق المدير.</p></div><div class="card">
-<input id="signupName" placeholder="الاسم"><input id="signupEmail" type="email" placeholder="البريد الإلكتروني"><input id="signupPass" type="password" placeholder="كلمة المرور"><input id="signupPass2" type="password" placeholder="تأكيد كلمة المرور">
-<select id="accountType"><option value="user">حساب مستخدم</option><option value="store">حساب تاجر</option></select>
-<div class="actions"><button class="btn primary" onclick="signup()">إنشاء الحساب</button><button class="btn secondary" onclick="show('login')">لدي حساب</button><button class="btn secondary" onclick="enterVisitorFromLogin()">الدخول كزائر</button></div><p id="signupMsg" class="muted"></p></div></section>
-
-<section id="admin" class="page">
-
-  <button
-    type="button"
-    class="btn"
-    onclick="adminMerchantPermissions()"
-  >
-    👑 صلاحيات التجار
-  </button><button type="button" class="btn" onclick="openAdminAds()">📢 إدارة الإعلانات</button><div class="hero"><h1>لوحة الإدارة والصلاحيات</h1><p id="role" class="muted"></p></div><div id="adminPanel"></div></section>
-<section id="merchant" class="page"><div class="hero"><h1>بوابة التاجر</h1><p id="merchantRole" class="muted"></p></div><div id="merchantPanel"></div></section>
-</div>
-
-<nav class="nav"><div class="navin"><button onclick="openNav('home')">المنتجات</button><button onclick="openNav('basket')">السلة</button><button onclick="openNav('favorites')">المفضلة</button><button onclick="openNav('stores')">المتاجر</button><button onclick="openNav('categories')">التصنيفات</button></div></nav>
-
-<script>
 const SUPABASE_URL="https://ovocwugezuddbwypzteg.supabase.co";
 const SUPABASE_KEY="sb_publishable_THEl1NqFWWRUImYpTLxu9g_iGM03Nsz";
 const ADMIN_UID="fb610b6d-8b2b-4d6d-a957-dda26f1be4a2";
@@ -224,7 +37,7 @@ function renderStoreDetail(id){
  if(!s){$('storeDetailName').textContent='المتجر غير موجود';$('storeDetailBody').innerHTML='<div class="card">هذا الرابط غير صالح أو المتجر غير متاح حالياً.</div>';return;}
  $('storeDetailName').textContent=s.name;recordStoreVisit(storeId);
  const ps=prices.filter(x=>x.store_id===s.id).sort((a,b)=>Number(a.price_new)-Number(b.price_new));
- const company=s.company_name||s.company||'';
+ const company=s.companies?.name||s.company?.name||s.company_name||s.company||'';
  $('storeDetailBody').innerHTML=`${s.image_url?`<img class="img" src="${escAttr(s.image_url)}">`:''}<div class="muted">${company?`<span class="pill companyBadge">${e(company)}</span><br>`:''}${e(s.city||'')} ${e(s.area||'')}<br>${e(s.address||'')}</div>${storeContactHtml(s)}<div class="barcodeSearch"><input id="storeBarcodeSearch" inputmode="numeric" autocomplete="off" placeholder="ابحث عن باركود داخل هذا المتجر فقط"><button class="btn secondary" onclick="scanBarcodeForStore('${escAttr(s.id)}')">📷</button><button class="btn secondary" onclick="searchStoreBarcode('${escAttr(s.id)}')">بحث</button></div><p id="storeBarcodeMsg" class="muted"></p><h2 style="margin-top:18px">أسعار المتجر (${ps.length})</h2><div id="storeProductsGrid" class="grid">${renderStorePriceCards(ps,s.id)}</div>`;
 }
 function renderStorePriceCards(ps,storeId){
@@ -324,7 +137,7 @@ async function loadProfile(){
     if(authError) throw authError;
     if(!user){profileData=null;$('status').textContent=currentName()+' • زائر';return false}
     const {data,error}=await supabaseClient.from('profiles')
-      .select('id,name,role,store_id,can_edit_prices,verified').eq('id',user.id).maybeSingle();
+      .select('id,name,role,store_id,can_edit_prices').eq('id',user.id).maybeSingle();
     if(error) throw error;
     if(!data){profileData=null;$('status').textContent=(user.email||'حساب')+' • حساب غير مكتمل';show('home');return false}
     profileData={...data,email:user.email||''};
@@ -361,7 +174,7 @@ async function loadPublicData(){
   try{
     const [p,s,l]=await Promise.all([
       supabaseClient.from('products').select('*').eq('active',true).order('name'),
-      supabaseClient.from('stores').select('*').eq('active',true).order('name'),
+      supabaseClient.from('stores').select('*,companies(id,name,verified,active)').eq('active',true).order('name'),
       supabaseClient.from('price_listings').select('*,stores(id,name,city,area,address,phone,image_url,verified)').eq('approved',true).order('price_new')
     ]);
     if(p.error||s.error||l.error) throw(p.error||s.error||l.error);
@@ -412,7 +225,7 @@ function toggleFav(id){favorites=favorites.includes(id)?favorites.filter(x=>x!==
 function renderFavorites(){const items=favorites.map(id=>products.find(p=>p.id===id)).filter(Boolean);$('favoritesList').innerHTML=items.length?items.map(p=>{const c=cheapest(p);return `<div class="card"><div class="name">${e(p.name)}</div><div class="price">${c?f(c.price_new)+' ل.س':'لا يوجد سعر'}</div><button class="btn secondary" onclick="toggleFav('${p.id}')">إزالة</button>${c?`<button class="btn secondary" onclick="setAlert('${p.id}')">تنبيه عند نزول السعر</button>`:''}</div>`}).join(''):'<div class="card"><div class="name">المفضلة</div><div class="price">0</div><div class="muted">عدد المواد المفضلة: صفر</div></div>'}
 function setAlert(id){const c=cheapest(products.find(p=>p.id===id));if(!c)return;const v=prompt('أرسل لي تنبيهًا عندما يصبح السعر أقل من:',String(c.price_new));if(v===null)return;alerts[id]=Number(v);localStorage.setItem('saree_alerts',JSON.stringify(alerts));alert('تم حفظ التنبيه على هذا الجهاز.')}
 function renderStores(){
- $('storesList').innerHTML=stores.map(s=>`<div class="card"><div onclick="openStore('${s.id}')" style="cursor:pointer">${s.image_url?`<img class="img" src="${escAttr(s.image_url)}">`:''}<div class="name">${e(s.name)} ${s.verified?'✓':''}</div>${(s.company_name||s.company)?`<span class="pill companyBadge">${e(s.company_name||s.company)}</span>`:''}<div class="muted">${e(s.city||'')} ${e(s.area||'')}<br>${e(s.address||'')}</div>${s.phone?`<div class="muted">${e(s.phone)}</div>`:''}${s.whatsapp_url||s.whatsapp?`<div class="actions"><a class="btn primary" target="_blank" rel="noopener" href="${escAttr(s.whatsapp_url||s.whatsapp)}">💬 واتساب</a></div>`:''}</div><button class="btn secondary" onclick="openStore('${s.id}')">فتح المتجر</button></div>`).join('')||'<div class="card muted">لا توجد متاجر حالياً. العدد: صفر</div>'}
+ $('storesList').innerHTML=stores.map(s=>`<div class="card"><div onclick="openStore('${s.id}')" style="cursor:pointer">${s.image_url?`<img class="img" src="${escAttr(s.image_url)}">`:''}<div class="name">${e(s.name)} ${s.verified?'✓':''}</div>${(s.companies?.name||s.company?.name||s.company_name||s.company)?`<span class="pill companyBadge">${e(s.companies?.name||s.company?.name||s.company_name||s.company)}</span>`:''}<div class="muted">${e(s.city||'')} ${e(s.area||'')}<br>${e(s.address||'')}</div>${s.phone?`<div class="muted">${e(s.phone)}</div>`:''}${s.whatsapp_url||s.whatsapp?`<div class="actions"><a class="btn primary" target="_blank" rel="noopener" href="${escAttr(s.whatsapp_url||s.whatsapp)}">💬 واتساب</a></div>`:''}</div><button class="btn secondary" onclick="openStore('${s.id}')">فتح المتجر</button></div>`).join('')||'<div class="card muted">لا توجد متاجر حالياً. العدد: صفر</div>'}
 function renderCategories(){const m={};products.forEach(p=>(m[p.category||'عام']??=[]).push(p));$('cats').innerHTML=Object.entries(m).map(([k,v])=>`<div class="card"><span class="pill">${e(k)}</span><div class="name">${v.length} منتجات</div></div>`).join('')||'<div class="card muted">لا توجد تصنيفات بعد.</div>'}
 function showAdd(){
  if(!profileData){alert('هذه الميزة للحسابات المصرح لها فقط.');return}
@@ -761,7 +574,7 @@ async function renderAdmin(){
  }).join(''):'<p class="muted">لا توجد حسابات تجار حالياً.</p>';
  const usersBlock=users.map(u=>u.id!==ADMIN_UID?`<div class="priceRow"><div class="accordionHead" onclick="toggleAdminGroup('user_${u.id}')"><b>${e(u.name||u.id)}</b><span>▾</span></div><div id="user_${u.id}" class="accordionBody hidden"><div class="muted">البريد: ${e(u.email||'بدون بريد')} • الدور: ${e(u.role)}${u.store_id?' • مرتبط بمتجر':''}</div><select id="role_${u.id}"><option value="user" ${u.role==='user'?'selected':''}>مستخدم</option><option value="store" ${u.role==='store'?'selected':''}>تاجر</option></select><button class="btn secondary" onclick="saveRoleOnly('${u.id}')">حفظ الدور</button></div></div>`:'<div class="priceRow"><b>حساب المدير</b><span class="pill">مدير النظام</span></div>').join('');
  const storeBlock=stores.length?stores.map(st=>`<div class="priceRow admin-store-row" id="adminStoreRow_${st.id}"><b>${e(st.name)}</b>${st.verified?'<span class="pill">✓ موثّق</span>':'<span class="pill">غير موثّق</span>'}<div class="muted">${e(st.city||'')} • ${e(st.area||'')} • ${e(st.address||'')}</div><div class="muted">زوار المتجر الفريدون: <b id="sv_${st.id}">—</b></div><div id="qr_${st.id}" class="qrbox"></div><div class="actions"><button type="button" class="btn secondary" onclick="event.stopPropagation();openStore('${st.id}')">فتح صفحة المتجر</button><button type="button" class="btn secondary" onclick="event.stopPropagation();printStoreQR('${st.id}')">طباعة QR</button><button type="button" class="btn primary" onclick="event.stopPropagation();openAdminStoreEdit('${st.id}')">تعديل المتجر</button><button type="button" class="btn secondary" onclick="event.stopPropagation();toggleAdminStoreVerification('${st.id}')">${st.verified?'إلغاء التوثيق':'توثيق المتجر'}</button><button type="button" class="btn danger" onclick="event.stopPropagation();deleteAdminStore('${st.id}')">حذف المتجر</button></div></div>`).join(''):'<p class="muted">لا توجد متاجر حالياً.</p>';
- $('adminPanel').innerHTML=`<div class="grid"><div class="card"><div class="name">${requests.length}</div><div class="muted">طلبات معلقة</div></div><div class="card"><div class="name">${stores.length}</div><div class="muted">متاجر</div></div><div class="card"><div class="name">${products.length}</div><div class="muted">منتجات</div></div><div class="card"><div class="name">${users.length}</div><div class="muted">حسابات</div></div><div class="card"><div class="name" id="visitorCount">—</div><div class="muted">عدد الزوار الفريدين</div></div></div><div class="card"><h2>طلبات التجار</h2>${requestBlock}</div><div class="card"><h2>إضافة متجر</h2><div class="two"><input id="sn" placeholder="اسم المتجر"><input id="scity" placeholder="المدينة"><input id="sarea" placeholder="المنطقة"><input id="saddr" placeholder="العنوان"><input id="sphone" placeholder="الهاتف"><input id="swhatsapp" placeholder="رابط واتساب المتجر"><input id="scompany" placeholder="اسم الشركة (اختياري)"><input id="shours" placeholder="ساعات الدوام"><input id="sdays" placeholder="أيام العمل"><input id="simg" type="file" accept="image/*"></div><button class="btn primary" onclick="adminAddStore()">إضافة المتجر</button></div><div class="card"><h2>ربط حسابات التجار بالمتاجر</h2><p class="muted">أنشئ المتجر أولاً، ثم اختر حساب التاجر واربطه بمتجر واحد فقط. الحساب الجديد يبقى بلا صلاحيات حتى تفعّلها أنت.</p>${merchantBlock}</div><div class="card"><h2>جميع الحسابات</h2>${usersBlock}</div><div class="card"><h2>روابط الموقع</h2><p class="muted">هذه الروابط متاحة للمدير فقط.</p><div class="two"><input id="siteWhatsapp" placeholder="رابط واتساب الموقع"><input id="siteTelegram" placeholder="رابط تلغرام الموقع"></div><button class="btn primary" onclick="saveSiteLinks()">حفظ روابط الموقع</button><p id="siteLinksMsg" class="muted"></p></div><div class="card"><h2>إدارة الشركات</h2><p class="muted">إضافة وتعديل وتوثيق وحذف الشركات. ربط المتجر بالشركة يتم من شاشة تعديل المتجر.</p><div class="actions"><button type="button" class="btn primary" onclick="openAdminCompanyCreate()">إضافة شركة</button></div><div id="adminCompaniesList" class="grid" style="margin-top:12px">${companies.length?companies.map(c=>`<div class="priceRow admin-company-row" id="adminCompanyRow_${c.id}"><b>${e(c.name)}</b> ${c.verified?'<span class="pill">✓ موثقة</span>':'<span class="pill">غير موثقة</span>'}<div class="muted">${e(c.phone||'')} ${c.address?'• '+e(c.address):''}</div><div class="actions"><button type="button" class="btn primary" onclick="openAdminCompanyEdit('${c.id}')">تعديل الشركة</button><button type="button" class="btn secondary" onclick="toggleAdminCompanyVerification('${c.id}')">${c.verified?'إلغاء التوثيق':'توثيق الشركة'}</button><button type="button" class="btn danger" onclick="deleteAdminCompany('${c.id}')">حذف الشركة</button></div></div>`).join(''):'<div class="card muted">لا توجد شركات مسجلة.</div>'}</div></div><div class="card"><h2>المتاجر و QR Code</h2><p class="muted">لكل متجر QR Code فعلي. عند مسحه بكاميرا الهاتف يفتح صفحة المتجر مباشرة.</p>${storeBlock}</div><div class="actions"><button class="btn secondary" onclick="show('home')">العودة للموقع</button><button class="btn secondary" onclick="logout()">تسجيل الخروج</button></div>`;
+ $('adminPanel').innerHTML=`<div class="grid"><div class="card"><div class="name">${requests.length}</div><div class="muted">طلبات معلقة</div></div><div class="card"><div class="name">${stores.length}</div><div class="muted">متاجر</div></div><div class="card"><div class="name">${products.length}</div><div class="muted">منتجات</div></div><div class="card"><div class="name">${users.length}</div><div class="muted">حسابات</div></div><div class="card"><div class="name" id="visitorCount">—</div><div class="muted">عدد الزوار الفريدين</div></div></div><div class="card"><h2>طلبات التجار</h2>${requestBlock}</div><div class="card"><h2>إضافة متجر</h2><div class="two"><input id="sn" placeholder="اسم المتجر"><input id="scity" placeholder="المدينة"><input id="sarea" placeholder="المنطقة"><input id="saddr" placeholder="العنوان"><input id="sphone" placeholder="الهاتف"><input id="swhatsapp" placeholder="رابط واتساب المتجر"><select id="scompany"><option value="">بدون شركة</option></select><input id="shours" placeholder="ساعات الدوام"><input id="sdays" placeholder="أيام العمل"><input id="simg" type="file" accept="image/*"></div><button class="btn primary" onclick="adminAddStore()">إضافة المتجر</button></div><div class="card"><h2>ربط حسابات التجار بالمتاجر</h2><p class="muted">أنشئ المتجر أولاً، ثم اختر حساب التاجر واربطه بمتجر واحد فقط. الحساب الجديد يبقى بلا صلاحيات حتى تفعّلها أنت.</p>${merchantBlock}</div><div class="card"><h2>جميع الحسابات</h2>${usersBlock}</div><div class="card"><h2>روابط الموقع</h2><p class="muted">هذه الروابط متاحة للمدير فقط.</p><div class="two"><input id="siteWhatsapp" placeholder="رابط واتساب الموقع"><input id="siteTelegram" placeholder="رابط تلغرام الموقع"></div><button class="btn primary" onclick="saveSiteLinks()">حفظ روابط الموقع</button><p id="siteLinksMsg" class="muted"></p></div><div class="card"><h2>إدارة الشركات</h2><p class="muted">إضافة وتعديل وتوثيق وحذف الشركات. ربط المتجر بالشركة يتم من شاشة تعديل المتجر.</p><div class="actions"><button type="button" class="btn primary" onclick="openAdminCompanyCreate()">إضافة شركة</button></div><div id="adminCompaniesList" class="grid" style="margin-top:12px">${companies.length?companies.map(c=>`<div class="priceRow admin-company-row" id="adminCompanyRow_${c.id}"><b>${e(c.name)}</b> ${c.verified?'<span class="pill">✓ موثقة</span>':'<span class="pill">غير موثقة</span>'}<div class="muted">${e(c.phone||'')} ${c.address?'• '+e(c.address):''}</div><div class="actions"><button type="button" class="btn primary" onclick="openAdminCompanyEdit('${c.id}')">تعديل الشركة</button><button type="button" class="btn secondary" onclick="toggleAdminCompanyVerification('${c.id}')">${c.verified?'إلغاء التوثيق':'توثيق الشركة'}</button><button type="button" class="btn danger" onclick="deleteAdminCompany('${c.id}')">حذف الشركة</button></div></div>`).join(''):'<div class="card muted">لا توجد شركات مسجلة.</div>'}</div></div><div class="card"><h2>المتاجر و QR Code</h2><p class="muted">لكل متجر QR Code فعلي. عند مسحه بكاميرا الهاتف يفتح صفحة المتجر مباشرة.</p>${storeBlock}</div><div class="actions"><button class="btn secondary" onclick="show('home')">العودة للموقع</button><button class="btn secondary" onclick="logout()">تسجيل الخروج</button></div>`;
  loadVisitorCount();loadAdminStoreVisitorCounts();loadSiteLinks();setTimeout(buildAllQRCodes,50);
 }
 async function loadAdminStoreVisitorCounts(){
@@ -796,9 +609,9 @@ async function approveRequest(id){
  if(error)return alert(error.message);alert('تمت الموافقة والنشر.');await refreshAll();await renderAdmin();
 }
 async function rejectRequest(id){const reason=prompt('سبب الرفض (اختياري):','');const {error}=await supabaseClient.from('change_requests').update({status:'rejected',reason,reviewed_by:profileData.id,reviewed_at:new Date().toISOString()}).eq('id',id);if(error)return alert(error.message);alert('تم رفض الطلب.');await renderAdmin()}
-async function legacyAdminAddStore(){
+async function adminAddStore(){
  const name=$('sn').value.trim();if(!name)return alert('اكتب اسم المتجر.');let image=null;try{image=await uploadImage($('simg').files[0],'stores')}catch(err){return alert(err.message)}
- const {error}=await supabaseClient.from('stores').insert({name,city:$('scity').value.trim(),area:$('sarea').value.trim(),address:$('saddr').value.trim(),phone:$('sphone').value.trim(),opening_hours:$('shours').value.trim(),working_days:$('sdays').value.trim(),image_url:image,whatsapp_url:$('swhatsapp').value.trim()||null,verified:true,active:true});
+ const {error}=await supabaseClient.from('stores').insert({name,city:$('scity').value.trim(),area:$('sarea').value.trim(),address:$('saddr').value.trim(),phone:$('sphone').value.trim(),opening_hours:$('shours').value.trim(),working_days:$('sdays').value.trim(),image_url:image,whatsapp_url:$('swhatsapp').value.trim()||null,company_id:$('scompany')?.value||null,verified:true,active:true});
  if(error)return alert(error.message);alert('تمت إضافة المتجر.');await refreshAll();await renderAdmin();
 }
 async function saveUser(id){
@@ -849,11 +662,3 @@ supabaseClient.auth.onAuthStateChange((event)=>{
   },0);
 })();
 handleStoreDeepLink();
-</script>
-
-<script src="barcode_scanner.js?v=7"></script>
-<script src="store_features.js?v=8"></script>
-<script src="store_admin_controls.js?v=7"></script>
-<script src="ads.js?v=1"></script>
-</body>
-</html>
