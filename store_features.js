@@ -32,50 +32,6 @@
 
   window.__sareeLocation = window.__sareeLocation || {lat:null,lng:null,requested:false,ready:false};
 
-  // نظام الزيارات: كل فتح للمتجر/الشركة يسجل زيارة مستقلة.
-  // يبقى الزائر الفريد معروفاً عبر نفس visitor_id.
-  function visitVisitorId(){
-    try{
-      const key = 'saree_visitor_id';
-      let id = localStorage.getItem(key);
-      if(!id){
-        id = (crypto && crypto.randomUUID) ? crypto.randomUUID() :
-          ('v_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2));
-        localStorage.setItem(key,id);
-      }
-      return id;
-    }catch(e){
-      return null;
-    }
-  }
-
-  window.recordStoreVisit = async function(storeId){
-    if(!storeId) return;
-    try{
-      const {error} = await supabaseClient.rpc('record_store_visit',{
-        p_store_id: storeId,
-        p_visitor_id: visitVisitorId()
-      });
-      if(error) throw error;
-    }catch(err){
-      console.warn('store visit:',err);
-    }
-  };
-
-  window.recordCompanyVisit = async function(companyId){
-    if(!companyId) return;
-    try{
-      const {error} = await supabaseClient.rpc('record_company_visit',{
-        p_company_id: companyId,
-        p_visitor_id: visitVisitorId()
-      });
-      if(error) throw error;
-    }catch(err){
-      console.warn('company visit:',err);
-    }
-  };
-
-
   function haversine(lat1,lon1,lat2,lon2){
     const rad = n => Number(n) * Math.PI / 180;
     const R = 6371;
@@ -146,26 +102,13 @@
     renderCompanyDetail(name,list);
   };
 
-  async function loadCompanyVisitStats(companyId){
-    if(!companyId || !$('companyVisitTotal')) return;
-    try{
-      const {data,error}=await supabaseClient.rpc('admin_company_visitor_stats',{p_company_id:companyId});
-      if(error) return;
-      $('companyVisitTotal').textContent=fmt(data?.[0]?.total_visits ?? 0);
-      $('companyVisitUnique').textContent=fmt(data?.[0]?.unique_visitors ?? 0);
-    }catch(err){ console.warn('company visitor stats:',err); }
-  }
-
   function renderCompanyDetail(name,list){
     if(!$('companyDetail')) return;
     $('companyDetailName').textContent = name || 'الشركة';
-    const companyId = list.map(st=>st.company_id || st.companies?.id).find(Boolean) || null;
-    if(companyId && typeof window.recordCompanyVisit==='function') window.recordCompanyVisit(companyId).catch(()=>{});
     $('companyDetailBody').innerHTML = `
       <div class="card">
         <span class="pill companyBadge">🏢 ${esc(name || 'متاجر مستقلة')}</span>
         <div class="name">${list.length} متاجر</div>
-        ${companyId ? `<div class="muted" style="margin-top:8px">إجمالي زيارات الشركة: <b id="companyVisitTotal">—</b> • الزوار الفريدون: <b id="companyVisitUnique">—</b></div>` : ''}
         <p class="muted">هذه الصفحة تجمع المتاجر التابعة للشركة وتعرض بياناتها الأساسية ووسائل التواصل المتاحة.</p>
       </div>
       <div class="grid">
@@ -173,7 +116,6 @@
       </div>`;
     window.show('companyDetail');
     window.scrollTo(0,0);
-    if(companyId) loadCompanyVisitStats(companyId);
   }
 
   function renderStoreCard(st){
@@ -307,6 +249,9 @@
     const st = (stores || []).find(x=>String(x.id)===String(storeId));
     if(!st){ title.textContent='المتجر'; body.innerHTML='<div class="card muted">المتجر غير موجود أو غير متاح حالياً.</div>'; return; }
     if(typeof window.recordStoreVisit==='function') window.recordStoreVisit(st.id).catch(()=>{});
+    const companyId = st?.companies?.id || null;
+    if(companyId && typeof window.recordCompanyVisit==='function')
+      window.recordCompanyVisit(companyId).catch(()=>{});
     title.textContent = st.name || 'المتجر';
     let listings=[];
     try{ listings = await loadApprovedStoreListings(st.id); }catch(err){ console.warn('store listings:',err); }
@@ -606,7 +551,7 @@
         ${st?.image_url ? `<img class="img storeLogo" src="${esc(st.image_url)}" alt="${esc(st.name)}">` : ''}
         <div class="name">${esc(st?.name||'لا يوجد متجر مرتبط')}</div>
         <div class="notice ${can?'':'pending'}">${can?'الصلاحية مفعّلة لإدارة مواد وأسعار متجرك فقط.':'الصلاحية غير مفعّلة. المدير هو من يربط المتجر ويفعّل الصلاحية.'}</div>
-        ${st ? `<div class="card" style="margin-top:10px"><div class="name" id="merchantVisitorCount">—</div><div class="muted">إجمالي زيارات المتجر • الفريدون: <span id="merchantUniqueVisitorCount">—</span></div></div>` : ''}
+        ${st ? `<div class="card" style="margin-top:10px"><div class="name" id="merchantVisitorCount">—</div><div class="muted">زوار المتجر الفريدون</div></div>` : ''}
         <div class="actions">
           ${st ? `<button type="button" class="btn primary" onclick="openStore('${esc(st.id)}')">فتح متجري</button>` : ''}
           <button type="button" class="btn primary" ${can?'':'disabled'} onclick="showAdd()">إضافة مادة / سعر</button>
@@ -620,25 +565,15 @@
   window.loadMerchantStoreVisitorCount = async function(){
     if(!profileData || role()!=='store' || !profileData.store_id) return;
     try{
-      const {data,error}=await supabaseClient.rpc('merchant_store_visitor_stats',{p_store_id:profileData.store_id});
-      if(!error){
-        const row=Array.isArray(data)?data[0]:data;
-        if($('merchantVisitorCount')) $('merchantVisitorCount').textContent=fmt(row?.total_visits ?? 0);
-        if($('merchantUniqueVisitorCount')) $('merchantUniqueVisitorCount').textContent=fmt(row?.unique_visitors ?? 0);
-      }
+      const {data,error}=await supabaseClient.rpc('merchant_store_visitor_count',{p_store_id:profileData.store_id});
+      if(!error && $('merchantVisitorCount')) $('merchantVisitorCount').textContent=fmt(data||0);
     }catch(err){ console.warn('merchant visitor count:',err); }
   };
 
   window.loadVisitorCount = async function(){
     if(!isAdmin()) return;
-    try{
-      const [totalRes,uniqueRes]=await Promise.all([
-        supabaseClient.rpc('admin_visitor_count'),
-        supabaseClient.rpc('admin_unique_visitor_count')
-      ]);
-      if(!totalRes.error && $('visitorCount')) $('visitorCount').textContent=fmt(totalRes.data||0);
-      if(!uniqueRes.error && $('uniqueVisitorCount')) $('uniqueVisitorCount').textContent=fmt(uniqueRes.data||0);
-    }catch(err){ console.warn(err); }
+    try{ const {data,error}=await supabaseClient.rpc('admin_visitor_count'); if(!error && $('visitorCount')) $('visitorCount').textContent=fmt(data||0); }
+    catch(err){ console.warn(err); }
   };
 
   window.loadAdminStoreVisitorCounts = async function(){
@@ -646,12 +581,7 @@
     try{
       const {data,error}=await supabaseClient.rpc('admin_store_visitor_counts');
       if(error || !Array.isArray(data)) return;
-      data.forEach(row=>{
-        const node=$('sv_'+row.store_id);
-        const unique=$('suv_'+row.store_id);
-        if(node) node.textContent=fmt(row.total_visits ?? row.visitor_count ?? 0);
-        if(unique) unique.textContent=fmt(row.unique_visitors ?? 0);
-      });
+      data.forEach(row=>{ const node=$('sv_'+row.store_id); if(node) node.textContent=fmt(row.visitor_count||0); });
     }catch(err){ console.warn(err); }
   };
 
@@ -748,6 +678,140 @@
     await window.renderAdmin();
   };
 
+  // استيراد المواد والأسعار دفعة واحدة من CSV — إضافة مستقلة لا تغيّر مسار الإضافة اليدوية.
+  function parseBulkCsv(text){
+    text=String(text||'').replace(/^\uFEFF/,'').replace(/\r\n?/g,'\n');
+    const rows=[]; let row=[], cell='', quoted=false;
+    for(let i=0;i<text.length;i++){
+      const ch=text[i], next=text[i+1];
+      if(quoted){
+        if(ch==='"' && next==='"'){cell+='"';i++;}
+        else if(ch==='"') quoted=false;
+        else cell+=ch;
+      }else{
+        if(ch==='"') quoted=true;
+        else if(ch===','){row.push(cell);cell='';}
+        else if(ch==='\n'){row.push(cell);rows.push(row);row=[];cell='';}
+        else cell+=ch;
+      }
+    }
+    if(cell!=='' || row.length){row.push(cell);rows.push(row);}
+    if(!rows.length)return [];
+    const clean=v=>String(v??'').trim();
+    const headers=rows[0].map(clean);
+    return rows.slice(1).filter(r=>r.some(v=>clean(v)!=='')).map(r=>{
+      const o={};headers.forEach((h,i)=>o[h]=clean(r[i]));return o;
+    });
+  }
+
+  function bulkField(row,names){
+    for(const n of names){
+      if(row[n]!=null && String(row[n]).trim()!=='') return String(row[n]).trim();
+    }
+    return '';
+  }
+
+  function normalizeBulkHeaderRow(row){
+    const out={};
+    Object.keys(row||{}).forEach(k=>{
+      const key=String(k).trim().toLowerCase();
+      out[key]=row[k];
+    });
+    const pick=(keys)=>{for(const k of keys){if(out[k]!=null&&String(out[k]).trim()!=='')return String(out[k]).trim();}return '';};
+    return {
+      storeName:pick(['store_name','store name','اسم المتجر','المتجر','store']),
+      storeId:pick(['store_id','store id','معرف المتجر']),
+      name:pick(['product_name','product name','اسم المادة','اسم المنتج','المادة','المنتج','name']),
+      brand:pick(['brand','العلامة التجارية','العلامة']),
+      unit:pick(['unit','size','الوزن','الحجم','الوحدة','الوزن / الحجم']),
+      category:pick(['category','التصنيف','الفئة']),
+      barcode:normBarcode(pick(['barcode','باركود','الباركود','رمز الباركود'])),
+      price:pick(['price_new','price','price new','السعر','السعر الجديد'])
+    };
+  }
+
+  window.downloadBulkImportTemplate=function(){
+    if(!isAdmin()) return alert('هذا الخيار للمدير فقط.');
+    const csv='store_name,product_name,brand,unit,category,barcode,price_new\nاسم المتجر,اسم المادة,,1 لتر,التصنيف,1234567890123,50\n';
+    const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
+    const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='materials_import_template.csv';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  };
+
+  window.importMaterialsCsv=async function(input){
+    if(!isAdmin()) return alert('هذا الخيار للمدير فقط.');
+    const file=input?.files?.[0]; if(!file)return;
+    const msg=$('bulkImportMsg'), result=$('bulkImportResult'), btn=$('bulkImportBtn');
+    if(msg)msg.textContent='جاري قراءة الملف...'; if(result)result.innerHTML=''; if(btn)btn.disabled=true;
+    try{
+      const text=await file.text();
+      const raw=parseBulkCsv(text);
+      if(!raw.length)throw Error('ملف CSV فارغ أو لا يحتوي على بيانات.');
+      const rows=raw.map(normalizeBulkHeaderRow);
+      const missing=[];
+      rows.forEach((r,i)=>{
+        const problems=[];
+        if(!r.storeName&&!r.storeId)problems.push('اسم المتجر');
+        if(!r.name)problems.push('اسم المادة');
+        if(r.price==='')problems.push('السعر');
+        if(r.price!=='' && (!Number.isFinite(Number(r.price))||Number(r.price)<0))problems.push('السعر غير صحيح');
+        if(problems.length)missing.push(`السطر ${i+2}: ${problems.join('، ')}`);
+      });
+      if(missing.length)throw Error('يوجد نقص أو خطأ في البيانات:\n'+missing.slice(0,20).join('\n')+(missing.length>20?'\n...':''));
+
+      const {data:storeRows,error:storeError}=await supabaseClient.from('stores').select('id,name').order('name');
+      if(storeError)throw storeError;
+      const storeList=storeRows||[];
+      const byName=new Map(storeList.map(st=>[String(st.name||'').trim().toLowerCase(),st]));
+      const byId=new Map(storeList.map(st=>[String(st.id),st]));
+      const seen=new Set(), stats={success:0,skipped:0,errors:0}; const errors=[]; const created=[];
+      for(let i=0;i<rows.length;i++){
+        const r=rows[i];
+        try{
+          let st=null;
+          if(r.storeId) st=byId.get(String(r.storeId))||null;
+          if(!st && r.storeName) st=byName.get(r.storeName.toLowerCase())||null;
+          if(!st)throw Error('المتجر غير موجود أو اسم المتجر غير مطابق تماماً.');
+          const duplicateKey=`${st.id}|${r.barcode||'name:'+r.name.toLowerCase()+'|'+r.unit.toLowerCase()}`;
+          if(seen.has(duplicateKey)){stats.skipped++;continue;}
+          seen.add(duplicateKey);
+
+          let existing=null;
+          if(r.barcode){
+            const {data:listings,error}=await supabaseClient.from('price_listings').select('id,product_id,products(*)').eq('store_id',st.id).eq('approved',true);
+            if(error)throw error;
+            existing=(listings||[]).find(x=>normBarcode(x.products?.barcode)===r.barcode)||null;
+          }
+          if(existing){
+            stats.skipped++;
+            errors.push(`السطر ${i+2}: الباركود ${r.barcode} موجود مسبقاً في متجر «${st.name}» — تم تخطيه حفاظاً على بيانات المتجر.`);
+            continue;
+          }
+
+          const productPayload={name:r.name,brand:r.brand||null,unit:r.unit||null,category:r.category||'عام',barcode:r.barcode||null,image_url:null,active:true,created_by:profileData.id};
+          const {data:p,error:productError}=await supabaseClient.from('products').insert(productPayload).select().single();
+          if(productError)throw productError;
+          created.push({productId:p.id,storeId:st.id});
+          const {error:listingError}=await supabaseClient.from('price_listings').insert({product_id:p.id,store_id:st.id,price_new:Number(r.price),price:Number(r.price),approved:true,submitted_by:profileData.id,approved_by:profileData.id});
+          if(listingError){
+            await supabaseClient.from('products').delete().eq('id',p.id);
+            throw listingError;
+          }
+          stats.success++;
+        }catch(err){stats.errors++;errors.push(`السطر ${i+2}: ${err.message||'خطأ غير معروف'}`);}
+      }
+      if(msg)msg.textContent=`اكتمل الاستيراد: تم إدخال ${stats.success}، تم تخطي ${stats.skipped}، أخطاء ${stats.errors}.`;
+      if(result){
+        result.innerHTML=`<div class="notice">تم إدخال ${stats.success} مادة/سعر بنجاح. تم تخطي ${stats.skipped}، والأخطاء: ${stats.errors}.</div>`+(errors.length?`<div class="card dangerbox" style="margin-top:10px"><b>التفاصيل</b><div class="muted" style="white-space:pre-line;margin-top:8px">${esc(errors.slice(0,50).join('\n'))}</div></div>`:'');
+      }
+      input.value='';
+      await window.refreshAll?.();
+      const newMsg=$('bulkImportMsg');if(newMsg)newMsg.textContent=`اكتمل الاستيراد: ${stats.success} ناجح، ${stats.skipped} متخطى، ${stats.errors} خطأ.`;
+    }catch(err){
+      if(msg)msg.textContent='تعذر الاستيراد: '+(err.message||'خطأ غير معروف');
+      if(result)result.innerHTML=`<div class="card dangerbox">${esc(err.message||'تعذر قراءة الملف')}</div>`;
+    }finally{if(btn)btn.disabled=false;}
+  };
+
   window.renderAdmin = async function(){
     if(!isAdmin()) return;
     window.show('admin');
@@ -805,6 +869,7 @@
       <div id="adminMerchantPermissionsBox" class="card"><div class="accordionHead" data-toggle-id="adminMerchantsBody"><div><h2>إدارة وربط التجار</h2><div class="muted">كل تاجر يمكن ربطه بمتجر واحد، وتفعيل الصلاحية بشكل مستقل.</div></div><span>▾</span></div><div id="adminMerchantsBody" class="accordionBody">${merchantHtml}</div></div>
       <div class="card"><div class="accordionHead" data-toggle-id="adminStoresBody"><h2>إدارة المتاجر</h2><span>▾</span></div><div id="adminStoresBody" class="accordionBody hidden">${storesHtml}</div></div>
       <div class="card"><div class="accordionHead" data-toggle-id="adminUsersBody"><h2>الحسابات</h2><span>▾</span></div><div id="adminUsersBody" class="accordionBody hidden">${usersHtml}</div></div>
+      <div class="card"><h2>📥 استيراد المواد والأسعار دفعة واحدة</h2><p class="muted">ارفع ملف CSV واحداً يحتوي على اسم المتجر واسم المادة والتصنيف والباركود والسعر. لا تحتاج إلى معرفة store_id؛ يكفي اسم المتجر المطابق لما هو مسجل في الموقع.</p><div class="actions"><button type="button" class="btn secondary" onclick="downloadBulkImportTemplate()">تحميل نموذج CSV</button><label class="btn primary" style="display:inline-block;margin:0;cursor:pointer">اختيار ملف CSV<input id="bulkImportFile" type="file" accept=".csv,text/csv" style="display:none" onchange="importMaterialsCsv(this)"></label></div><p id="bulkImportMsg" class="muted"></p><div id="bulkImportResult"></div></div>
       <div class="card"><h2>روابط الموقع</h2><p class="muted">هذه الإعدادات للمدير فقط.</p><div class="two"><input id="siteWhatsapp" placeholder="رابط واتساب الموقع"><input id="siteTelegram" placeholder="رابط تلغرام الموقع"></div><button class="btn primary" onclick="saveSiteLinks()">حفظ روابط الموقع</button><p id="siteLinksMsg" class="muted"></p></div>
       <div class="actions"><button class="btn secondary" onclick="show('home')">العودة للموقع</button><button class="btn secondary" onclick="logout()">تسجيل الخروج</button></div>`;
     bindAdminAccordions();
