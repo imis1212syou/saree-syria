@@ -254,6 +254,7 @@
     if(!st){ title.textContent='المتجر'; body.innerHTML='<div class="card muted">المتجر غير موجود أو غير متاح حالياً.</div>'; return; }
     if(typeof window.recordStoreVisit==='function') window.recordStoreVisit(st.id).catch(()=>{});
     title.textContent = st.name || 'المتجر';
+    const canViewStoreVisitors = isAdmin() || (role()==='store' && String(profileData?.store_id||'') === String(st.id));
     let listings=[];
     try{ listings = await loadApprovedStoreListings(st.id); }catch(err){ console.warn('store listings:',err); }
     const company = storeCompany(st);
@@ -273,6 +274,7 @@
         ${wa ? `<div class="actions"><a class="btn primary" href="${esc(wa)}" target="_blank" rel="noopener">💬 واتساب المتجر</a></div>` : ''}
         ${st.opening_hours ? `<p class="muted">🕐 ساعات الدوام: ${esc(st.opening_hours)}</p>` : ''}
         ${st.working_days ? `<p class="muted">📅 أيام العمل: ${esc(st.working_days)}</p>` : ''}
+        ${canViewStoreVisitors ? `<div class="card" style="margin-top:10px"><div class="name" id="storeDetailVisitorCount">—</div><div class="muted">إجمالي زوار المتجر</div></div>` : ''}
         ${maps ? `<button type="button" class="btn secondary" id="storeDirectionsBtn">الاتجاهات في Google Maps</button>` : ''}
       </div>
       <div class="card">
@@ -293,11 +295,28 @@
 
     $('storeCompanyBtn')?.addEventListener('click',()=>window.openCompany(company));
     $('storeDirectionsBtn')?.addEventListener('click',()=>window.open(maps,'_blank','noopener'));
+    if(canViewStoreVisitors) loadStoreDetailVisitorCount(st.id);
     $('storeBarcodeSearchBtn')?.addEventListener('click',()=>window.searchStoreBarcode(st.id));
     $('storeBarcodeSearch')?.addEventListener('keydown',ev=>{ if(ev.key==='Enter') window.searchStoreBarcode(st.id); });
     $('storeBarcodeCamera')?.addEventListener('click',()=>window.openBarcodeScannerForStore ? window.openBarcodeScannerForStore(st.id) : alert('ماسح الباركود غير محمّل.'));
     bindMaterialActions(body);
   };
+
+  async function loadStoreDetailVisitorCount(storeId){
+    const node = $('storeDetailVisitorCount');
+    if(!node) return;
+    try{
+      if(isAdmin()){
+        const {data,error} = await supabaseClient.rpc('admin_store_visitor_counts');
+        if(error || !Array.isArray(data)) return;
+        const row = data.find(x=>String(x.store_id)===String(storeId));
+        node.textContent = fmt(row?.visitor_count || 0);
+      }else if(role()==='store' && String(profileData?.store_id||'')===String(storeId)){
+        const {data,error} = await supabaseClient.rpc('merchant_store_visitor_count',{p_store_id:storeId});
+        if(!error) node.textContent = fmt(data || 0);
+      }
+    }catch(err){ console.warn('store detail visitor count:',err); }
+  }
 
   function bindMaterialActions(root){
     root.querySelectorAll('[data-edit-listing]').forEach(btn=>btn.onclick=()=>window.editStoreMaterial(btn.dataset.editListing,btn.dataset.storeId));
