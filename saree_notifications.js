@@ -1,0 +1,8 @@
+/* سعرلي سوريا - إشعارات الإدارة */
+(function(){
+  'use strict';
+  const $=id=>document.getElementById(id);
+  const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
+  async function render(){try{if(String(profileData?.role||'').toLowerCase()!=='admin')return;const {data,error}=await supabaseClient.from('saree_notifications').select('*').order('created_at',{ascending:false}).limit(20);if(error)throw error;const unread=(data||[]).filter(x=>!x.is_read).length;let btn=$('sareeNotificationsBtn');if(!btn){btn=document.createElement('button');btn.id='sareeNotificationsBtn';btn.className='btn secondary';btn.style='position:fixed;top:12px;left:12px;z-index:5000';document.body.appendChild(btn)}btn.textContent=`🔔 الإشعارات${unread?' ('+unread+')':''}`;btn.onclick=()=>{const old=$('sareeNotificationsModal');if(old)old.remove();const m=document.createElement('div');m.id='sareeNotificationsModal';m.className='saree-modal';m.innerHTML=`<div class="saree-modal-inner"><div class="saree-modal-head"><h2>إشعارات الإدارة</h2><button class="btn secondary" onclick="this.closest('.saree-modal').remove()">×</button></div>${(data||[]).map(n=>`<div class="priceRow"><b>${esc(n.title||'إشعار')}</b><div class="muted">${esc(n.body||'')}</div><div class="muted">${new Date(n.created_at).toLocaleString('ar')}</div></div>`).join('')||'<div class="muted">لا توجد إشعارات.</div>'}</div>`;document.body.appendChild(m)};}catch(e){console.warn(e)}}
+  const old=window.renderAdmin;if(typeof old==='function')window.renderAdmin=async function(){await old();await render()};setTimeout(render,1800);
+})();
