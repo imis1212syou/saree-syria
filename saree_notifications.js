@@ -1,0 +1,6 @@
+/* سعرلي سوريا — إشعارات الإدارة */
+(function(){'use strict';
+const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
+async function load(){if(!window.profileData||profileData.role!=='admin')return;try{const {data,error}=await supabaseClient.from('saree_notifications').select('*').eq('is_read',false).order('created_at',{ascending:false}).limit(20);if(error)throw error;let btn=document.getElementById('sareeNotifyBtn');if(!btn){btn=document.createElement('button');btn.id='sareeNotifyBtn';btn.className='btn secondary';btn.style.position='fixed';btn.style.top='12px';btn.style.left='12px';btn.style.zIndex='30';document.body.appendChild(btn);}btn.textContent='🔔 الإشعارات'+(data?.length?' ('+data.length+')':'');btn.onclick=async()=>{const items=data||[];alert(items.length?items.map(x=>`${x.title||'إشعار'}\n${x.body||''}`).join('\n\n'):'لا توجد إشعارات جديدة.');if(items.length){await supabaseClient.from('saree_notifications').update({is_read:true,read_at:new Date().toISOString()}).in('id',items.map(x=>x.id));load();}};}catch(e){console.warn('notifications:',e)}}
+window.SareeNotifications={reload:load};setTimeout(load,900);window.addEventListener('saree:notification-refresh',load);
+})();
