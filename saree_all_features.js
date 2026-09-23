@@ -346,18 +346,8 @@
     else if(typeof openStore==='function') openStore(id);
   };
 
-  function ensureUniversalCartButton(){
-    if(!$('sareeUniversalCartButton')){
-      const b=document.createElement('button'); b.id='sareeUniversalCartButton'; b.type='button'; b.className='btn primary';
-      b.style='position:fixed;bottom:18px;left:18px;z-index:7000;border-radius:999px;box-shadow:0 6px 20px rgba(0,0,0,.3)';
-      b.onclick=openCartChooser; document.body.appendChild(b);
-    }
-    const b=$('sareeUniversalCartButton');
-    b.textContent=`🛒 سلة الطلبات${cartCount()?` (${cartCount()})`:''}`;
-    let enabled=true; try{enabled=window.sareeWhatsappOrdersEnabled!==false}catch(_){ }
-    b.style.display=enabled?'inline-flex':'none';
-  }
-  setInterval(ensureUniversalCartButton,1200); ensureUniversalCartButton();
+  /* إزالة زر السلة العائم من أسفل الشاشة؛ تبقى السلة متاحة من زر «السلة» الموجود في الموقع. */
+  document.getElementById('sareeUniversalCartButton')?.remove();
 
   /* زر السلة الرئيسي في الموقع يفتح سلة طلب واتساب للجميع عند تفعيل الميزة. */
   function bindMainBasketButton(){
