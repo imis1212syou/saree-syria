@@ -64,6 +64,17 @@
     document.body.appendChild(m);$('sareeCloseProduct').onclick=()=>m.remove();m.addEventListener('click',e=>{if(e.target===m)m.remove()});
   };
 
+  // التصنيفات: مشروعك الأساسي يعيد رسم البطاقات بدالة داخلية، لذلك نعتمد تفويض النقر من الحاوية نفسها.
+  document.addEventListener('click',function(ev){
+    const card=ev.target.closest('#cats .card');
+    if(!card) return;
+    const pill=card.querySelector('.pill');
+    const category=(pill?.textContent||'').trim();
+    if(!category) return;
+    ev.preventDefault();
+    openCategory(category);
+  });
+
   window.renderCategories=function(){
     const map={};getProducts().forEach(p=>(map[p.category||'عام']??=[]).push(p));
     const box=$('cats');if(!box)return;
@@ -109,8 +120,21 @@
   function renderStoreCart(storeId){const box=$('sareeStoreCart');if(!box)return;const c=storeCart(storeId),items=Object.entries(c);if(!settings.enabled){box.innerHTML='';box.classList.add('hidden');return}box.classList.remove('hidden');if(!items.length){box.innerHTML='<div class="muted">السلة فارغة. أضف المنتجات من القائمة.</div>';return}let subtotal=0;box.innerHTML=`<h3>سلة هذا المتجر</h3>${items.map(([pid,x])=>{const line=x.qty*x.price;subtotal+=line;return `<div class="saree-cart-line"><div><b>${esc(x.name)}</b>${x.unit?`<div class="muted">${esc(x.unit)}</div>`:''}</div><div class="saree-qty"><button onclick="window.sareeCartChange('${esc(storeId)}','${esc(pid)}',-1)">−</button><b>${x.qty}</b><button onclick="window.sareeCartChange('${esc(storeId)}','${esc(pid)}',1)">+</button></div><div class="saree-line-price">${money(line)} ل.س</div></div>`}).join('')}<div class="muted">المجموع الفرعي: ${money(subtotal)} ل.س</div><div class="muted">رسم الطلب: ${money(settings.fee)} ل.س</div><div class="saree-cart-total">الإجمالي: ${money(subtotal+settings.fee)} ل.س</div><div class="actions"><button class="btn primary" onclick="window.sareeSendWhatsappOrder('${esc(storeId)}')">إرسال الطلب عبر واتساب</button><button class="btn secondary" onclick="window.sareeClearStoreCart('${esc(storeId)}')">تفريغ السلة</button></div>`}
   async function getStore(storeId){let st=(stores||[]).find(s=>String(s.id)===String(storeId));if(st)return st;const {data}=await supabaseClient.from('stores').select('*,companies(id,name,whatsapp_url,verified,active)').eq('id',storeId).maybeSingle();return data}
   function waTarget(st){return st?.whatsapp_url||st?.whatsapp||st?.companies?.whatsapp_url||''}
-  function waLink(target,text){if(!target)return '';if(/^https?:\/\//i.test(target)){return target+(target.includes('?')?'&':'?')+'text='+encodeURIComponent(text)}const digits=target.replace(/\D/g,'');return digits?'https://wa.me/'+digits+'?text='+encodeURIComponent(text):''}
-  async function send(storeId){if(!settings.enabled)return alert('طلبات واتساب غير مفعلة حالياً.');const st=await getStore(storeId);if(!st)return alert('المتجر غير موجود.');const target=waTarget(st);if(!target)return alert('هذا المتجر لم يضع رابط واتساب للطلبات بعد.');const c=storeCart(storeId),items=Object.entries(c);if(!items.length)return alert('السلة فارغة.');let subtotal=0;const lines=items.map(([pid,x],i)=>{const line=x.qty*x.price;subtotal+=line;return `${i+1}) ${x.name}${x.unit?' ('+x.unit+')':''} × ${x.qty} = ${money(line)} ل.س`});const name=prompt('اسم العميل (اختياري):','')??'';const phone=prompt('رقم هاتف العميل (اختياري):','')??'';const notes=prompt('ملاحظات الطلب (اختياري):','')??'';const total=subtotal+settings.fee;const msg=`طلب من سعرلي سوريا\nالمتجر: ${st.name||''}\n\n${lines.join('\n')}\n\nالمجموع الفرعي: ${money(subtotal)} ل.س\nرسم الطلب: ${money(settings.fee)} ل.س\nالإجمالي: ${money(total)} ل.س\n\nاسم العميل: ${name||'—'}\nهاتف العميل: ${phone||'—'}\nملاحظات: ${notes||'—'}`;try{const {data,error}=await supabaseClient.rpc('submit_whatsapp_order',{p_store_id:storeId,p_customer_name:name||null,p_customer_phone:phone||null,p_customer_notes:notes||null,p_subtotal:subtotal,p_request_fee:settings.fee,p_total:total,p_items:items.map(([pid,x])=>({product_id:pid,name:x.name,unit:x.unit,quantity:x.qty,unit_price:x.price,line_total:x.qty*x.price}))});if(error)throw error;const url=waLink(target,msg);if(!url)throw new Error('رابط واتساب غير صالح.');window.open(url,'_blank','noopener');clear(storeId);alert('تم تجهيز الطلب وإرساله إلى واتساب المتجر.')}catch(e){console.error(e);alert('تعذر تسجيل الطلب: '+(e.message||'خطأ غير معروف'))}}
+  function waLink(target,text){
+    if(!target) return '';
+    let v=String(target).trim();
+    // نحول wa.me / api.whatsapp.com / الرقم المحلي إلى مخطط التطبيق مباشرة.
+    let phone='';
+    const m=v.match(/(?:wa\.me\/|phone=)([0-9]+)/i);
+    if(m) phone=m[1];
+    if(!phone) phone=v.replace(/\D/g,'');
+    if(phone.startsWith('00963')) phone=phone.slice(2);
+    else if(phone.startsWith('09')) phone='963'+phone.slice(1);
+    else if(phone.startsWith('9') && phone.length>=9 && phone.length<=10) phone='963'+phone;
+    if(!phone) return '';
+    return 'whatsapp://send?phone='+phone+'&text='+encodeURIComponent(text);
+  }
+  async function send(storeId){if(!settings.enabled)return alert('طلبات واتساب غير مفعلة حالياً.');const st=await getStore(storeId);if(!st)return alert('المتجر غير موجود.');const target=waTarget(st);if(!target)return alert('هذا المتجر لم يضع رابط واتساب للطلبات بعد.');const c=storeCart(storeId),items=Object.entries(c);if(!items.length)return alert('السلة فارغة.');let subtotal=0;const lines=items.map(([pid,x],i)=>{const line=x.qty*x.price;subtotal+=line;return `${i+1}) ${x.name}${x.unit?' ('+x.unit+')':''} × ${x.qty} = ${money(line)} ل.س`});const name=prompt('اسم العميل (اختياري):','')??'';const phone=prompt('رقم هاتف العميل (اختياري):','')??'';const notes=prompt('ملاحظات الطلب (اختياري):','')??'';const total=subtotal+settings.fee;const msg=`طلب من سعرلي سوريا\nالمتجر: ${st.name||''}\n\n${lines.join('\n')}\n\nالمجموع الفرعي: ${money(subtotal)} ل.س\nرسم الطلب: ${money(settings.fee)} ل.س\nالإجمالي: ${money(total)} ل.س\n\nاسم العميل: ${name||'—'}\nهاتف العميل: ${phone||'—'}\nملاحظات: ${notes||'—'}`;try{const {data,error}=await supabaseClient.rpc('submit_whatsapp_order',{p_store_id:storeId,p_customer_name:name||null,p_customer_phone:phone||null,p_customer_notes:notes||null,p_subtotal:subtotal,p_request_fee:settings.fee,p_total:total,p_items:items.map(([pid,x])=>({product_id:pid,name:x.name,unit:x.unit,quantity:x.qty,unit_price:x.price,line_total:x.qty*x.price}))});if(error)throw error;const url=waLink(target,msg);if(!url)throw new Error('رابط واتساب غير صالح.');window.location.href=url;clear(storeId);}catch(e){console.error(e);alert('تعذر تسجيل الطلب: '+(e.message||'خطأ غير معروف'))}}
   window.sareeCartAdd=add;window.sareeCartChange=change;window.sareeClearStoreCart=clear;window.sareeSendWhatsappOrder=send;
   window.renderSareeStoreCart=renderStoreCart;
   const old=window.renderStoreDetail;
@@ -165,7 +189,7 @@
   'use strict';
   const $=id=>document.getElementById(id);
   const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
-  async function render(){try{if(String(profileData?.role||'').toLowerCase()!=='admin')return;const {data,error}=await supabaseClient.from('saree_notifications').select('*').order('created_at',{ascending:false}).limit(20);if(error)throw error;const unread=(data||[]).filter(x=>!x.is_read).length;let btn=$('sareeNotificationsBtn');if(!btn){btn=document.createElement('button');btn.id='sareeNotificationsBtn';btn.className='btn secondary';btn.style='position:fixed;top:12px;left:12px;z-index:5000';document.body.appendChild(btn)}btn.textContent=`🔔 الإشعارات${unread?' ('+unread+')':''}`;btn.onclick=()=>{const old=$('sareeNotificationsModal');if(old)old.remove();const m=document.createElement('div');m.id='sareeNotificationsModal';m.className='saree-modal';m.innerHTML=`<div class="saree-modal-inner"><div class="saree-modal-head"><h2>إشعارات الإدارة</h2><button class="btn secondary" onclick="this.closest('.saree-modal').remove()">×</button></div>${(data||[]).map(n=>`<div class="priceRow"><b>${esc(n.title||'إشعار')}</b><div class="muted">${esc(n.body||'')}</div><div class="muted">${new Date(n.created_at).toLocaleString('ar')}</div></div>`).join('')||'<div class="muted">لا توجد إشعارات.</div>'}</div>`;document.body.appendChild(m)};}catch(e){console.warn(e)}}
+  async function render(){try{if(String(profileData?.role||'').toLowerCase()!=='admin')return;const {data,error}=await supabaseClient.from('saree_notifications').select('*').order('created_at',{ascending:false}).limit(20);if(error)throw error;const unread=(data||[]).filter(x=>!x.is_read).length;let btn=$('sareeNotificationsBtn');const host=$('adminPanel');if(!host)return;if(!btn){btn=document.createElement('button');btn.id='sareeNotificationsBtn';btn.className='btn secondary';btn.type='button';btn.style='margin-bottom:12px;display:block';host.insertBefore(btn,host.firstChild)}else if(btn.parentElement!==host){host.insertBefore(btn,host.firstChild)}btn.textContent=`🔔 الإشعارات${unread?' ('+unread+')':''}`;btn.onclick=()=>{const old=$('sareeNotificationsModal');if(old)old.remove();const m=document.createElement('div');m.id='sareeNotificationsModal';m.className='saree-modal';m.innerHTML=`<div class="saree-modal-inner"><div class="saree-modal-head"><h2>إشعارات الإدارة</h2><button class="btn secondary" onclick="this.closest('.saree-modal').remove()">×</button></div>${(data||[]).map(n=>`<div class="priceRow"><b>${esc(n.title||'إشعار')}</b><div class="muted">${esc(n.body||'')}</div><div class="muted">${new Date(n.created_at).toLocaleString('ar')}</div></div>`).join('')||'<div class="muted">لا توجد إشعارات.</div>'}</div>`;document.body.appendChild(m)};}catch(e){console.warn(e)}}
   const old=window.renderAdmin;if(typeof old==='function')window.renderAdmin=async function(){await old();await render()};setTimeout(render,1800);
 })();
 
@@ -216,9 +240,12 @@
       if(!/واتساب|whatsapp/i.test(text + ' ' + href)) return;
       const fixed = whatsappUrl(href);
       if(!fixed) return;
-      a.href = fixed;
-      a.target = '_blank';
-      a.rel = 'noopener noreferrer';
+      const digits = fixed.replace(/\D/g,'');
+      if(!digits) return;
+      const appPhone = digits.startsWith('00963') ? digits.slice(2) : (digits.startsWith('09') ? '963'+digits.slice(1) : digits);
+      a.href = 'whatsapp://send?phone=' + appPhone;
+      a.removeAttribute('target');
+      a.removeAttribute('rel');
     });
   }
   window.sareeWhatsappUrl = whatsappUrl;
@@ -227,4 +254,179 @@
   else fixLinks();
   const observer = new MutationObserver(()=>fixLinks());
   observer.observe(document.documentElement,{subtree:true,childList:true});
+})();
+
+
+/* ================= FINAL CORRECTIONS ================= */
+/* التصنيفات + سلة واتساب للجميع + واتساب مباشر + موضع الإشعارات */
+(function(){
+  'use strict';
+  const $=id=>document.getElementById(id);
+  const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
+  const money=v=>Number(v||0).toLocaleString('ar-SY',{maximumFractionDigits:2});
+  const getProducts=()=>{try{return products||[]}catch(_){return []}};
+  const getPrices=()=>{try{return prices||[]}catch(_){return []}};
+  const getStores=()=>{try{return stores||[]}catch(_){return []}};
+  const cartsKey='saree_store_carts_v1';
+  const carts=()=>{try{return JSON.parse(localStorage.getItem(cartsKey)||'{}')}catch(_){return {}}};
+  const cartCount=()=>Object.values(carts()).reduce((n,c)=>n+Object.values(c||{}).reduce((a,x)=>a+Number(x.qty||0),0),0);
+
+  /* 1) التصنيفات: لا نعتمد على renderCategories الداخلي في index.html؛ نربط النقر مباشرة بكل بطاقة. */
+  function openCategoryFinal(category){
+    const list=getProducts().filter(p=>String(p.category||'عام').trim()===String(category).trim());
+    const old=$('sareeCategoryModal'); if(old) old.remove();
+    const modal=document.createElement('div');
+    modal.id='sareeCategoryModal'; modal.className='saree-modal';
+    modal.innerHTML=`<div class="saree-modal-inner">
+      <div class="saree-modal-head"><div><h2>منتجات تصنيف: ${esc(category)}</h2><div class="muted">${list.length} منتجات</div></div><button class="btn secondary" id="sareeCloseCatFinal">× إغلاق</button></div>
+      <input id="sareeCatSearchFinal" placeholder="ابحث داخل هذا التصنيف...">
+      <div id="sareeCatProductsFinal" class="saree-product-grid"></div>
+    </div>`;
+    document.body.appendChild(modal);
+    const render=()=>{
+      const q=String($('sareeCatSearchFinal')?.value||'').trim().toLowerCase();
+      const rows=list.filter(p=>[p.name,p.brand,p.unit,p.barcode,p.category].join(' ').toLowerCase().includes(q));
+      $('sareeCatProductsFinal').innerHTML=rows.length?rows.map(p=>{
+        const pr=getPrices().filter(x=>String(x.product_id)===String(p.id)).sort((a,b)=>Number(a.price_new)-Number(b.price_new))[0];
+        return `<article class="card saree-medium-card">
+          ${p.image_url?`<img class="img" src="${esc(p.image_url)}" alt="${esc(p.name)}" loading="lazy">`:''}
+          <span class="pill">${esc(p.category||'عام')}</span><div class="name">${esc(p.name||'مادة')}</div>
+          ${p.brand?`<div class="muted">${esc(p.brand)}</div>`:''}${p.unit?`<div class="muted">${esc(p.unit)}</div>`:''}
+          ${pr?`<div class="price">${money(pr.price_new)} ل.س</div><div class="muted">${esc(pr.stores?.name||'')}</div>`:'<div class="notice pending">لا يوجد سعر معتمد حالياً</div>'}
+          <div class="actions"><button class="btn primary" onclick="window.sareeOpenProductInfo('${esc(p.id)}')">تفاصيل</button></div>
+        </article>`;
+      }).join(''):'<div class="card muted">لا توجد منتجات مطابقة.</div>';
+    };
+    $('sareeCloseCatFinal').onclick=()=>modal.remove();
+    modal.addEventListener('click',e=>{if(e.target===modal)modal.remove()});
+    $('sareeCatSearchFinal').oninput=render; render();
+  }
+  window.sareeOpenCategory=openCategoryFinal;
+
+  function bindCategoryCards(){
+    const box=$('cats'); if(!box) return;
+    box.querySelectorAll('.card').forEach(card=>{
+      if(card.dataset.sareeCategoryBound==='1') return;
+      const pill=card.querySelector('.pill');
+      const category=(pill?.textContent||'').trim();
+      if(!category) return;
+      card.dataset.sareeCategoryBound='1';
+      card.style.cursor='pointer';
+      card.onclick=(e)=>{e.preventDefault();e.stopPropagation();openCategoryFinal(category)};
+    });
+  }
+  const catObserver=new MutationObserver(()=>bindCategoryCards());
+  function startCategoryBinding(){bindCategoryCards();const box=$('cats');if(box)catObserver.observe(box,{childList:true,subtree:true});}
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',startCategoryBinding); else startCategoryBinding();
+  setTimeout(bindCategoryCards,500);setTimeout(bindCategoryCards,1500);setTimeout(bindCategoryCards,3000);
+
+  /* 2) سلة طلب واتساب: زر/نافذة عامة تعمل للزائر والحساب العادي والتاجر والمدير. */
+  function openCartChooser(){
+    const all=carts();
+    const ids=Object.keys(all).filter(id=>Object.keys(all[id]||{}).length);
+    const old=$('sareeUniversalCartModal'); if(old) old.remove();
+    const modal=document.createElement('div'); modal.id='sareeUniversalCartModal'; modal.className='saree-modal';
+    const stores=getStores();
+    modal.innerHTML=`<div class="saree-modal-inner"><div class="saree-modal-head"><div><h2>🛒 سلة طلبات واتساب</h2><div class="muted">السلة متاحة للجميع بدون تسجيل دخول.</div></div><button class="btn secondary" id="sareeCloseUniversalCart">× إغلاق</button></div><div id="sareeUniversalCartBody"></div></div>`;
+    document.body.appendChild(modal);
+    const body=$('sareeUniversalCartBody');
+    if(!ids.length){body.innerHTML='<div class="card muted">السلة فارغة. افتح أي متجر وأضف المنتجات إلى سلة طلب واتساب.</div>'}
+    else body.innerHTML=ids.map(id=>{
+      const st=stores.find(s=>String(s.id)===String(id));
+      const count=Object.values(all[id]).reduce((a,x)=>a+Number(x.qty||0),0);
+      return `<div class="priceRow"><b>${esc(st?.name||'المتجر')}</b><div class="muted">${count} قطع</div><button class="btn primary" onclick="window.sareeOpenStoreForCart('${esc(id)}')">فتح سلة المتجر</button></div>`;
+    }).join('');
+    $('sareeCloseUniversalCart').onclick=()=>modal.remove();
+    modal.addEventListener('click',e=>{if(e.target===modal)modal.remove()});
+  }
+  window.sareeOpenUniversalCart=openCartChooser;
+  window.sareeOpenStoreForCart=(id)=>{
+    $('sareeUniversalCartModal')?.remove();
+    if(typeof window.openStore==='function') window.openStore(id);
+    else if(typeof openStore==='function') openStore(id);
+  };
+
+  function ensureUniversalCartButton(){
+    if(!$('sareeUniversalCartButton')){
+      const b=document.createElement('button'); b.id='sareeUniversalCartButton'; b.type='button'; b.className='btn primary';
+      b.style='position:fixed;bottom:18px;left:18px;z-index:7000;border-radius:999px;box-shadow:0 6px 20px rgba(0,0,0,.3)';
+      b.onclick=openCartChooser; document.body.appendChild(b);
+    }
+    const b=$('sareeUniversalCartButton');
+    b.textContent=`🛒 سلة الطلبات${cartCount()?` (${cartCount()})`:''}`;
+    let enabled=true; try{enabled=window.sareeWhatsappOrdersEnabled!==false}catch(_){ }
+    b.style.display=enabled?'inline-flex':'none';
+  }
+  setInterval(ensureUniversalCartButton,1200); ensureUniversalCartButton();
+
+  /* زر السلة الرئيسي في الموقع يفتح سلة طلب واتساب للجميع عند تفعيل الميزة. */
+  function bindMainBasketButton(){
+    document.querySelectorAll('nav button, .nav button').forEach(btn=>{
+      if(btn.dataset.sareeWaBasketBound==='1') return;
+      if(String(btn.textContent||'').trim()!=='السلة') return;
+      btn.dataset.sareeWaBasketBound='1';
+      btn.addEventListener('click',function(e){
+        if(window.sareeWhatsappOrdersEnabled===true){
+          e.preventDefault(); e.stopImmediatePropagation();
+          openCartChooser();
+        }
+      },true);
+    });
+  }
+  bindMainBasketButton();
+  setInterval(bindMainBasketButton,1000);
+
+  /* 3) واتساب: محاولة فتح تطبيق WhatsApp مباشرة فقط، بلا wa.me ولا موقع وسيط. */
+  function phoneFromTarget(target){
+    let v=String(target||'').trim().replace(/[٠-٩۰-۹]/g,c=>({'٠':'0','١':'1','٢':'2','٣':'3','٤':'4','٥':'5','٦':'6','٧':'7','٨':'8','٩':'9','۰':'0','۱':'1','۲':'2','۳':'3','۴':'4','۵':'5','۶':'6','۷':'7','۸':'8','۹':'9'}[c]));
+    let m=v.match(/(?:wa\.me\/|phone=)([0-9]+)/i); let phone=m?m[1]:v.replace(/\D/g,'');
+    if(phone.startsWith('00963')) phone=phone.slice(2);
+    else if(phone.startsWith('09')) phone='963'+phone.slice(1);
+    else if(phone.startsWith('9') && phone.length>=9 && phone.length<=10) phone='963'+phone;
+    return phone;
+  }
+  window.sareeDirectWhatsapp=(target,text)=>{
+    const phone=phoneFromTarget(target); if(!phone) return false;
+    const encoded=encodeURIComponent(text||'');
+    const isAndroid=/Android/i.test(navigator.userAgent);
+    const isIOS=/iPhone|iPad|iPod/i.test(navigator.userAgent);
+    const appUrl=`whatsapp://send?phone=${phone}&text=${encoded}`;
+    const intent=`intent://send?phone=${phone}&text=${encoded}#Intent;scheme=whatsapp;package=com.whatsapp;end`;
+    // Android: intent يطلب تطبيق WhatsApp مباشرة. iOS/باقي الأجهزة: whatsapp://.
+    window.location.href=(isAndroid?intent:appUrl);
+    return true;
+  };
+  const originalSend=window.sareeSendWhatsappOrder;
+  if(typeof originalSend==='function'){
+    // لا نعيد تنفيذ الطلب هنا؛ نستبدل فقط التنقل إلى واتساب بعد التسجيل.
+    window.sareeSendWhatsappOrder=async function(storeId){
+      if(!window.sareeWhatsappOrdersEnabled)return alert('طلبات واتساب غير مفعلة حالياً.');
+      let st; try{st=(getStores()||[]).find(s=>String(s.id)===String(storeId));}catch(_){st=null}
+      if(!st){try{const r=await supabaseClient.from('stores').select('*').eq('id',storeId).maybeSingle();st=r.data}catch(_){}}
+      if(!st)return alert('المتجر غير موجود.');
+      const target=st.whatsapp_url||st.whatsapp||st.companies?.whatsapp_url||''; if(!target)return alert('هذا المتجر لم يضع رقم واتساب للطلبات بعد.');
+      // استخدام التنفيذ الأصلي لإنشاء الطلب والحساب، لكن منع تنقله القديم.
+      // ننفذ نسخة محلية مطابقة لتجنب أي فتح لموقع خارجي.
+      const all=carts(), c=all[storeId]||{}, items=Object.entries(c); if(!items.length)return alert('السلة فارغة.');
+      let subtotal=0; const lines=items.map(([pid,x],i)=>{const line=Number(x.qty||0)*Number(x.price||0);subtotal+=line;return `${i+1}) ${x.name}${x.unit?' ('+x.unit+')':''} × ${x.qty} = ${money(line)} ل.س`});
+      const name=prompt('اسم العميل (اختياري):','')??''; const phone=prompt('رقم هاتف العميل (اختياري):','')??''; const notes=prompt('ملاحظات الطلب (اختياري):','')??'';
+      const fee=Number(window.sareeWhatsappOrderFee||0), total=subtotal+fee;
+      const msg=`طلب من سعرلي سوريا\nالمتجر: ${st.name||''}\n\n${lines.join('\n')}\n\nالمجموع الفرعي: ${money(subtotal)} ل.س\nرسم الطلب: ${money(fee)} ل.س\nالإجمالي: ${money(total)} ل.س\n\nاسم العميل: ${name||'—'}\nهاتف العميل: ${phone||'—'}\nملاحظات: ${notes||'—'}`;
+      try{
+        const {error}=await supabaseClient.rpc('submit_whatsapp_order',{p_store_id:storeId,p_customer_name:name||null,p_customer_phone:phone||null,p_customer_notes:notes||null,p_subtotal:subtotal,p_request_fee:fee,p_total:total,p_items:items.map(([pid,x])=>({product_id:pid,name:x.name,unit:x.unit,quantity:x.qty,unit_price:x.price,line_total:Number(x.qty||0)*Number(x.price||0)}))});
+        if(error)throw error;
+        if(!window.sareeDirectWhatsapp(target,msg))throw new Error('رقم واتساب المتجر غير صالح.');
+        localStorage.setItem('saree_store_carts_v1',JSON.stringify({...all,[storeId]:{}}));
+      }catch(e){console.error(e);alert('تعذر إرسال الطلب: '+(e.message||'خطأ غير معروف'));}
+    };
+  }
+
+  /* 4) الإشعارات: تبقى داخل لوحة الإدارة ولا تُضاف قرب زر دخول/خروج الحساب. */
+  function moveNotifications(){
+    const b=$('sareeNotificationsBtn'); const panel=$('adminPanel');
+    if(!b||!panel)return;
+    if(b.parentElement!==panel){panel.appendChild(b)}
+    b.style.position='static'; b.style.margin='12px 0'; b.style.display='block';
+  }
+  setInterval(moveNotifications,800); moveNotifications();
 })();
