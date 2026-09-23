@@ -1,20 +1,23 @@
-تجهيز موقع «سعري سوريا» كتطبيق مجاني PWA
+حزمة تطبيق سعري سوريا - صفحة /app
 
-1) ارفع هذه الملفات الأربعة إلى جذر الموقع نفسه بجانب index.html:
-   - saree_manifest.json
-   - saree_sw.js
-   - saree_pwa.js
-   - saree-icon-192.png
-   - saree-icon-512.png
+1) ارفع الملفات الستة في نفس مجلد index.html:
+   saree_pwa.js
+   saree_manifest.json
+   saree_sw.js
+   saree-icon-192.png
+   saree-icon-512.png
+   (README_AR.txt اختياري)
 
-2) في نهاية index.html وقبل </body> أضف:
+2) ارفع مجلد app كاملًا بجانب index.html:
+   app/index.html
+
+3) في index.html أضف فقط:
    <script src="saree_pwa.js"></script>
 
-3) ارفع الملفات إلى GitHub Pages وانتظر تحديث الموقع.
+4) صفحة التثبيت ستكون:
+   /app/
 
-4) على Android/Chrome:
-   افتح الموقع، ثم من قائمة Chrome اختر «تثبيت التطبيق» أو «إضافة إلى الشاشة الرئيسية» حسب إصدار المتصفح.
+5) سيظهر في الموقع شريط «📱 تحميل التطبيق» يفتح صفحة /app/.
+   وعلى الأجهزة التي تدعم التثبيت المباشر سيظهر زر «تثبيت التطبيق».
 
-لا يحتاج هذا إلى Google Play أو رسوم. الموقع يبقى كما هو، وSupabase يبقى كما هو.
-
-ملاحظة: Service Worker يخزن ملفات الموقع الأساسية فقط ولا يخزن طلبات Supabase/API عبر الإنترنت.
+مهم: يجب أن يعمل الموقع عبر HTTPS حتى يعمل Service Worker والتثبيت بشكل صحيح.
