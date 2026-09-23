@@ -1,11 +1,14 @@
 {
+  "id": "./",
   "name": "سعرلي سوريا",
-  "short_name": "سعرلي سوريا",
+  "short_name": "سعرلي",
+  "description": "تطبيق سعرلي سوريا لمقارنة أسعار المنتجات في سوريا",
   "lang": "ar",
   "dir": "rtl",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
+  "orientation": "portrait",
   "background_color": "#080d11",
   "theme_color": "#080d11",
   "icons": [
