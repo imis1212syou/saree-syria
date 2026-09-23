@@ -3,6 +3,7 @@
 
   const base = new URL(".", location.href);
   let deferredPrompt = null;
+  let installRequested = false;
 
   function addManifest() {
     if (document.querySelector('link[rel="manifest"]')) return;
@@ -15,8 +16,9 @@
   function registerSW() {
     if (!("serviceWorker" in navigator)) return;
     window.addEventListener("load", () => {
-      navigator.serviceWorker.register(new URL("saree_sw.js", base).href, { scope: base.pathname })
-        .catch(err => console.warn("PWA service worker:", err));
+      navigator.serviceWorker.register(new URL("saree_sw.js", base).href, {
+        scope: base.pathname
+      }).catch(err => console.warn("PWA service worker:", err));
     });
   }
 
@@ -30,48 +32,6 @@
       window.navigator.standalone === true;
   }
 
-  function showIOSHelp() {
-    alert("لتثبيت التطبيق على iPhone:\n\nاضغط زر المشاركة ⬆️ في Safari، ثم اختر «إضافة إلى الشاشة الرئيسية».");
-  }
-
-  function showAndroidHelp() {
-    alert("إذا لم يظهر التثبيت تلقائياً، افتح قائمة المتصفح ⋮ ثم اختر «تثبيت التطبيق» أو «إضافة إلى الشاشة الرئيسية».");
-  }
-
-  let waitingForInstallPrompt = false;
-
-  function askAndInstall() {
-    const ok = window.confirm("هل تريد تثبيت تطبيق سعرلي سوريا على جهازك؟\n\nاضغط «موافق» للمتابعة أو «إلغاء» للرجوع.");
-    if (!ok) return;
-
-    if (deferredPrompt) {
-      deferredPrompt.prompt();
-      deferredPrompt.userChoice.finally(() => {
-        deferredPrompt = null;
-        updateButton();
-      });
-      return;
-    }
-
-    // أحياناً يصل حدث التثبيت بعد ظهور الصفحة بقليل؛ ننتظر قليلاً بعد موافقة المستخدم.
-    waitingForInstallPrompt = true;
-    setTimeout(() => {
-      waitingForInstallPrompt = false;
-      if (!deferredPrompt) showAndroidHelp();
-    }, 8000);
-  }
-
-  function installApp() {
-    if (isStandalone()) return;
-    if (isIOS()) {
-      if (window.confirm("هل تريد تثبيت تطبيق سعرلي سوريا على جهازك؟\n\nاضغط «موافق» لعرض خطوات التثبيت أو «إلغاء» للرجوع.")) {
-        showIOSHelp();
-      }
-      return;
-    }
-    askAndInstall();
-  }
-
   function createButton() {
     if (document.getElementById("sareePwaInstallButton")) return;
     const top = document.querySelector(".top");
@@ -82,23 +42,80 @@
     btn.type = "button";
     btn.className = "btn primary";
     btn.textContent = "📱 تحميل التطبيق";
-    btn.title = "تحميل / تثبيت التطبيق";
+    btn.title = "تثبيت تطبيق سعرلي سوريا";
     btn.style.marginInlineStart = "8px";
     btn.addEventListener("click", installApp);
 
     const account = document.getElementById("topAccountBtn");
-    if (account) {
-      account.parentNode.insertBefore(btn, account);
-    } else {
-      top.appendChild(btn);
-    }
+    if (account) account.parentNode.insertBefore(btn, account);
+    else top.appendChild(btn);
   }
 
   function updateButton() {
     const btn = document.getElementById("sareePwaInstallButton");
     if (!btn) return;
     btn.style.display = isStandalone() ? "none" : "inline-block";
-    btn.textContent = deferredPrompt ? "📱 تثبيت التطبيق" : "📱 تحميل التطبيق";
+    btn.textContent = "📱 تحميل التطبيق";
+  }
+
+  async function openNativeInstall() {
+    if (!deferredPrompt) return false;
+
+    const promptEvent = deferredPrompt;
+    deferredPrompt = null;
+
+    try {
+      promptEvent.prompt();
+      const result = await promptEvent.userChoice;
+      updateButton();
+      return result && result.outcome === "accepted";
+    } catch (e) {
+      console.warn("PWA install prompt:", e);
+      updateButton();
+      return false;
+    }
+  }
+
+  function showIOSInstructions() {
+    alert("افتح هذا الموقع في Safari، ثم اضغط مشاركة ⬆️ واختر «إضافة إلى الشاشة الرئيسية» لتثبيت تطبيق سعرلي سوريا.");
+  }
+
+  function installApp() {
+    if (isStandalone()) return;
+
+    // التأكيد الذي طلبه المستخدم: نعم = متابعة التثبيت، لا = إلغاء.
+    const ok = window.confirm(
+      "هل تريد تثبيت تطبيق «سعرلي سوريا» على جهازك؟\n\nاضغط «موافق» للتثبيت أو «إلغاء» للرجوع."
+    );
+    if (!ok) return;
+
+    if (isIOS()) {
+      showIOSInstructions();
+      return;
+    }
+
+    // نافذة التثبيت الرسمية من Chrome/Chromium.
+    if (deferredPrompt) {
+      openNativeInstall();
+      return;
+    }
+
+    // لا نعرض رسالة «افتح قائمة المتصفح». ننتظر وصول حدث التثبيت الرسمي.
+    installRequested = true;
+    const started = Date.now();
+    const waitForPrompt = setInterval(() => {
+      if (deferredPrompt) {
+        clearInterval(waitForPrompt);
+        installRequested = false;
+        openNativeInstall();
+        return;
+      }
+      if (Date.now() - started >= 15000) {
+        clearInterval(waitForPrompt);
+        installRequested = false;
+        // Chrome لم يوفّر نافذة التثبيت الرسمية لهذه الجلسة؛ لا نفتح رسالة قديمة.
+      }
+    }, 250);
   }
 
   window.addEventListener("beforeinstallprompt", event => {
@@ -107,14 +124,10 @@
     createButton();
     updateButton();
 
-    // إذا وافق المستخدم قبل وصول الحدث، افتح نافذة التثبيت فور وصوله.
-    if (waitingForInstallPrompt) {
-      waitingForInstallPrompt = false;
-      deferredPrompt.prompt();
-      deferredPrompt.userChoice.finally(() => {
-        deferredPrompt = null;
-        updateButton();
-      });
+    // إذا ضغط المستخدم «موافق» قبل وصول الحدث، نفتح التثبيت فوراً.
+    if (installRequested) {
+      installRequested = false;
+      openNativeInstall();
     }
   });
 
