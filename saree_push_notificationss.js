@@ -1,4 +1,4 @@
-// saree_push_notifications.js
+// saree_push_notificationss.js
 
 const SUPABASE_URL = "ضع رابط مشروع Supabase هنا";
 const SUPABASE_ANON_KEY = "ضع مفتاح Supabase العام هنا";
