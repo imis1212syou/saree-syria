@@ -94,8 +94,27 @@
     const start=$('ad_start')?.value?new Date($('ad_start').value).toISOString():new Date().toISOString();
     const end=$('ad_end')?.value?new Date($('ad_end').value).toISOString():null;
     const payload={title,body,target_url,button_text,placement,ad_type,image_url,start_at:start,end_at:end,active:!!$('ad_active')?.checked,updated_at:new Date().toISOString()};
-    const q=id?supabaseClient.from('ads').update(payload).eq('id',id):supabaseClient.from('ads').insert({...payload,created_by:profileData.id});
-    const {error}=await q;if(error)return alert(error.message);alert(id?'تم تعديل الإعلان.':'تمت إضافة الإعلان.');closeAdsOverlay();await window.refreshAds();await window.renderAdmin();
+    const q=id
+      ? supabaseClient.from('ads').update(payload).eq('id',id)
+      : supabaseClient.from('ads').insert({...payload,created_by:profileData.id}).select('id').single();
+    const result=await q;
+    if(result.error)return alert(result.error.message);
+    const newAdId=!id?result.data?.id:null;
+    alert(id?'تم تعديل الإعلان.':'تمت إضافة الإعلان.');
+    closeAdsOverlay();
+    await window.refreshAds();
+    await window.renderAdmin();
+
+    // إرسال إشعار للأجهزة المشتركة بعد إنشاء إعلان جديد فقط.
+    if(newAdId && payload.active!==false){
+      try{
+        const pushResult=await supabaseClient.functions.invoke('smart-action?action=send-ad',{body:{ad_id:newAdId}});
+        if(pushResult.error) console.warn('push send:',pushResult.error);
+        else console.log('push send result:',pushResult.data);
+      }catch(pushError){
+        console.warn('push send failed:',pushError);
+      }
+    }
   };
   window.toggleAdminAd=async function(id,current){if(typeof profileData==='undefined'||profileData?.role!=='admin')return alert('هذا الخيار للمدير فقط.');const {error}=await supabaseClient.from('ads').update({active:!current,updated_at:new Date().toISOString()}).eq('id',id);if(error)return alert(error.message);await window.refreshAds();await window.renderAdmin();};
   window.deleteAdminAd=async function(id){if(typeof profileData==='undefined'||profileData?.role!=='admin')return alert('هذا الخيار للمدير فقط.');if(!confirm('حذف هذا الإعلان؟'))return;const {error}=await supabaseClient.from('ads').delete().eq('id',id);if(error)return alert(error.message);await window.refreshAds();await window.renderAdmin();};
