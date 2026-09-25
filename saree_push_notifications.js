@@ -1,11 +1,13 @@
 /* سعرلي سوريا — إشعارات الهاتف
-   ملف بديل فقط — يحافظ على وظيفة الإشعارات الأصلية.
-   ON / OFF يظهر للمدير فقط.
+   التسجيل متاح لكل الزوار والمستخدمين والمديرين والتجار والشركات.
+   عند السماح بالإشعارات يحاول تسجيل الجهاز تلقائيًا.
+   لا يوجد ON/OFF للمدير في هذا الملف.
 */
 (() => {
   "use strict";
 
-  const SETTING_KEY = "push_notifications_enabled";
+  const SUPABASE_FUNCTION = "smart-action";
+  let started = false;
 
   function findSupabaseConfig() {
     const scripts = Array.from(document.scripts || []);
@@ -16,130 +18,116 @@
       const k = txt.match(/SUPABASE_KEY\s*=\s*["']([^"']+)["']/);
       if (u && k) return { url: u[1], key: k[1] };
     }
+    if (window.SUPABASE_URL && window.SUPABASE_KEY) {
+      return { url: window.SUPABASE_URL, key: window.SUPABASE_KEY };
+    }
     return null;
   }
 
-  let clientPromise = null;
-  async function getClient() {
-    if (clientPromise) return clientPromise;
-    clientPromise = (async () => {
-      if (!window.supabase || typeof window.supabase.createClient !== "function") {
-        throw new Error("مكتبة Supabase غير موجودة");
-      }
-      const cfg = findSupabaseConfig();
-      if (!cfg) throw new Error("تعذر العثور على إعدادات Supabase في index.html");
-      return window.supabase.createClient(cfg.url, cfg.key, {
-        auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
-      });
-    })();
-    return clientPromise;
+  function urlBase64ToUint8Array(base64String) {
+    const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding)
+      .replace(/-/g, "+")
+      .replace(/_/g, "/");
+    const rawData = atob(base64);
+    return Uint8Array.from([...rawData].map(c => c.charCodeAt(0)));
   }
 
-  async function isAdmin() {
-    try {
-      const sb = await getClient();
-      const { data: { user } = {} } = await sb.auth.getUser();
-      if (!user) return false;
-
-      // نفس معرّف المدير الموجود أصلًا في index.html، إن وُجد.
-      const scripts = Array.from(document.scripts || []);
-      for (const s of scripts) {
-        const txt = s.textContent || "";
-        const m = txt.match(/ADMIN_UID\s*=\s*["']([^"']+)["']/);
-        if (m && m[1] === user.id) return true;
+  async function getVapidPublicKey(cfg) {
+    const res = await fetch(
+      `${cfg.url}/functions/v1/${SUPABASE_FUNCTION}?action=vapid-public-key`,
+      {
+        headers: {
+          apikey: cfg.key
+        }
       }
+    );
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.vapid_public_key) {
+      throw new Error(data.error || "تعذر الحصول على مفتاح الإشعارات");
+    }
+    return data.vapid_public_key;
+  }
 
-      const { data } = await sb.from("profiles").select("role").eq("id", user.id).maybeSingle();
-      return data?.role === "admin";
-    } catch (e) {
-      console.error("Saree admin check error:", e);
-      return false;
+  async function registerCurrentDevice() {
+    if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) {
+      return { ok: false, skipped: true, reason: "unsupported" };
+    }
+
+    if (Notification.permission === "denied") {
+      return { ok: false, skipped: true, reason: "denied" };
+    }
+
+    const cfg = findSupabaseConfig();
+    if (!cfg) throw new Error("تعذر العثور على إعدادات Supabase");
+
+    const permission = Notification.permission === "granted"
+      ? "granted"
+      : await Notification.requestPermission();
+
+    if (permission !== "granted") {
+      return { ok: false, skipped: true, reason: "not-granted" };
+    }
+
+    const registration = await navigator.serviceWorker.ready;
+    const vapidPublicKey = await getVapidPublicKey(cfg);
+
+    let subscription = await registration.pushManager.getSubscription();
+
+    if (!subscription) {
+      subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(vapidPublicKey)
+      });
+    }
+
+    const res = await fetch(
+      `${cfg.url}/functions/v1/${SUPABASE_FUNCTION}?action=subscribe`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          apikey: cfg.key
+        },
+        body: JSON.stringify({
+          subscription: subscription.toJSON(),
+          user_agent: navigator.userAgent
+        })
+      }
+    );
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.ok) {
+      throw new Error(data.error || "تعذر تسجيل الجهاز");
+    }
+
+    return { ok: true, subscription };
+  }
+
+  async function startAutoRegistration() {
+    if (started) return;
+    started = true;
+
+    try {
+      const result = await registerCurrentDevice();
+      if (result.ok) {
+        console.log("Saree Push: تم تسجيل هذا الجهاز بنجاح.");
+      }
+    } catch (error) {
+      console.warn("Saree Push:", error?.message || error);
     }
   }
 
-  async function readSetting() {
-    const sb = await getClient();
-    const { data, error } = await sb
-      .from("site_push_settings")
-      .select("enabled,vapid_public_key")
-      .eq("key", SETTING_KEY)
-      .maybeSingle();
-    if (error) throw error;
-    window.sareeVapidPublicKey = data?.vapid_public_key || "";
-    return data?.enabled === true;
-  }
-
-  async function saveSetting(value) {
-    const sb = await getClient();
-    const { error } = await sb
-      .from("site_push_settings")
-      .upsert({
-        key: SETTING_KEY,
-        enabled: !!value,
-        updated_at: new Date().toISOString()
-      }, { onConflict: "key" });
-    if (error) throw error;
-  }
-
-  async function addAdminToggle() {
-    const panel = document.querySelector("#adminPanel");
-    if (!panel || document.querySelector("#sareePushAdminToggle")) return;
-
-    // لا يظهر المفتاح إلا للمدير.
-    if (!(await isAdmin())) return;
-
-    const box = document.createElement("div");
-    box.id = "sareePushAdminToggle";
-    box.dir = "rtl";
-    box.style.cssText =
-      "margin:12px 0;padding:14px;border:1px solid #263640;border-radius:14px;background:#0c141a;color:#fff";
-
-    box.innerHTML = `
-      <div style="font-size:16px;font-weight:700;margin-bottom:9px">🔔 إشعارات الجوال</div>
-      <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
-        <input id="sareePushOnOff" type="checkbox" style="width:21px;height:21px">
-        <b id="sareePushStatus">جارٍ التحميل...</b>
-      </label>
-      <div style="font-size:12px;opacity:.72;margin-top:7px">ON = السماح بإرسال الإشعارات للهاتف.</div>
-    `;
-
-    panel.appendChild(box);
-    const toggle = box.querySelector("#sareePushOnOff");
-    const status = box.querySelector("#sareePushStatus");
-
-    readSetting().then(value => {
-      toggle.checked = value;
-      status.textContent = value ? "ON" : "OFF";
-    }).catch(error => {
-      toggle.checked = false;
-      status.textContent = "OFF";
-      console.error("Saree push read error:", error);
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", () => {
+      setTimeout(startAutoRegistration, 800);
     });
-
-    toggle.addEventListener("change", async () => {
-      const wanted = toggle.checked;
-      toggle.disabled = true;
-      try {
-        await saveSetting(wanted);
-        status.textContent = wanted ? "ON" : "OFF";
-      } catch (error) {
-        toggle.checked = !wanted;
-        status.textContent = toggle.checked ? "ON" : "OFF";
-        console.error("Saree push setting error:", error);
-        alert("تعذر حفظ إعداد الإشعارات. تأكد من صلاحيات جدول site_push_settings في Supabase.");
-      } finally {
-        toggle.disabled = false;
-      }
-    });
+  } else {
+    setTimeout(startAutoRegistration, 800);
   }
 
-  function start() {
-    addAdminToggle();
-    setInterval(addAdminToggle, 1500);
-  }
-
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start);
-  else start();
-
-  window.sareePhoneNotifications = { readSetting, saveSetting };
+  window.sareePhoneNotifications = {
+    registerCurrentDevice,
+    startAutoRegistration
+  };
 })();
