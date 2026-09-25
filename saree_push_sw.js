@@ -14,7 +14,7 @@ self.addEventListener("push", event => {
     vibrate: [180, 90, 180],
     tag: d.tag || "saree-announcement",
     renotify: true,
-    data: { url: d.url || "./" },
+    data: { url: d.url || null },
     actions: d.url ? [{ action: "open", title: "فتح الإعلان" }] : []
   };
 
@@ -23,17 +23,46 @@ self.addEventListener("push", event => {
 
 self.addEventListener("notificationclick", event => {
   event.notification.close();
-  const target = event.notification?.data?.url || "./";
 
-  event.waitUntil(
-    clients.matchAll({ type: "window", includeUncontrolled: true }).then(list => {
-      for (const c of list) {
-        if ("focus" in c) {
-          c.navigate(target);
-          return c.focus();
+  event.waitUntil((async () => {
+    // افتح الموقع داخل نطاق الـ Service Worker، وليس جذر github.io
+    // حتى لا يؤدي الضغط على الإشعار إلى صفحة 404.
+    const scope = self.registration.scope;
+    const rawUrl = event.notification?.data?.url;
+    let target = scope;
+
+    try {
+      if (rawUrl) {
+        const u = new URL(rawUrl, scope);
+        const scopeUrl = new URL(scope);
+
+        // إذا كان الرابط يشير إلى جذر نفس النطاق (مثل github.io/)
+        // استخدم نطاق التطبيق الفعلي بدلاً منه.
+        if (u.origin === scopeUrl.origin &&
+            (u.pathname === "/" || u.pathname === "")) {
+          target = scope;
+        } else {
+          target = u.href;
         }
       }
-      return clients.openWindow(target);
-    })
-  );
+    } catch (_) {
+      target = scope;
+    }
+
+    const list = await clients.matchAll({
+      type: "window",
+      includeUncontrolled: true
+    });
+
+    for (const c of list) {
+      if ("focus" in c) {
+        try {
+          await c.navigate(target);
+        } catch (_) {}
+        return c.focus();
+      }
+    }
+
+    return clients.openWindow(target);
+  })());
 });
