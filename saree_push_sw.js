@@ -25,8 +25,6 @@ self.addEventListener("notificationclick", event => {
   event.notification.close();
 
   event.waitUntil((async () => {
-    // افتح الموقع داخل نطاق الـ Service Worker، وليس جذر github.io
-    // حتى لا يؤدي الضغط على الإشعار إلى صفحة 404.
     const scope = self.registration.scope;
     const rawUrl = event.notification?.data?.url;
     let target = scope;
@@ -36,8 +34,6 @@ self.addEventListener("notificationclick", event => {
         const u = new URL(rawUrl, scope);
         const scopeUrl = new URL(scope);
 
-        // إذا كان الرابط يشير إلى جذر نفس النطاق (مثل github.io/)
-        // استخدم نطاق التطبيق الفعلي بدلاً منه.
         if (u.origin === scopeUrl.origin &&
             (u.pathname === "/" || u.pathname === "")) {
           target = scope;
@@ -56,9 +52,7 @@ self.addEventListener("notificationclick", event => {
 
     for (const c of list) {
       if ("focus" in c) {
-        try {
-          await c.navigate(target);
-        } catch (_) {}
+        try { await c.navigate(target); } catch (_) {}
         return c.focus();
       }
     }
