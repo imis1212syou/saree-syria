@@ -1,5 +1,7 @@
 /* سعرلي سوريا — إشعارات الهاتف
-   ملف جديد مستقل — لا يعدل index.html أو أي ملف قديم.
+   هذا الملف يتحكم بزر "إشعارات الجوال" في لوحة المدير.
+   عند ON: يطلب إذن الإشعارات ويسجل الهاتف في push_subscriptions.
+   عند OFF: يلغي اشتراك الهاتف الحالي ثم يحفظ حالة الإيقاف.
 */
 (() => {
   "use strict";
@@ -7,8 +9,6 @@
   const SETTING_KEY = "push_notifications_enabled";
 
   function findSupabaseConfig() {
-    // نقرأ إعدادات Supabase الموجودة أصلًا في index.html.
-    // لأن const supabaseClient داخل السكربت الأصلي ليس window.supabaseClient.
     const scripts = Array.from(document.scripts || []);
     for (const s of scripts) {
       const txt = s.textContent || "";
@@ -30,7 +30,11 @@
       const cfg = findSupabaseConfig();
       if (!cfg) throw new Error("تعذر العثور على إعدادات Supabase في index.html");
       return window.supabase.createClient(cfg.url, cfg.key, {
-        auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+          detectSessionInUrl: true
+        }
       });
     })();
     return clientPromise;
@@ -43,6 +47,7 @@
       .select("enabled,vapid_public_key")
       .eq("key", SETTING_KEY)
       .maybeSingle();
+
     if (error) throw error;
     window.sareeVapidPublicKey = data?.vapid_public_key || "";
     return data?.enabled === true;
@@ -57,7 +62,22 @@
         enabled: !!value,
         updated_at: new Date().toISOString()
       }, { onConflict: "key" });
+
     if (error) throw error;
+  }
+
+  async function enablePhonePush() {
+    if (!window.sareePushConnector?.subscribeToPush) {
+      throw new Error("ملف ربط الإشعارات غير محمّل");
+    }
+    await window.sareePushConnector.subscribeToPush();
+  }
+
+  async function disablePhonePush() {
+    if (!window.sareePushConnector?.unsubscribeFromPush) {
+      throw new Error("ملف ربط الإشعارات غير محمّل");
+    }
+    await window.sareePushConnector.unsubscribeFromPush();
   }
 
   function addAdminToggle() {
@@ -76,10 +96,11 @@
         <input id="sareePushOnOff" type="checkbox" style="width:21px;height:21px">
         <b id="sareePushStatus">جارٍ التحميل...</b>
       </label>
-      <div style="font-size:12px;opacity:.72;margin-top:7px">ON = السماح بإرسال الإشعارات للهاتف.</div>
+      <div style="font-size:12px;opacity:.72;margin-top:7px">ON = تفعيل إشعارات الهاتف لهذا الجهاز.</div>
     `;
 
     panel.appendChild(box);
+
     const toggle = box.querySelector("#sareePushOnOff");
     const status = box.querySelector("#sareePushStatus");
 
@@ -95,14 +116,28 @@
     toggle.addEventListener("change", async () => {
       const wanted = toggle.checked;
       toggle.disabled = true;
+      status.textContent = wanted ? "جارٍ تفعيل الإشعارات..." : "جارٍ إيقاف الإشعارات...";
+
       try {
-        await saveSetting(wanted);
-        status.textContent = wanted ? "ON" : "OFF";
+        if (wanted) {
+          // أولًا نسجل هذا الهاتف في push_subscriptions.
+          await enablePhonePush();
+          // ثم نحفظ حالة ON.
+          await saveSetting(true);
+          status.textContent = "ON";
+          alert("تم تفعيل إشعارات الجوال بنجاح.");
+        } else {
+          // نلغي اشتراك هذا الهاتف، ثم نحفظ حالة OFF.
+          await disablePhonePush();
+          await saveSetting(false);
+          status.textContent = "OFF";
+          alert("تم إيقاف إشعارات الجوال لهذا الجهاز.");
+        }
       } catch (error) {
         toggle.checked = !wanted;
         status.textContent = toggle.checked ? "ON" : "OFF";
         console.error("Saree push setting error:", error);
-        alert("تعذر حفظ إعداد الإشعارات. تأكد من صلاحيات جدول site_push_settings في Supabase.");
+        alert("تعذر تنفيذ الإجراء: " + (error?.message || error));
       } finally {
         toggle.disabled = false;
       }
@@ -114,8 +149,16 @@
     setInterval(addAdminToggle, 1500);
   }
 
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start);
-  else start();
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", start);
+  } else {
+    start();
+  }
 
-  window.sareePhoneNotifications = { readSetting, saveSetting };
+  window.sareePhoneNotifications = {
+    readSetting,
+    saveSetting,
+    enablePhonePush,
+    disablePhonePush
+  };
 })();
