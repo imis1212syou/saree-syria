@@ -627,8 +627,10 @@
   window.saveSiteLinks = async function(){
     if(!isAdmin()) return alert('هذا الخيار للمدير فقط.');
     const payload={key:'site_contact_links',whatsapp_url:$('siteWhatsapp')?.value.trim()||null,telegram_url:$('siteTelegram')?.value.trim()||null,updated_by:profileData.id};
-    const {error}=await supabaseClient.from('site_settings').upsert(payload,{onConflict:'key'});
-    if($('siteLinksMsg')) $('siteLinksMsg').textContent=error?'تعذر حفظ الروابط: '+error.message:'تم حفظ روابط الموقع.';
+    const {data,error}=await supabaseClient.from('site_settings').update({key:'site_contact_links',whatsapp_url:payload.whatsapp_url,telegram_url:payload.telegram_url,updated_at:new Date().toISOString()}).eq('id',1).select();
+    let saveError=error;
+    if(!saveError && (!data || data.length===0)){const {error:insertError}=await supabaseClient.from('site_settings').insert({id:1,key:'site_contact_links',whatsapp_url:payload.whatsapp_url,telegram_url:payload.telegram_url,updated_at:new Date().toISOString()});saveError=insertError;}
+    if($('siteLinksMsg')) $('siteLinksMsg').textContent=saveError?'تعذر حفظ الروابط: '+saveError.message:'تم حفظ روابط الموقع.';
   };
 
   window.loadSiteLinks = async function(){
