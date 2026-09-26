@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#080d11">
+<title>الإعلان — سعرلي سوريا</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:#080d11;color:#f1f4f5;font-family:Arial,Tahoma,sans-serif}.wrap{min-height:100vh;padding:18px 14px 30px;display:flex;align-items:center;justify-content:center}.box{width:min(720px,100%);background:#12191d;border:1px solid #263137;border-radius:20px;overflow:hidden;box-shadow:0 18px 60px rgba(0,0,0,.35)}.head{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid #263137}.back{border:0;border-radius:10px;padding:10px 13px;background:#1a2429;color:#fff;font-weight:bold;cursor:pointer}.brand{font-weight:800;color:#35d07f}.content{padding:16px}.label{display:inline-block;font-size:11px;padding:5px 9px;border-radius:999px;background:#263137;color:#aeb8bd;margin-bottom:10px}.title{font-size:25px;font-weight:900;margin:0 0 8px}.body{color:#b8c2c6;line-height:1.8;white-space:pre-wrap}.image{display:block;width:100%;max-height:420px;object-fit:contain;background:#0d1418;border-radius:14px;margin-bottom:14px}.button{display:inline-block;text-decoration:none;border:0;border-radius:11px;padding:12px 16px;background:#35d07f;color:#06100a;font-weight:bold;margin-top:14px}.status{text-align:center;color:#9da9ae;padding:28px 16px}.error{color:#ff9da2}.hidden{display:none!important}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <main class="box" aria-label="الإعلان">
+    <div class="head">
+      <button class="back" id="backBtn" type="button">← رجوع</button>
+      <div class="brand">سعرلي سوريا</div>
+    </div>
+    <div id="state" class="status">جارٍ تحميل الإعلان…</div>
+    <article id="ad" class="content hidden">
+      <div class="label">إعلان</div>
+      <img id="adImage" class="image hidden" alt="">
+      <h1 id="adTitle" class="title"></h1>
+      <div id="adBody" class="body"></div>
+      <a id="adButton" class="button hidden" target="_blank" rel="noopener noreferrer">عرض الإعلان</a>
+    </article>
+  </main>
+</div>
+<script>
+(() => {
+  'use strict';
+  const SUPABASE_URL = "https://ovocwugezuddbwypzteg.supabase.co";
+  const SUPABASE_KEY = "sb_publishable_THEl1NqFWWRUImYpTLxu9g_iGM03Nsz";
+  const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  const $ = id => document.getElementById(id);
+  const escText = value => String(value ?? '');
+
+  function goBack() {
+    try {
+      if (history.length > 1) {
+        history.back();
+        return;
+      }
+    } catch (_) {}
+    location.href = new URL('./', location.href).href;
+  }
+  $('backBtn').addEventListener('click', goBack);
+
+  function showError(message) {
+    $('state').classList.remove('hidden');
+    $('state').classList.add('error');
+    $('state').textContent = message;
+  }
+
+  function renderAd(ad) {
+    $('state').classList.add('hidden');
+    $('ad').classList.remove('hidden');
+    $('adTitle').textContent = escText(ad.title || 'إعلان');
+    $('adBody').textContent = escText(ad.body || '');
+
+    if (ad.image_url) {
+      $('adImage').src = ad.image_url;
+      $('adImage').alt = escText(ad.title || 'إعلان');
+      $('adImage').classList.remove('hidden');
+    }
+
+    if (ad.target_url) {
+      $('adButton').href = ad.target_url;
+      $('adButton').textContent = escText(ad.button_text || 'عرض الإعلان');
+      $('adButton').classList.remove('hidden');
+    }
+  }
+
+  async function load() {
+    try {
+      const params = new URLSearchParams(location.search);
+      const adId = params.get('ad_id');
+      let ad = null;
+
+      if (adId) {
+        const result = await client.from('ads').select('*').eq('id', adId).maybeSingle();
+        if (result.error) throw result.error;
+        ad = result.data || null;
+      }
+
+      // إذا لم يصل ad_id من الإشعار، نستخدم آخر إعلان نشط. هذا يحافظ على عمل
+      // الإشعارات القديمة التي كانت ترسل جذر الموقع فقط.
+      if (!ad) {
+        const now = new Date().toISOString();
+        const result = await client.from('ads').select('*').eq('active', true).lte('start_at', now).order('created_at', {ascending:false}).limit(20);
+        if (result.error) throw result.error;
+        ad = (result.data || []).find(x => !x.end_at || new Date(x.end_at).getTime() >= Date.now()) || null;
+      }
+
+      if (!ad) {
+        showError('لا يوجد إعلان متاح حالياً.');
+        return;
+      }
+
+      renderAd(ad);
+    } catch (error) {
+      console.warn('ad-view:', error);
+      showError('تعذر تحميل الإعلان.');
+    }
+  }
+
+  load();
+})();
+</script>
+</body>
+</html>
