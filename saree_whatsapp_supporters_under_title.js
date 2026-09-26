@@ -359,14 +359,37 @@
       updated_at: new Date().toISOString()
     };
 
-    const { error } = await window.supabaseClient
-      .from("site_settings")
-      .upsert(
-        payload,
-        {
-          onConflict: "id"
-        }
-      );
+    let error = null;
+
+    // لا نستخدم upsert / onConflict حتى لا يعتمد الحفظ على أي Unique
+    // إضافي في قاعدة البيانات.
+    const { data: existing, error: findError } =
+      await window.supabaseClient
+        .from("site_settings")
+        .select("id")
+        .eq("id", 1)
+        .maybeSingle();
+
+    if (findError) {
+      error = findError;
+    } else if (existing) {
+      const result = await window.supabaseClient
+        .from("site_settings")
+        .update({
+          whatsapp_url: whatsapp,
+          telegram_url: telegram,
+          updated_at: payload.updated_at
+        })
+        .eq("id", 1);
+
+      error = result.error;
+    } else {
+      const result = await window.supabaseClient
+        .from("site_settings")
+        .insert(payload);
+
+      error = result.error;
+    }
 
     const msg = $("siteLinksMsg");
 
@@ -559,16 +582,25 @@
     const hero =
       home.querySelector(".hero");
 
-    if (hero) {
-
-      hero.insertAdjacentElement(
-        "afterend",
-        element
-      );
-
-    } else {
-
+    if (!hero) {
       home.prepend(element);
+      return;
+    }
+
+    // المطلوب: تحت عنوان «مقارنة أسعار المنتجات في سوريا» مباشرة،
+    // وبالترتيب: صاحب الموقع ثم أفضل الداعمين ثم المنتجات.
+    const title = hero.querySelector("h1");
+    const owner = $(CONTACT_ID);
+
+    if (element.id === SUPPORTERS_ID && owner) {
+      owner.insertAdjacentElement("afterend", element);
+      return;
+    }
+
+    if (title) {
+      title.insertAdjacentElement("afterend", element);
+    } else {
+      hero.insertAdjacentElement("afterbegin", element);
     }
   }
 
