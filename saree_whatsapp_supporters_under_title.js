@@ -359,40 +359,23 @@
       updated_at: new Date().toISOString()
     };
 
-    const { data, error } = await window.supabaseClient
+    const { error } = await window.supabaseClient
       .from("site_settings")
-      .update({
-        key: "site_contact_links",
-        whatsapp_url: whatsapp,
-        telegram_url: telegram,
-        updated_at: new Date().toISOString()
-      })
-      .eq("id", 1)
-      .select();
-
-    let saveError = error;
-
-    if (!saveError && (!data || data.length === 0)) {
-      const { error: insertError } = await window.supabaseClient
-        .from("site_settings")
-        .insert({
-          id: 1,
-          key: "site_contact_links",
-          whatsapp_url: whatsapp,
-          telegram_url: telegram,
-          updated_at: new Date().toISOString()
-        });
-      saveError = insertError;
-    }
+      .upsert(
+        payload,
+        {
+          onConflict: "id"
+        }
+      );
 
     const msg = $("siteLinksMsg");
 
-    if (saveError) {
+    if (error) {
 
       if (msg) {
         msg.textContent =
           "تعذر حفظ الروابط: " +
-          saveError.message;
+          error.message;
       }
 
       console.error(
