@@ -757,6 +757,37 @@ async function loadVisitorCount(){
   }catch(err){console.warn('visitor count:',err)}
 }
 function toggleAdminGroup(id){$(id)?.classList.toggle('hidden')}
+async function saveSiteLinks(){
+ if(profileData?.role!=='admin')return alert('هذا الخيار للمدير فقط.');
+ const whatsapp_url=$('siteWhatsapp')?.value.trim()||null;
+ const telegram_url=$('siteTelegram')?.value.trim()||null;
+ try{
+  const {data:existing,error:readError}=await supabaseClient.from('site_settings').select('id').eq('id',1).maybeSingle();
+  if(readError)throw readError;
+  let result;
+  if(existing){
+   result=await supabaseClient.from('site_settings').update({owner_whatsapp_url:whatsapp_url,owner_telegram_url:telegram_url,updated_by:profileData.id,updated_at:new Date().toISOString()}).eq('id',1);
+  }else{
+   result=await supabaseClient.from('site_settings').insert({id:1,owner_whatsapp_url:whatsapp_url,owner_telegram_url:telegram_url,updated_by:profileData.id,updated_at:new Date().toISOString()});
+  }
+  if(result.error)throw result.error;
+  $('siteLinksMsg').textContent='تم حفظ روابط الموقع.';
+  if(typeof window.renderSareeOwnerContact==='function')await window.renderSareeOwnerContact();
+ }catch(e){
+  $('siteLinksMsg').textContent='تعذر حفظ الروابط: '+e.message;
+ }
+}
+async function loadSiteLinks(){
+ if(profileData?.role!=='admin')return;
+ try{
+  const {data,error}=await supabaseClient.from('site_settings').select('owner_whatsapp_url,owner_telegram_url').eq('id',1).maybeSingle();
+  if(error)throw error;
+  if(data){
+   if($('siteWhatsapp'))$('siteWhatsapp').value=data.owner_whatsapp_url||'';
+   if($('siteTelegram'))$('siteTelegram').value=data.owner_telegram_url||'';
+  }
+ }catch(e){console.warn('site links:',e)}
+}
 // ماسح الباركود موجود في barcode_scanner.js لتجنب تعارض BarcodeDetector مع المتصفح.
 // لا نعرّف scanBarcode هنا.
 async function renderAdmin(){
@@ -779,8 +810,8 @@ async function renderAdmin(){
  }).join(''):'<p class="muted">لا توجد حسابات تجار حالياً.</p>';
  const usersBlock=users.map(u=>u.id!==ADMIN_UID?`<div class="priceRow"><div class="accordionHead" onclick="toggleAdminGroup('user_${u.id}')"><b>${e(u.name||u.id)}</b><span>▾</span></div><div id="user_${u.id}" class="accordionBody hidden"><div class="muted">البريد: ${e(u.email||'بدون بريد')} • الدور: ${e(u.role)}${u.store_id?' • مرتبط بمتجر':''}</div><select id="role_${u.id}"><option value="user" ${u.role==='user'?'selected':''}>مستخدم</option><option value="store" ${u.role==='store'?'selected':''}>تاجر</option></select><button class="btn secondary" onclick="saveRoleOnly('${u.id}')">حفظ الدور</button></div></div>`:'<div class="priceRow"><b>حساب المدير</b><span class="pill">مدير النظام</span></div>').join('');
  const storeBlock=stores.length?stores.map(st=>`<div class="priceRow admin-store-row" id="adminStoreRow_${st.id}"><b>${e(st.name)}</b>${st.verified?'<span class="pill">✓ موثّق</span>':'<span class="pill">غير موثّق</span>'}<div class="muted">${e(st.city||'')} • ${e(st.area||'')} • ${e(st.address||'')}</div><div class="muted">زوار المتجر الفريدون: <b id="sv_${st.id}">—</b></div><div id="qr_${st.id}" class="qrbox"></div><div class="actions"><button type="button" class="btn secondary" onclick="event.stopPropagation();openStore('${st.id}')">فتح صفحة المتجر</button><button type="button" class="btn secondary" onclick="event.stopPropagation();printStoreQR('${st.id}')">طباعة QR</button><button type="button" class="btn primary" onclick="event.stopPropagation();openAdminStoreEdit('${st.id}')">تعديل المتجر</button><button type="button" class="btn secondary" onclick="event.stopPropagation();toggleAdminStoreVerification('${st.id}')">${st.verified?'إلغاء التوثيق':'توثيق المتجر'}</button><button type="button" class="btn danger" onclick="event.stopPropagation();deleteAdminStore('${st.id}')">حذف المتجر</button></div></div>`).join(''):'<p class="muted">لا توجد متاجر حالياً.</p>';
- $('adminPanel').innerHTML=`<div class="grid"><div class="card"><div class="name">${requests.length}</div><div class="muted">طلبات معلقة</div></div><div class="card"><div class="name">${stores.length}</div><div class="muted">متاجر</div></div><div class="card"><div class="name">${products.length}</div><div class="muted">منتجات</div></div><div class="card"><div class="name">${users.length}</div><div class="muted">حسابات</div></div><div class="card"><div class="name" id="visitorCount">—</div><div class="muted">عدد الزوار الفريدين</div></div></div><div class="card"><h2>طلبات التجار</h2>${requestBlock}</div><div class="card"><h2>إضافة متجر</h2><div class="two"><input id="sn" placeholder="اسم المتجر"><input id="scity" placeholder="المدينة"><input id="sarea" placeholder="المنطقة"><input id="saddr" placeholder="العنوان"><input id="sphone" placeholder="الهاتف"><input id="swhatsapp" placeholder="رابط واتساب المتجر"><input id="scompany" placeholder="اسم الشركة (اختياري)"><input id="shours" placeholder="ساعات الدوام"><input id="sdays" placeholder="أيام العمل"><input id="simg" type="file" accept="image/*"></div><button class="btn primary" onclick="adminAddStore()">إضافة المتجر</button></div><div class="card"><h2>ربط حسابات التجار بالمتاجر</h2><p class="muted">أنشئ المتجر أولاً، ثم اختر حساب التاجر واربطه بمتجر واحد فقط. الحساب الجديد يبقى بلا صلاحيات حتى تفعّلها أنت.</p>${merchantBlock}</div><div class="card"><h2>جميع الحسابات</h2>${usersBlock}</div><div class="card"><h2>إدارة الشركات</h2><p class="muted">إضافة وتعديل وتوثيق وحذف الشركات. ربط المتجر بالشركة يتم من شاشة تعديل المتجر.</p><div class="actions"><button type="button" class="btn primary" onclick="openAdminCompanyCreate()">إضافة شركة</button></div><div id="adminCompaniesList" class="grid" style="margin-top:12px">${companies.length?companies.map(c=>`<div class="priceRow admin-company-row" id="adminCompanyRow_${c.id}"><b>${e(c.name)}</b> ${c.verified?'<span class="pill">✓ موثقة</span>':'<span class="pill">غير موثقة</span>'}<div class="muted">${e(c.phone||'')} ${c.address?'• '+e(c.address):''}</div><div class="actions"><button type="button" class="btn primary" onclick="openAdminCompanyEdit('${c.id}')">تعديل الشركة</button><button type="button" class="btn secondary" onclick="toggleAdminCompanyVerification('${c.id}')">${c.verified?'إلغاء التوثيق':'توثيق الشركة'}</button><button type="button" class="btn danger" onclick="deleteAdminCompany('${c.id}')">حذف الشركة</button></div></div>`).join(''):'<div class="card muted">لا توجد شركات مسجلة.</div>'}</div></div><div class="card"><h2>المتاجر و QR Code</h2><p class="muted">لكل متجر QR Code فعلي. عند مسحه بكاميرا الهاتف يفتح صفحة المتجر مباشرة.</p>${storeBlock}</div><div class="actions"><button class="btn secondary" onclick="show('home')">العودة للموقع</button><button class="btn secondary" onclick="logout()">تسجيل الخروج</button></div>`;
- loadVisitorCount();loadAdminStoreVisitorCounts();setTimeout(buildAllQRCodes,50);
+ $('adminPanel').innerHTML=`<div class="grid"><div class="card"><div class="name">${requests.length}</div><div class="muted">طلبات معلقة</div></div><div class="card"><div class="name">${stores.length}</div><div class="muted">متاجر</div></div><div class="card"><div class="name">${products.length}</div><div class="muted">منتجات</div></div><div class="card"><div class="name">${users.length}</div><div class="muted">حسابات</div></div><div class="card"><div class="name" id="visitorCount">—</div><div class="muted">عدد الزوار الفريدين</div></div></div><div class="card"><h2>طلبات التجار</h2>${requestBlock}</div><div class="card"><h2>إضافة متجر</h2><div class="two"><input id="sn" placeholder="اسم المتجر"><input id="scity" placeholder="المدينة"><input id="sarea" placeholder="المنطقة"><input id="saddr" placeholder="العنوان"><input id="sphone" placeholder="الهاتف"><input id="swhatsapp" placeholder="رابط واتساب المتجر"><input id="scompany" placeholder="اسم الشركة (اختياري)"><input id="shours" placeholder="ساعات الدوام"><input id="sdays" placeholder="أيام العمل"><input id="simg" type="file" accept="image/*"></div><button class="btn primary" onclick="adminAddStore()">إضافة المتجر</button></div><div class="card"><h2>ربط حسابات التجار بالمتاجر</h2><p class="muted">أنشئ المتجر أولاً، ثم اختر حساب التاجر واربطه بمتجر واحد فقط. الحساب الجديد يبقى بلا صلاحيات حتى تفعّلها أنت.</p>${merchantBlock}</div><div class="card"><h2>جميع الحسابات</h2>${usersBlock}</div><div class="card"><h2>روابط الموقع</h2><p class="muted">هذه الروابط متاحة للمدير فقط.</p><div class="two"><input id="siteWhatsapp" placeholder="رابط واتساب الموقع"><input id="siteTelegram" placeholder="رابط تلغرام الموقع"></div><button class="btn primary" onclick="saveSiteLinks()">حفظ روابط الموقع</button><p id="siteLinksMsg" class="muted"></p></div><div class="card"><h2>إدارة الشركات</h2><p class="muted">إضافة وتعديل وتوثيق وحذف الشركات. ربط المتجر بالشركة يتم من شاشة تعديل المتجر.</p><div class="actions"><button type="button" class="btn primary" onclick="openAdminCompanyCreate()">إضافة شركة</button></div><div id="adminCompaniesList" class="grid" style="margin-top:12px">${companies.length?companies.map(c=>`<div class="priceRow admin-company-row" id="adminCompanyRow_${c.id}"><b>${e(c.name)}</b> ${c.verified?'<span class="pill">✓ موثقة</span>':'<span class="pill">غير موثقة</span>'}<div class="muted">${e(c.phone||'')} ${c.address?'• '+e(c.address):''}</div><div class="actions"><button type="button" class="btn primary" onclick="openAdminCompanyEdit('${c.id}')">تعديل الشركة</button><button type="button" class="btn secondary" onclick="toggleAdminCompanyVerification('${c.id}')">${c.verified?'إلغاء التوثيق':'توثيق الشركة'}</button><button type="button" class="btn danger" onclick="deleteAdminCompany('${c.id}')">حذف الشركة</button></div></div>`).join(''):'<div class="card muted">لا توجد شركات مسجلة.</div>'}</div></div><div class="card"><h2>المتاجر و QR Code</h2><p class="muted">لكل متجر QR Code فعلي. عند مسحه بكاميرا الهاتف يفتح صفحة المتجر مباشرة.</p>${storeBlock}</div><div class="actions"><button class="btn secondary" onclick="show('home')">العودة للموقع</button><button class="btn secondary" onclick="logout()">تسجيل الخروج</button></div>`;
+ loadVisitorCount();loadAdminStoreVisitorCounts();loadSiteLinks();setTimeout(buildAllQRCodes,50);
 }
 async function loadAdminStoreVisitorCounts(){
   try{
@@ -893,5 +924,8 @@ supabaseClient.auth.onAuthStateChange((event)=>{
   
 <script src="ad-view.html"></script>
 
+  <div id="site_contact.js"></div>
+
+  <script src="saree_whatsapp_supporters_under_title.js"></script>
 </body>
 </html>
