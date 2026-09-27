@@ -757,16 +757,6 @@ async function loadVisitorCount(){
   }catch(err){console.warn('visitor count:',err)}
 }
 function toggleAdminGroup(id){$(id)?.classList.toggle('hidden')}
-async function saveSiteLinks(){
- if(profileData?.role!=='admin')return alert('هذا الخيار للمدير فقط.');
- const payload={key:'site_contact_links',whatsapp_url:$('siteWhatsapp')?.value.trim()||null,telegram_url:$('siteTelegram')?.value.trim()||null,updated_by:profileData.id};
- const {error}=await supabaseClient.from('site_settings').upsert(payload,{onConflict:'key'});
- $('siteLinksMsg').textContent=error?'تعذر حفظ الروابط: '+error.message:'تم حفظ روابط الموقع.';
-}
-async function loadSiteLinks(){
- if(profileData?.role!=='admin')return;
- try{const {data}=await supabaseClient.from('site_settings').select('whatsapp_url,telegram_url').eq('key','site_contact_links').maybeSingle();if(data){if($('siteWhatsapp'))$('siteWhatsapp').value=data.whatsapp_url||'';if($('siteTelegram'))$('siteTelegram').value=data.telegram_url||'';}}catch(e){console.warn('site links:',e)}
-}
 // ماسح الباركود موجود في barcode_scanner.js لتجنب تعارض BarcodeDetector مع المتصفح.
 // لا نعرّف scanBarcode هنا.
 async function renderAdmin(){
@@ -903,7 +893,6 @@ supabaseClient.auth.onAuthStateChange((event)=>{
   
 <script src="ad-view.html"></script>
 
-  <div id="site_contact.js"></div>
 
   <script src="saree_whatsapp_supporters_under_title.js"></script>
 </body>
