@@ -757,6 +757,26 @@ async function loadVisitorCount(){
   }catch(err){console.warn('visitor count:',err)}
 }
 function toggleAdminGroup(id){$(id)?.classList.toggle('hidden')}
+async function saveSiteLinks(){
+ if(profileData?.role!=='admin')return alert('هذا الخيار للمدير فقط.');
+ const msg=$('siteLinksMsg');
+ try{
+  const whatsapp_url=$('siteWhatsapp')?.value.trim()||null;
+  const telegram_url=$('siteTelegram')?.value.trim()||null;
+  const existing=await supabaseClient.from('site_settings').select('id').eq('key','site_contact_links').order('id',{ascending:true}).limit(1).maybeSingle();
+  if(existing.error)throw existing.error;
+  let result;
+  const payload={whatsapp_url,telegram_url,updated_by:profileData.id,updated_at:new Date().toISOString()};
+  if(existing.data?.id!=null) result=await supabaseClient.from('site_settings').update(payload).eq('id',existing.data.id);
+  else result=await supabaseClient.from('site_settings').insert({key:'site_contact_links',...payload});
+  if(result.error)throw result.error;
+  if(msg)msg.textContent='تم حفظ روابط الموقع.';
+  if(typeof window.renderSareeOwnerContact==='function') await window.renderSareeOwnerContact();
+ }catch(error){
+  if(msg)msg.textContent='تعذر حفظ الروابط: '+(error.message||error);
+  console.error('حفظ روابط الموقع:',error);
+ }
+}
 // ماسح الباركود موجود في barcode_scanner.js لتجنب تعارض BarcodeDetector مع المتصفح.
 // لا نعرّف scanBarcode هنا.
 async function renderAdmin(){
