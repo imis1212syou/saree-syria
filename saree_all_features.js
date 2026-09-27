@@ -194,6 +194,8 @@
 })();
 
 
+/* Old saree_supporters.js disabled: replaced by saree_owner_supporters_new.js with isolated JSONB storage. */
+
 /* ================= saree_whatsapp_links.js ================= */
 /* سعرلي سوريا - إصلاح روابط واتساب المتاجر
  * يوضع بعد ملفات الموقع الأساسية.

@@ -623,6 +623,7 @@
       data.forEach(row=>{ const total=$('sv_total_'+row.store_id); const unique=$('sv_unique_'+row.store_id); if(total) total.textContent=fmt(row.total_visits ?? row.visitor_count ?? 0); if(unique) unique.textContent=fmt(row.unique_visitors||0); });
     }catch(err){ console.warn(err); }
   };
+  /* Legacy site owner links disabled: handled by saree_owner_supporters_new.js. */
 
   window.adminMerchantPermissions = async function(){
     if(!isAdmin()) return alert('هذه الصفحة للمدير فقط.');
@@ -772,6 +773,7 @@
       <div id="adminMerchantPermissionsBox" class="card"><div class="accordionHead" data-toggle-id="adminMerchantsBody"><div><h2>إدارة وربط التجار</h2><div class="muted">كل تاجر يمكن ربطه بمتجر واحد، وتفعيل الصلاحية بشكل مستقل.</div></div><span>▾</span></div><div id="adminMerchantsBody" class="accordionBody">${merchantHtml}</div></div>
       <div class="card"><div class="accordionHead" data-toggle-id="adminStoresBody"><h2>إدارة المتاجر</h2><span>▾</span></div><div id="adminStoresBody" class="accordionBody hidden">${storesHtml}</div></div>
       <div class="card"><div class="accordionHead" data-toggle-id="adminUsersBody"><h2>الحسابات</h2><span>▾</span></div><div id="adminUsersBody" class="accordionBody hidden">${usersHtml}</div></div>
+      
       <div class="actions"><button class="btn secondary" onclick="show('home')">العودة للموقع</button><button class="btn secondary" onclick="logout()">تسجيل الخروج</button></div>`;
     bindAdminAccordions();
     $('adminPanel').querySelectorAll('[data-link-merchant]').forEach(btn=>btn.onclick=()=>{
@@ -782,6 +784,7 @@
     window.loadVisitorCount();
     window.loadAdminStoreVisitorCounts();
     window.loadAdminCompanyVisitorCounts();
+    window.loadSiteLinks();
     setTimeout(buildAllQRCodes,30);
   };
 

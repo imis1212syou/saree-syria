@@ -560,6 +560,7 @@
       </div>
       <div class="card"><h2>طلباتك</h2>${error?`<p class="muted">${esc(error.message)}</p>`:reqs.length?reqs.map(r=>`<div class="priceRow"><b>${esc(r.product_name||'طلب تعديل سعر')}</b><div class="muted">${r.price_new!=null?fmt(r.price_new)+' ل.س جديدة':''} • ${r.created_at?esc(new Date(r.created_at).toLocaleString('ar')):''}</div><span class="pill">${r.status==='pending'?'قيد المراجعة':r.status==='approved'?'مقبول':'مرفوض'}</span>${r.reason?`<div class="muted">السبب: ${esc(r.reason)}</div>`:''}</div>`).join(''):'<p class="muted">لا توجد طلبات.</p>'}</div>`;
   };
+  /* Legacy site owner links disabled: handled by saree_owner_supporters_new.js. */
 
   window.adminMerchantPermissions = async function(){
     if(!isAdmin()) return alert('هذه الصفحة للمدير فقط.');
@@ -695,6 +696,7 @@
       <div id="adminMerchantPermissionsBox" class="card"><div class="accordionHead" data-toggle-id="adminMerchantsBody"><div><h2>إدارة وربط التجار</h2><div class="muted">كل تاجر يمكن ربطه بمتجر واحد، وتفعيل الصلاحية بشكل مستقل.</div></div><span>▾</span></div><div id="adminMerchantsBody" class="accordionBody">${merchantHtml}</div></div>
       <div class="card"><div class="accordionHead" data-toggle-id="adminStoresBody"><h2>إدارة المتاجر</h2><span>▾</span></div><div id="adminStoresBody" class="accordionBody hidden">${storesHtml}</div></div>
       <div class="card"><div class="accordionHead" data-toggle-id="adminUsersBody"><h2>الحسابات</h2><span>▾</span></div><div id="adminUsersBody" class="accordionBody hidden">${usersHtml}</div></div>
+      
       <div class="actions"><button class="btn secondary" onclick="show('home')">العودة للموقع</button><button class="btn secondary" onclick="logout()">تسجيل الخروج</button></div>`;
     bindAdminAccordions();
     $('adminPanel').querySelectorAll('[data-link-merchant]').forEach(btn=>btn.onclick=()=>{
@@ -702,6 +704,7 @@
       box?.classList.toggle('hidden');
       if(box) btn.textContent=box.classList.contains('hidden')?'ربط التاجر بالمتجر':'إخفاء قائمة المتاجر';
     });
+    window.loadSiteLinks();
     setTimeout(buildAllQRCodes,30);
   };
 
