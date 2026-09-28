@@ -5,7 +5,7 @@
   const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
   const profile=()=>{try{return typeof profileData!=='undefined'&&profileData?profileData:window.profileData}catch(_){return window.profileData||null}};
   const getStores=()=>{try{return typeof stores!=='undefined'&&Array.isArray(stores)?stores:(window.stores||[])}catch(_){return window.stores||[]}};
-  const admin=()=>window.__SAREE_ADMIN_STATUS__===true || String(profile()?.role||'').toLowerCase()==='admin';
+  const admin=()=>window.__SAREE_ADMIN_STATUS__===true;
   const onlyAdmin=()=>{if(!admin()){alert('المدير فقط يستطيع استخدام هذه الميزة.');return false}return true};
   const storeById=id=>getStores().find(x=>String(x.id)===String(id));
 

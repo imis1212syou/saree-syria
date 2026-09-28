@@ -29,7 +29,7 @@
   const MODAL_ID = 'sareeOwnerSponsorsAdminModal';
 
   const $ = (id) => document.getElementById(id);
-  const client = () => window.supabaseClient || window.supabase || null;
+  const client = () => { try { if (typeof supabaseClient !== 'undefined') return supabaseClient; } catch(_) {} return window.supabaseClient || null; };
 
   function esc(v) {
     return String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -72,36 +72,24 @@
 
   let ADMIN_STATUS = null;
 
-  function localAdminHint() {
-    try {
-      const p = (typeof profileData !== 'undefined' ? profileData : window.profileData);
-      if (p && String(p.role || '').toLowerCase() === 'admin') return true;
-    } catch (_) {}
-    const uid = window.ADMIN_UID || '';
-    return !!uid && !!window.__SAREE_OWNER_CONTACT_CURRENT_USER__ &&
-      String(window.__SAREE_OWNER_CONTACT_CURRENT_USER__) === String(uid);
+  function isAdmin() {
+    return window.__SAREE_ADMIN_STATUS__ === true;
   }
 
   async function verifyAdminFromSupabase(force=false) {
     if (!force && ADMIN_STATUS !== null) return ADMIN_STATUS;
+    if (window.__SAREE_ADMIN_STATUS__ === true) { ADMIN_STATUS = true; return true; }
     const c = client();
-    if (!c?.rpc) {
-      ADMIN_STATUS = localAdminHint();
-      return ADMIN_STATUS;
-    }
+    if (!c?.rpc) { ADMIN_STATUS = false; return false; }
     try {
-      const r = await c.rpc('saree_ocs_is_admin');
-      if (!r.error && r.data === true) {
-        ADMIN_STATUS = true;
-        return true;
-      }
-    } catch (_) {}
-    ADMIN_STATUS = localAdminHint();
-    return ADMIN_STATUS;
-  }
-
-  function isAdmin() {
-    return ADMIN_STATUS === true;
+      const { data, error } = await c.rpc('is_admin');
+      ADMIN_STATUS = !error && data === true;
+      window.__SAREE_ADMIN_STATUS__ = ADMIN_STATUS;
+      return ADMIN_STATUS;
+    } catch (_) {
+      ADMIN_STATUS = false;
+      return false;
+    }
   }
 
   async function currentUserId() {
@@ -215,7 +203,7 @@
 
   async function saveContact(m) {
     const c = client(); if (!c?.from) return alert('Supabase غير متاح.');
-    if (!(await verifyAdminFromSupabase(true))) return alert('هذا الخيار للمدير فقط.');
+    if (!isAdmin()) return alert('هذا الخيار للمدير فقط.');
     const payload = {id:1, whatsapp_url:m.querySelector('#socs_whatsapp').value.trim() || null, telegram_url:m.querySelector('#socs_telegram').value.trim() || null, facebook_url:m.querySelector('#socs_facebook').value.trim() || null, updated_at:new Date().toISOString()};
     const {error} = await c.from(TABLE_CONTACT).upsert(payload,{onConflict:'id'});
     if (error) return alert(error.message);
@@ -223,7 +211,6 @@
   }
 
   async function uploadSponsorImage(file) {
-    if (!(await verifyAdminFromSupabase(true))) throw new Error('هذا الخيار للمدير فقط.');
     const c = client();
     if (!file) return null;
     const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g,'') || 'jpg';
@@ -235,7 +222,6 @@
   }
 
   async function listSponsorsAdmin() {
-    if (!(await verifyAdminFromSupabase(true))) throw new Error('هذا الخيار للمدير فقط.');
     const c = client();
     const {data,error} = await c.from(TABLE_SPONSORS).select('*').order('sort_order',{ascending:true}).order('created_at',{ascending:false});
     if (error) throw error;
@@ -253,7 +239,7 @@
       <div class="saree-ocs-actions"><button id="socs_save" class="saree-ocs-primary">حفظ</button><button id="socs_cancel" class="saree-ocs-secondary">إلغاء</button></div>`);
     m.querySelector('#socs_cancel').onclick = () => m.remove();
     m.querySelector('#socs_save').onclick = async () => {
-      if (!(await verifyAdminFromSupabase(true))) return alert('هذا الخيار للمدير فقط.');
+      if (!isAdmin()) return alert('هذا الخيار للمدير فقط.');
       const c = client();
       const name = m.querySelector('#socs_name').value.trim();
       if (!name) return alert('اسم الداعم مطلوب.');
@@ -273,7 +259,7 @@
   }
 
   async function deleteSponsor(id) {
-    if (!(await verifyAdminFromSupabase(true))) return alert('هذا الخيار للمدير فقط.');
+    if (!isAdmin()) return alert('هذا الخيار للمدير فقط.');
     if (!confirm('حذف هذا الداعم؟')) return;
     const c = client(); const {error} = await c.from(TABLE_SPONSORS).delete().eq('id',id);
     if (error) return alert(error.message);

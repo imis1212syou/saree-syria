@@ -9,7 +9,7 @@
   const esc = v => String(v ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
   const normBarcode = v => String(v ?? '').replace(/\D/g,'').trim();
   const role = () => String(profileData?.role || '').toLowerCase();
-  const isAdmin = () => role() === 'admin';
+  const isAdmin = () => window.__SAREE_ADMIN_STATUS__ === true;
   const canManageStore = storeId => isAdmin() || (
     role() === 'store' &&
     !!profileData?.store_id &&

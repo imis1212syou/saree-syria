@@ -12,36 +12,36 @@ async function fetchWithTimeout(input,init={}){
 const supabaseClient=supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{
   global:{fetch:fetchWithTimeout}
 });
+window.supabaseClient=supabaseClient;
 let products=[],stores=[],prices=[],requests=[],companies=[],profileData=null;
-/* ===== صلاحية المدير من Supabase مباشرة ===== */
-window.__SAREE_ADMIN_STATUS__ = false;
-window.sareeCheckAdmin = async function(force=false){
+/* ===== Supabase admin authority ===== */
+let sareeAdminStatus = null;
+async function sareeCheckAdmin(force=false){
+  if(!force && sareeAdminStatus !== null) return sareeAdminStatus;
   try{
-    if(!force && window.__SAREE_ADMIN_STATUS__===true) return true;
-    if(typeof supabaseClient==='undefined' || !supabaseClient?.auth?.getUser || !supabaseClient?.rpc){
-      window.__SAREE_ADMIN_STATUS__=false;
+    const c=(typeof supabaseClient!=='undefined'?supabaseClient:window.supabaseClient);
+    if(!c?.auth?.getUser || !c?.rpc){
+      sareeAdminStatus=false;
       return false;
     }
-    const {data:{user},error:authError}=await supabaseClient.auth.getUser();
+    const {data:{user},error:authError}=await c.auth.getUser();
     if(authError || !user){
+      sareeAdminStatus=false;
       window.__SAREE_ADMIN_STATUS__=false;
       return false;
     }
-    const {data,error}=await supabaseClient.rpc('is_admin');
-    const ok=!error && data===true;
-    window.__SAREE_ADMIN_STATUS__=ok;
-    return ok;
+    const {data,error}=await c.rpc('is_admin');
+    sareeAdminStatus=!error && data===true;
+    window.__SAREE_ADMIN_STATUS__=sareeAdminStatus;
+    return sareeAdminStatus;
   }catch(err){
     console.warn('Supabase admin check:',err);
+    sareeAdminStatus=false;
     window.__SAREE_ADMIN_STATUS__=false;
     return false;
   }
-};
-window.sareeRequireAdmin = async function(){
-  const ok=await window.sareeCheckAdmin(true);
-  if(!ok) alert('هذا الخيار للمدير فقط.');
-  return ok;
-};
+}
+window.sareeCheckAdmin=sareeCheckAdmin;
 
 let basket=JSON.parse(localStorage.getItem('saree_basket')||'[]'),favorites=JSON.parse(localStorage.getItem('saree_favorites')||'[]'),alerts=JSON.parse(localStorage.getItem('saree_alerts')||'{}');
 const $=id=>document.getElementById(id);
@@ -92,12 +92,12 @@ async function scanBarcodeForStore(storeId){
 }
 function handleStoreDeepLink(){const id=new URLSearchParams(location.search).get('store');if(id){setTimeout(()=>{show('storeDetail');renderStoreDetail(id);},0);}}
 window.addEventListener('popstate',()=>{const id=new URLSearchParams(location.search).get('store');if(id){show('storeDetail');renderStoreDetail(id);}else{show('home');}});
-function renderTopAccount(){const b=$('topAccountBtn');if(!b)return;b.classList.remove('hidden');if(profileData&&(profileData.role==='store'||profileData.role==='admin'||profileData.is_admin===true)){b.textContent='تسجيل الخروج';b.onclick=confirmLogout;}else{b.textContent='دخول الحساب';b.onclick=()=>show('login');}}
-function renderRoleActions(){const box=$('roleActions');if(!box)return;box.innerHTML='';if(!profileData)return;if(profileData.role==='store'){box.innerHTML='<button class="btn primary" onclick="showAdd()">تسجيل سعر جديد</button><button class="btn secondary" onclick="openPriceUpdate()">تحديث الأسعار</button>';}else if(profileData.role==='admin'||profileData.is_admin===true){box.innerHTML='<button class="btn primary" onclick="showAdd()">تسجيل سعر جديد</button><button class="btn secondary" onclick="openPriceUpdate()">تحديث الأسعار</button><button class="btn secondary" onclick="show(\'admin\')">لوحة التحكم</button>';}}
-async function openPriceUpdate(){if(await window.sareeCheckAdmin()){if(profileData){profileData.role='admin';profileData.is_admin=true;}show('admin');await renderAdmin();return;}if(profileData?.role==='store'){renderMerchant();return;}alert('هذه الميزة للحسابات المصرح لها فقط.');}
+function renderTopAccount(){const b=$('topAccountBtn');if(!b)return;b.classList.remove('hidden');if(profileData&&(profileData.role==='store'||profileData.is_admin===true||profileData.role==='admin')){b.textContent='تسجيل الخروج';b.onclick=confirmLogout;}else{b.textContent='دخول الحساب';b.onclick=()=>show('login');}}
+function renderRoleActions(){const box=$('roleActions');if(!box)return;box.innerHTML='';if(!profileData)return;if(profileData.is_admin===true||profileData.role==='admin'){box.innerHTML='<button class="btn primary" onclick="showAdd()">إضافة مادة أو سعر</button><button class="btn secondary" onclick="openPriceUpdate()">لوحة التحكم</button><button class="btn secondary" onclick="show(\'admin\');renderAdmin()">فتح لوحة المدير</button>';}else if(profileData.role==='store'){box.innerHTML='<button class="btn primary" onclick="showAdd()">تسجيل سعر جديد</button><button class="btn secondary" onclick="openPriceUpdate()">تحديث الأسعار</button>';}}
+async function openPriceUpdate(){if(await sareeCheckAdmin()){show('admin');await renderAdmin();return;}if(profileData?.role==='store'){renderMerchant();return;}alert('هذه الميزة للحسابات المصرح لها فقط.');}
 function openNav(id){show(id);if(id==='basket' && basket.length===0) $('basketList').innerHTML='<div class="card"><div class="name">السلة</div><div class="price">0</div><div class="muted">عدد المنتجات في السلة: صفر</div></div>';if(id==='favorites' && favorites.length===0) $('favoritesList').innerHTML='<div class="card"><div class="name">المفضلة</div><div class="price">0</div><div class="muted">عدد المواد المفضلة: صفر</div></div>';if(id==='stores' && stores.length===0) $('storesList').innerHTML='<div class="card"><div class="name">المتاجر</div><div class="price">0</div><div class="muted">عدد المتاجر: صفر</div></div>';if(id==='categories' && !products.some(p=>p.category)) $('cats').innerHTML='<div class="card"><div class="name">التصنيفات</div><div class="price">0</div><div class="muted">عدد التصنيفات: صفر</div></div>';}
-async function goRole(){if(await window.sareeCheckAdmin()){if(profileData){profileData.role='admin';profileData.is_admin=true;}show('admin');await renderAdmin();return;}if(profileData?.role==='store')show('merchant');else show('login')}
-function enterVisitor(){const n=$('visitorName').value.trim();if(!n)return alert('اكتب اسمك أولاً');localStorage.setItem('visitor_name',n);profileData=null;renderTopAccount();renderRoleActions();$('status').textContent=n+' • زائر';show('home');refreshAll()}
+async function goRole(){if(await sareeCheckAdmin()){show('admin');await renderAdmin();return;}if(profileData?.role==='store')show('merchant');else show('login')}
+function enterVisitor(){const n=$('visitorName').value.trim();if(!n)return alert('اكتب اسمك أولاً');localStorage.setItem('visitor_name',n);profileData=null;sareeAdminStatus=null;window.__SAREE_ADMIN_STATUS__=false;renderTopAccount();renderRoleActions();$('status').textContent=n+' • زائر';show('home');refreshAll()}
 function currentName(){return localStorage.getItem('visitor_name')||'زائر'}
 function visitorId(){
  let id=localStorage.getItem('saree_visitor_id');
@@ -115,7 +115,7 @@ async function recordVisitor(){
 function confirmLogout(){if(confirm('هل أنت متأكد أنك تريد تسجيل الخروج؟')) logout();}
 function enterVisitorFromLogin(){
  const n=localStorage.getItem('visitor_name')||'زائر';
- localStorage.setItem('visitor_name',n);profileData=null;
+ localStorage.setItem('visitor_name',n);profileData=null;sareeAdminStatus=null;window.__SAREE_ADMIN_STATUS__=false;
  $('status').textContent=n+' • زائر';renderTopAccount();renderRoleActions();show('home');
  refreshAll().catch(console.warn);
 }
@@ -160,7 +160,7 @@ async function forgotPassword(){
  const {error}=await supabaseClient.auth.resetPasswordForEmail(em,{redirectTo:location.origin+location.pathname});
  alert(error?'خطأ: '+error.message:'تم إرسال رابط إعادة تعيين كلمة السر إذا كان الحساب موجوداً.');
 }
-async function logout(){localStorage.removeItem('saree_remember_login');sessionStorage.removeItem('saree_explicit_login');try{await supabaseClient.auth.signOut()}catch(e){console.warn(e)}profileData=null;window.__SAREE_ADMIN_STATUS__=false;renderTopAccount();renderRoleActions();$('status').textContent=currentName()+' • زائر';show('home');await refreshAll()}
+async function logout(){localStorage.removeItem('saree_remember_login');sessionStorage.removeItem('saree_explicit_login');try{await supabaseClient.auth.signOut()}catch(e){console.warn(e)}profileData=null;sareeAdminStatus=null;window.__SAREE_ADMIN_STATUS__=false;renderTopAccount();renderRoleActions();$('status').textContent=currentName()+' • زائر';show('home');await refreshAll()}
 async function loadProfile(){
   try{
     const {data:{user},error:authError}=await supabaseClient.auth.getUser();
@@ -170,7 +170,7 @@ async function loadProfile(){
       .select('id,name,role,store_id,can_edit_prices').eq('id',user.id).maybeSingle();
     if(error) throw error;
     if(!data){profileData=null;$('status').textContent=(user.email||'حساب')+' • حساب غير مكتمل';show('home');return false}
-    const adminOk=await window.sareeCheckAdmin(true);
+    const adminOk=await sareeCheckAdmin(true);
     profileData={...data,email:user.email||'',is_admin:adminOk};
     if(adminOk) profileData.role='admin';
     $('status').textContent=(data.name||user.email||'حساب');
@@ -259,13 +259,13 @@ function setAlert(id){const c=cheapest(products.find(p=>p.id===id));if(!c)return
 function renderStores(){
  $('storesList').innerHTML=stores.map(s=>`<div class="card"><div onclick="openStore('${s.id}')" style="cursor:pointer">${s.image_url?`<img class="img" src="${escAttr(s.image_url)}">`:''}<div class="name">${e(s.name)} ${s.verified?'✓':''}</div>${(s.companies?.name||s.company?.name||s.company_name||s.company)?`<span class="pill companyBadge">${e(s.companies?.name||s.company?.name||s.company_name||s.company)}</span>`:''}<div class="muted">${e(s.city||'')} ${e(s.area||'')}<br>${e(s.address||'')}</div>${s.phone?`<div class="muted">${e(s.phone)}</div>`:''}${s.whatsapp_url||s.whatsapp?`<div class="actions"><a class="btn primary" target="_blank" rel="noopener" href="${escAttr(s.whatsapp_url||s.whatsapp)}">💬 واتساب</a></div>`:''}</div><button class="btn secondary" onclick="openStore('${s.id}')">فتح المتجر</button></div>`).join('')||'<div class="card muted">لا توجد متاجر حالياً. العدد: صفر</div>'}
 function renderCategories(){const m={};products.forEach(p=>(m[p.category||'عام']??=[]).push(p));$('cats').innerHTML=Object.entries(m).map(([k,v])=>`<div class="card"><span class="pill">${e(k)}</span><div class="name">${v.length} منتجات</div></div>`).join('')||'<div class="card muted">لا توجد تصنيفات بعد.</div>'}
-function showAdd(){
+async function showAdd(){
+ const adminOk=await sareeCheckAdmin(true);
+ if(adminOk){show('admin');await renderAdmin();return}
  if(!profileData){alert('هذه الميزة للحسابات المصرح لها فقط.');return}
- if(profileData.is_admin===true || profileData.role==='admin'){show('admin');return}
  if(profileData.role!=='store'){alert('إضافة الأسعار والمواد من الحسابات المصرح لها فقط.');return}
  if(!profileData.can_edit_prices){alert('الحساب غير مصرح له حالياً.');return}
  if(!profileData.store_id){alert('الحساب غير مرتبط بمتجر بعد.');return}
- alert('الحساب مصرح له.');
  show('add');$('merchantStoreBox').innerHTML=`<div class="notice">المتجر المرتبط: ${e(stores.find(s=>s.id===profileData.store_id)?.name||'غير ظاهر')}</div>`;
 }
 $('existingProduct').addEventListener('change',()=>{const on=!!$('existingProduct').value;$('pn').disabled=on;$('brand').disabled=on;$('unit').disabled=on;$('cat').disabled=on})
@@ -297,8 +297,7 @@ async function submitPrice(){
     return alert('يجب تسجيل الدخول.');
   }
 
-  const isAdmin =
-    (profileData?.is_admin===true || String(profileData?.role||'').toLowerCase() === 'admin');
+  const isAdmin = await sareeCheckAdmin(true);
 
   const isStore =
     String(profileData.role).toLowerCase() === 'store';
@@ -568,20 +567,20 @@ async function renderMerchant(){
 }
 async function loadVisitorCount(){
   try{
-    if(!profileData || !(profileData.is_admin===true || profileData.role==='admin')) return;
+    if(!(await sareeCheckAdmin())) return;
     const {data,error}=await supabaseClient.rpc('admin_visitor_count');
     if(!error && $('visitorCount')) $('visitorCount').textContent=f(data||0);
   }catch(err){console.warn('visitor count:',err)}
 }
 function toggleAdminGroup(id){$(id)?.classList.toggle('hidden')}
 async function saveSiteLinks(){
- if(!(profileData?.is_admin===true || profileData?.role==='admin'))return alert('هذا الخيار للمدير فقط.');
+ if(!(await sareeCheckAdmin(true)))return alert('هذا الخيار للمدير فقط.');
  const payload={key:'site_contact_links',whatsapp_url:$('siteWhatsapp')?.value.trim()||null,telegram_url:$('siteTelegram')?.value.trim()||null,updated_by:profileData.id};
  const {error}=await supabaseClient.from('site_settings').upsert(payload,{onConflict:'key'});
  $('siteLinksMsg').textContent=error?'تعذر حفظ الروابط: '+error.message:'تم حفظ روابط الموقع.';
 }
 async function loadSiteLinks(){
- if(!(profileData?.is_admin===true || profileData?.role==='admin'))return;
+ if(!(await sareeCheckAdmin()))return;
  try{const {data}=await supabaseClient.from('site_settings').select('whatsapp_url,telegram_url').eq('key','site_contact_links').maybeSingle();if(data){if($('siteWhatsapp'))$('siteWhatsapp').value=data.whatsapp_url||'';if($('siteTelegram'))$('siteTelegram').value=data.telegram_url||'';}}catch(e){console.warn('site links:',e)}
 }
 // ماسح الباركود موجود في barcode_scanner.js لتجنب تعارض BarcodeDetector مع المتصفح.
@@ -611,7 +610,7 @@ async function renderAdmin(){
 }
 async function loadAdminStoreVisitorCounts(){
   try{
-    if(!profileData || !(profileData.is_admin===true || profileData.role==='admin')) return;
+    if(!(await sareeCheckAdmin())) return;
     const {data,error}=await supabaseClient.rpc('admin_store_visitor_counts');
     if(error || !Array.isArray(data)) return;
     data.forEach(row=>{const el=$('sv_'+row.store_id);if(el)el.textContent=f(row.visitor_count||0)});
@@ -622,7 +621,7 @@ function buildAllQRCodes(){if(typeof QRCode==='undefined')return;stores.forEach(
 function printStoreQR(id){const st=stores.find(x=>x.id===id);if(!st)return;const url=storeUrl(id);const w=window.open('','_blank');if(!w)return alert('اسمح بفتح النوافذ المنبثقة لطباعة QR.');const safeName=e(st.name),safeUrl=e(url);const html='<!doctype html><html dir=\"rtl\"><head><meta charset=\"utf-8\"><title>QR - '+safeName+'</title></head><body style=\"font-family:Arial;text-align:center;padding:30px\"><h2>'+safeName+'</h2><div id=\"qrprint\"></div><p>'+safeUrl+'</p><script src=\"https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js\"><\/script><script>new QRCode(document.getElementById(\"qrprint\"),{text:'+JSON.stringify(url)+',width:300,height:300,correctLevel:QRCode.CorrectLevel.H});setTimeout(function(){window.print();},800);<\/script></body></html>';w.document.open();w.document.write(html);w.document.close();}
 function requestHtml(r){return `<div class="priceRow"><b>${e(r.product_name||'طلب تعديل سعر')}</b><div class="muted">السعر: ${r.price_new!=null?f(r.price_new)+' ل.س جديدة':'—'}<br>النوع: ${e(r.request_type)}<br>أرسل: ${new Date(r.created_at).toLocaleString('ar')}</div><div class="actions"><button class="btn approve" onclick="approveRequest('${r.id}')">موافقة ونشر</button><button class="btn reject" onclick="rejectRequest('${r.id}')">رفض</button></div></div>`}
 async function approveRequest(id){
- if(!(await window.sareeRequireAdmin()))return;
+ if(!(await sareeCheckAdmin(true))) return alert('هذا الخيار للمدير فقط.');
  const r=requests.find(x=>x.id===id);if(!r)return;
  if(r.request_type==='product'){
   const {data,error}=await supabaseClient.from('products').insert({name:r.product_name,description:r.product_description,category:r.product_category,unit:r.product_unit,image_url:r.product_image_url,active:true,created_by:r.submitted_by}).select().single();
@@ -641,14 +640,14 @@ async function approveRequest(id){
  const {error}=await supabaseClient.from('change_requests').update({status:'approved',reviewed_by:profileData.id,reviewed_at:new Date().toISOString()}).eq('id',id);
  if(error)return alert(error.message);alert('تمت الموافقة والنشر.');await refreshAll();await renderAdmin();
 }
-async function rejectRequest(id){if(!(await window.sareeRequireAdmin()))return;const reason=prompt('سبب الرفض (اختياري):','');const {error}=await supabaseClient.from('change_requests').update({status:'rejected',reason,reviewed_by:profileData.id,reviewed_at:new Date().toISOString()}).eq('id',id);if(error)return alert(error.message);alert('تم رفض الطلب.');await renderAdmin()}
+async function rejectRequest(id){if(!(await sareeCheckAdmin(true))) return alert('هذا الخيار للمدير فقط.');const reason=prompt('سبب الرفض (اختياري):','');const {error}=await supabaseClient.from('change_requests').update({status:'rejected',reason,reviewed_by:profileData.id,reviewed_at:new Date().toISOString()}).eq('id',id);if(error)return alert(error.message);alert('تم رفض الطلب.');await renderAdmin()}
 async function adminAddStore(){
  const name=$('sn').value.trim();if(!name)return alert('اكتب اسم المتجر.');let image=null;try{image=await uploadImage($('simg').files[0],'stores')}catch(err){return alert(err.message)}
  const {error}=await supabaseClient.from('stores').insert({name,city:$('scity').value.trim(),area:$('sarea').value.trim(),address:$('saddr').value.trim(),phone:$('sphone').value.trim(),opening_hours:$('shours').value.trim(),working_days:$('sdays').value.trim(),image_url:image,whatsapp_url:$('swhatsapp').value.trim()||null,company_id:$('scompany')?.value||null,verified:true,active:true});
  if(error)return alert(error.message);alert('تمت إضافة المتجر.');await refreshAll();await renderAdmin();
 }
 async function saveUser(id){
- if(!(await window.sareeRequireAdmin()))return;
+ if(!(await sareeCheckAdmin(true))) return alert('هذا الخيار للمدير فقط.');
  const role='store';
  const store_id=$('store_'+id).value||null;
  const can_edit_prices=!!store_id && $('edit_'+id).checked;
@@ -658,7 +657,7 @@ async function saveUser(id){
  await renderAdmin();
 }
 async function saveRoleOnly(id){
- if(!(await window.sareeRequireAdmin()))return;
+ if(!(await sareeCheckAdmin(true))) return alert('هذا الخيار للمدير فقط.');
  const role=$('role_'+id).value;
  if(role==='store'){
    const {error}=await supabaseClient.from('profiles').update({role:'store',store_id:null,can_edit_prices:false}).eq('id',id);
@@ -671,7 +670,7 @@ async function saveRoleOnly(id){
 }
 supabaseClient.auth.onAuthStateChange((event)=>{
   if(event==='SIGNED_OUT'){
-    profileData=null;window.__SAREE_ADMIN_STATUS__=false;renderTopAccount();renderRoleActions();$('status').textContent=currentName()+' • زائر';
+    profileData=null;renderTopAccount();renderRoleActions();$('status').textContent=currentName()+' • زائر';
     show('home');
   }
   if(event==='SIGNED_IN') setTimeout(()=>loadProfile().catch(console.warn),0);
