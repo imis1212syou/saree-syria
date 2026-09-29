@@ -364,7 +364,7 @@
         if(existing){
           r=await supabaseClient.rpc('company_update_product',{p_id:existing.id,p_name:name,p_brand:$('cep_brand').value.trim()||null,p_unit:$('cep_unit').value.trim()||null,p_category:$('cep_category').value.trim()||null,p_category_id:null,p_barcode:$('cep_barcode').value.trim()||null,p_description:$('cep_desc').value.trim()||null,p_image_url:image,p_price_new:price,p_active:true});
         }else{
-          r=await supabaseClient.rpc('company_add_product',{p_name:name,p_brand:$('cep_brand').value.trim()||null,p_unit:$('cep_unit').value.trim()||null,p_category:$('cep_category').value.trim()||null,p_category_id:null,p_barcode:$('cep_barcode').value.trim()||null,p_description:$('cep_desc').value.trim()||null,p_image_url:image,p_price_new:price});
+          r=await supabaseClient.rpc('company_add_product',{p_company_id:window.companyContext.company_id,p_name:name,p_brand:$('cep_brand').value.trim()||null,p_unit:$('cep_unit').value.trim()||null,p_category:$('cep_category').value.trim()||null,p_category_id:null,p_barcode:$('cep_barcode').value.trim()||null,p_description:$('cep_desc').value.trim()||null,p_image_url:image,p_price_new:price,p_active:true});
         }
         if(r.error) throw r.error;
         modal.remove();
