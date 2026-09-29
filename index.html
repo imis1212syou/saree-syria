@@ -183,6 +183,7 @@
     👑 صلاحيات التجار
   </button><button type="button" class="btn" onclick="openAdminAds()">📢 إدارة الإعلانات</button><div class="hero"><h1>لوحة الإدارة والصلاحيات</h1><p id="role" class="muted"></p></div><div id="adminPanel"></div></section>
 <section id="merchant" class="page"><div class="hero"><h1>بوابة التاجر</h1><p id="merchantRole" class="muted"></p></div><div id="merchantPanel"></div></section>
+<section id="company" class="page"><div class="hero"><h1>بوابة الشركة</h1><p id="companyRole" class="muted"></p></div><div id="companyPanel"></div></section>
 </div>
 
 <nav class="nav"><div class="navin"><button onclick="openNav('home')">الرئيسية</button><button onclick="openNav('basket')">السلة</button><button onclick="openNav('favorites')">المفضلة</button><button id="navCompanies" onclick="openNav('companies')">الشركات</button><button onclick="openNav('stores')">المتاجر</button><button onclick="openNav('categories')">التصنيفات</button></div></nav>
@@ -297,9 +298,9 @@ async function scanBarcodeForStore(storeId){
 }
 function handleStoreDeepLink(){const id=new URLSearchParams(location.search).get('store');if(id){setTimeout(()=>{show('storeDetail');renderStoreDetail(id);},0);}}
 window.addEventListener('popstate',()=>{const id=new URLSearchParams(location.search).get('store');if(id){show('storeDetail');renderStoreDetail(id);}else{show('home');}});
-function renderTopAccount(){const b=$('topAccountBtn');if(!b)return;b.classList.remove('hidden');if(profileData&&(profileData.role==='store'||profileData.is_admin===true||profileData.role==='admin')){b.textContent='تسجيل الخروج';b.onclick=confirmLogout;}else{b.textContent='دخول الحساب';b.onclick=()=>show('login');}}
+function renderTopAccount(){const b=$('topAccountBtn');if(!b)return;b.classList.remove('hidden');if(profileData&&(profileData.role==='store'||profileData.role==='company'||profileData.is_admin===true||profileData.role==='admin')){b.textContent='تسجيل الخروج';b.onclick=confirmLogout;}else{b.textContent='دخول الحساب';b.onclick=()=>show('login');}}
 function renderRoleActions(){const box=$('roleActions');if(!box)return;box.innerHTML='';if(!profileData)return;if(profileData.is_admin===true||profileData.role==='admin'){box.innerHTML='<button class="btn primary" onclick="showAdd()">إضافة مادة أو سعر</button><button class="btn secondary" onclick="openPriceUpdate()">لوحة التحكم</button><button class="btn secondary" onclick="show(\'admin\');renderAdmin()">فتح لوحة المدير</button>';}else if(profileData.role==='store'){box.innerHTML='<button class="btn primary" onclick="showAdd()">تسجيل سعر جديد</button><button class="btn secondary" onclick="openPriceUpdate()">تحديث الأسعار</button>';}else if(profileData.role==='company'){box.innerHTML='<button class="btn primary" onclick="window.openCompanyDashboard?.()">لوحة شركتي</button><button class="btn secondary" onclick="show(\'companies\')">صفحة الشركات</button>';}}
-async function openPriceUpdate(){if(await sareeCheckAdmin()){show('admin');await renderAdmin();return;}if(profileData?.role==='store'){renderMerchant();return;}alert('هذه الميزة للحسابات المصرح لها فقط.');}
+async function openPriceUpdate(){if(await sareeCheckAdmin()){show('admin');await renderAdmin();return;}if(profileData?.role==='store'){renderMerchant();return;}if(profileData?.role==='company'){window.openCompanyDashboard?.();return;}alert('هذه الميزة للحسابات المصرح لها فقط.');}
 function openNav(id){
   if(new URLSearchParams(location.search).has('store')){
     history.replaceState({},'',window.location.pathname);
@@ -310,7 +311,7 @@ function openNav(id){
   if(id==='stores' && stores.length===0) $('storesList').innerHTML='<div class="card"><div class="name">المتاجر</div><div class="price">0</div><div class="muted">عدد المتاجر: صفر</div></div>';
   if(id==='categories' && !products.some(p=>p.category)) $('cats').innerHTML='<div class="card"><div class="name">التصنيفات</div><div class="price">0</div><div class="muted">عدد التصنيفات: صفر</div></div>';
 }
-async function goRole(){if(await sareeCheckAdmin()){show('admin');await renderAdmin();return;}if(profileData?.role==='store')show('merchant');else show('login')}
+async function goRole(){if(await sareeCheckAdmin()){show('admin');await renderAdmin();return;}if(profileData?.role==='store')show('merchant');else if(profileData?.role==='company')window.openCompanyDashboard?.();else show('login')}
 function enterVisitor(){const n=$('visitorName').value.trim();if(!n)return alert('اكتب اسمك أولاً');localStorage.setItem('visitor_name',n);profileData=null;sareeAdminStatus=null;window.__SAREE_ADMIN_STATUS__=false;renderTopAccount();renderRoleActions();$('status').textContent=n+' • زائر';show('home');refreshAll()}
 function currentName(){return localStorage.getItem('visitor_name')||'زائر'}
 function visitorId(){
@@ -375,22 +376,44 @@ async function forgotPassword(){
  const {error}=await supabaseClient.auth.resetPasswordForEmail(em,{redirectTo:location.origin+location.pathname});
  alert(error?'خطأ: '+error.message:'تم إرسال رابط إعادة تعيين كلمة السر إذا كان الحساب موجوداً.');
 }
-async function logout(){localStorage.removeItem('saree_remember_login');sessionStorage.removeItem('saree_explicit_login');try{await supabaseClient.auth.signOut()}catch(e){console.warn(e)}profileData=null;sareeAdminStatus=null;window.__SAREE_ADMIN_STATUS__=false;renderTopAccount();renderRoleActions();$('status').textContent=currentName()+' • زائر';show('home');await refreshAll()}
+async function logout(){localStorage.removeItem('saree_remember_login');sessionStorage.removeItem('saree_explicit_login');try{await supabaseClient.auth.signOut()}catch(e){console.warn(e)}profileData=null;window.companyContext=null;sareeAdminStatus=null;window.__SAREE_ADMIN_STATUS__=false;renderTopAccount();renderRoleActions();$('status').textContent=currentName()+' • زائر';show('home');await refreshAll()}
 async function loadProfile(){
   try{
     const {data:{user},error:authError}=await supabaseClient.auth.getUser();
     if(authError) throw authError;
     if(!user){profileData=null;$('status').textContent=currentName()+' • زائر';return false}
     const {data,error}=await supabaseClient.from('profiles')
-      .select('id,name,role,store_id,can_edit_prices,verified').eq('id',user.id).maybeSingle();
+      .select('id,name,role,store_id,company_id,can_edit_prices,verified').eq('id',user.id).maybeSingle();
     if(error) throw error;
     if(!data){profileData=null;$('status').textContent=(user.email||'حساب')+' • حساب غير مكتمل';show('home');return false}
+
+    // نوع الحساب الفعلي يُحسم من الربط الإداري نفسه: حساب شركة مرتبط في
+    // company_users لا يُعامل كتاجر حتى لو بقيت قيمة role القديمة = store.
+    let activeCompany=null;
+    try{
+      const cr=await supabaseClient.from('company_users').select('*,companies(*)').eq('user_id',user.id).eq('active',true).maybeSingle();
+      if(cr.error) throw cr.error;
+      activeCompany=cr.data||null;
+    }catch(companyErr){
+      console.warn('company account lookup:',companyErr);
+    }
+
     const adminOk=await sareeCheckAdmin(true);
     profileData={...data,email:user.email||'',is_admin:adminOk};
-    if(adminOk) profileData.role='admin';
+    window.companyContext=activeCompany||null;
+    if(adminOk){
+      profileData.role='admin';
+    }else if(activeCompany?.company_id){
+      profileData.role='company';
+      profileData.company_id=activeCompany.company_id;
+      profileData.store_id=null;
+      profileData.can_edit_prices=false;
+      window.companyContext=activeCompany;
+    }
     $('status').textContent=(data.name||user.email||'حساب');
     renderTopAccount();renderRoleActions();
     if(adminOk) await renderAdmin();
+    else if(profileData.role==='company') show('home');
     else if(data.role==='store') await renderMerchant();
     else show('home');
     renderTopAccount();renderRoleActions();

@@ -620,6 +620,14 @@
 
   window.saveMerchantPermission = async function(merchantId){
     if(!isAdmin()) return alert('المدير فقط يستطيع تغيير الصلاحيات.');
+    // حسابات الشركات منفصلة عن التجار ولا يجوز ربطها بمتجر من قسم التجار.
+    try{
+      const linked=await supabaseClient.from('company_users').select('id,company_id').eq('user_id',merchantId).eq('active',true).maybeSingle();
+      if(linked.error) throw linked.error;
+      if(linked.data) return alert('هذا الحساب مرتبط بشركة. استخدم قسم «الشركات وربط أصحاب الشركات» ولا تربطه بمتجر.');
+    }catch(err){
+      return alert('تعذر التحقق من نوع الحساب: '+(err.message||err));
+    }
     const checked=document.querySelector(`input[name="merchant-store-${CSS.escape(merchantId)}"]:checked`);
     const permission=$('merchantPermission_'+merchantId);
     const storeId=checked?.value||null;
@@ -867,19 +875,21 @@
     if(!isAdmin()) return;
     window.show('admin');
     $('role').textContent='لوحة تحكم المدير: إدارة الطلبات والمتاجر والتجار والصلاحيات والإحصاءات.';
-    const [rq,pr,st,us,co]=await Promise.all([
+    const [rq,pr,st,us,co,cu]=await Promise.all([
       supabaseClient.from('change_requests').select('*').eq('status','pending').order('created_at',{ascending:false}),
       supabaseClient.from('products').select('*').order('name'),
       supabaseClient.from('stores').select('*,companies(id,name)').order('name'),
-      supabaseClient.from('profiles').select('id,name,role,store_id,can_edit_prices,verified').order('created_at',{ascending:false}),
-      supabaseClient.from('companies').select('*').order('name')
+      supabaseClient.from('profiles').select('id,name,role,store_id,company_id,can_edit_prices,verified').order('created_at',{ascending:false}),
+      supabaseClient.from('companies').select('*').order('name'),
+      supabaseClient.from('company_users').select('user_id').eq('active',true)
     ]);
-    const error=rq.error||pr.error||st.error||us.error||co.error;
+    const error=rq.error||pr.error||st.error||us.error||co.error||cu.error;
     if(error){ $('adminPanel').innerHTML=`<div class="card dangerbox">خطأ: ${esc(error.message)}</div>`; return; }
     requests=rq.data||[]; products=pr.data||products||[]; stores=st.data||stores||[];
     const users=us.data||[];
     const companies=co.data||[];
-    const merchants=users.filter(u=>u.role==='store'&&u.id!==ADMIN_UID);
+    const linkedCompanyUserIds=new Set((cu.data||[]).map(x=>String(x.user_id)));
+    const merchants=users.filter(u=>u.role==='store'&&u.id!==ADMIN_UID&&!linkedCompanyUserIds.has(String(u.id)));
     const pending=requests.length ? requests.map(r=>`<div class="priceRow"><div class="accordionHead" data-toggle-id="req_${esc(r.id)}"><b>${esc(r.product_name||'طلب تعديل سعر')}</b><span>▾</span></div><div id="req_${esc(r.id)}" class="accordionBody hidden"><div class="muted">${r.price_new!=null?fmt(r.price_new)+' ل.س جديدة':''}<br>${r.created_at?esc(new Date(r.created_at).toLocaleString('ar')):''}</div><div class="actions"><button class="btn approve" onclick="approveRequest('${esc(r.id)}')">موافقة ونشر</button><button class="btn reject" onclick="rejectRequest('${esc(r.id)}')">رفض</button></div></div></div>`).join('') : '<p class="muted">لا توجد طلبات معلقة.</p>';
     const merchantHtml=merchants.length ? merchants.map(u=>{
       const current=(stores||[]).find(s=>String(s.id)===String(u.store_id));

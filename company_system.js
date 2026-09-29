@@ -213,14 +213,26 @@
   window.show=function(id){
     if(id==='companies'){ensureCompanyPage();showPage('companies');renderCompaniesPage();return}
     if(id==='companyDetail'){showPage(id);return}
+    if((id==='merchant'||id==='admin') && role()==='company'){ensureCompanyContext();return}
+    if(id==='company'){ensureCompanyContext();return}
     return oldShow(id);
   };
 
-  function companyDashboardHost(){return $('adminPanel')}
-  async function getCompanyContext(){
-    if(role()!=='company')return null;
-    const {data,error}=await supabaseClient.from('company_users').select('*,companies(*)').eq('user_id',profileData.id).eq('active',true).maybeSingle();
-    if(error)throw error;return data;
+  function companyDashboardHost(){return $('companyPanel')}
+
+  async function getCompanyContext(userId){
+    const uid=userId||profileData?.id;
+    if(!uid)return null;
+    const {data,error}=await supabaseClient.from('company_users').select('*,companies(*)').eq('user_id',uid).eq('active',true).maybeSingle();
+    if(error)throw error;return data||null;
+  }
+
+  function renderCompanyPending(){
+    const host=companyDashboardHost();
+    if(!host)return;
+    showPage('company');
+    if($('companyRole')) $('companyRole').textContent='هذا حساب شركة مستقل عن حسابات التجار.';
+    host.innerHTML=`<div class="card"><h2>حساب شركة غير مرتبط بعد</h2><p class="muted">تم التعرف على هذا الحساب كحساب شركة، لكن لم يتم ربطه بشركة وتفعيل صلاحياته من المدير بعد.</p><div class="notice pending">لا يمكن استخدام صلاحيات المتاجر أو التاجر من هذا الحساب.</div><div class="actions"><button type="button" class="btn secondary" onclick="show('companies')">صفحة الشركات</button><button type="button" class="btn secondary" onclick="logout()">تسجيل الخروج</button></div></div>`;
   }
 
   async function ensureCompanyContext(){
@@ -230,7 +242,19 @@
       if(String(user.user_metadata?.account_type||'').toLowerCase()==='company'){
         try{await supabaseClient.rpc('request_company_account',{p_requested_name:user.user_metadata?.name||profileData?.name||null})}catch(_){ }
       }
-      const ctx=await getCompanyContext();if(ctx){currentCompany=ctx.companies;window.companyContext=ctx;renderCompanyDashboard(ctx);}
+      const ctx=await getCompanyContext(user.id);
+      if(ctx){
+        if(!window.__SAREE_ADMIN_STATUS__){
+          profileData.role='company';
+          profileData.company_id=ctx.company_id;
+          profileData.store_id=null;
+          profileData.can_edit_prices=false;
+        }
+        currentCompany=ctx.companies;window.companyContext=ctx;renderCompanyDashboard(ctx);
+      }else if(role()==='company' && !window.__SAREE_ADMIN_STATUS__){
+        window.companyContext=null;
+        renderCompanyPending();
+      }
     }catch(err){console.warn('company context:',err)}
   }
 
@@ -258,8 +282,9 @@
 
   function renderCompanyDashboard(ctx){
     if(!ctx||!ctx.companies)return;
-    showPage('admin');
+    showPage('company');
     const host=companyDashboardHost();if(!host)return;
+    if($('companyRole')) $('companyRole').textContent=`الشركة المرتبطة: ${ctx.companies.name||'شركة'}.`;
     const c=ctx.companies;
     host.innerHTML=`<div class="hero"><h1>لوحة شركة ${esc(c.name)}</h1><p class="muted">الصلاحيات التي منحها لك المدير هي التي تحدد ما يمكنك فعله.</p><div class="actions"><button class="btn secondary" onclick="window.openCompanyById('${attr(c.id)}')">فتح صفحة الشركة العامة</button><button class="btn secondary" onclick="window.printCompanyQR('${attr(c.id)}')">طباعة QR الشركة</button><button class="btn secondary" onclick="logout()">تسجيل الخروج</button></div><div class="company-qr-card"><div><b>QR خاص بالشركة</b><div class="muted">هذا الرمز يفتح صفحة الشركة العامة مباشرة.</div></div><div id="companyDashboardQrBox" class="company-qr-box"></div></div></div><div class="grid"><div class="stat"><b id="companyProductCount">0</b> منتجات</div><div class="stat"><b id="companyCategoryCount">0</b> تصنيفات</div><div class="stat"><b id="companyVisitorCount">—</b> إجمالي زيارات الشركة</div><div class="stat"><b>${ctx.active?'مفعّل':'موقوف'}</b> الحساب</div></div><div class="card"><h2>صلاحيات الحساب</h2><div class="company-perms"><div class="stat">إضافة المنتجات: <b>${ctx.can_manage_products?'مفعلة':'موقوفة'}</b></div><div class="stat">تعديل المنتجات والأسعار: <b>${(ctx.can_edit_products||ctx.can_edit_prices)?'مفعلة':'موقوفة'}</b></div><div class="stat">حذف المنتجات: <b>${ctx.can_delete_products?'مفعلة':'موقوفة'}</b></div><div class="stat">التصنيفات: <b>${ctx.can_manage_categories?'مفعلة':'موقوفة'}</b></div><div class="stat">الإعدادات: <b>${ctx.can_manage_settings?'مفعلة':'موقوفة'}</b></div><div class="stat">الطلبات: <b>${ctx.can_view_orders?'مفعلة':'موقوفة'}</b></div><div class="stat">الإحصائيات: <b>${ctx.can_view_stats?'مفعلة':'موقوفة'}</b></div></div></div><div class="card"><h2>إدارة المنتجات</h2><p class="muted">السعر اختياري. يمكن حفظ المادة بباركود فقط ثم ستظهر للزوار داخل صفحة الشركة.</p><div class="actions"><button class="btn primary ${ctx.can_manage_products?'':'company-disabled'}" onclick="window.companyAddProduct()">إضافة مادة</button><button class="btn secondary" onclick="window.openCompanyById('${attr(c.id)}')">معاينة المنتجات</button></div><div id="companyDashboardProducts" style="margin-top:12px"></div></div><div class="card"><h2>تصنيفات الشركة</h2><div class="two"><input id="companyCategoryName" placeholder="اسم التصنيف"><button class="btn primary ${ctx.can_manage_categories?'':'company-disabled'}" id="companyAddCategoryBtn">إضافة تصنيف</button></div><div id="companyDashboardCategories" style="margin-top:12px"></div></div>`;
     if(typeof QRCode!=='undefined'){
