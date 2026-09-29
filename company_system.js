@@ -35,6 +35,8 @@
       .company-qr-box{width:180px;min-height:180px;padding:10px;background:#fff;border-radius:14px;display:flex;align-items:center;justify-content:center}
       .company-qr-box img,.company-qr-box canvas{max-width:160px;height:auto}
       .company-disabled{opacity:.55;pointer-events:none}
+      .company-admin-product-row{border:1px solid #263137;border-radius:12px;padding:10px;margin-top:8px}
+      .company-admin-product-row .muted{font-size:13px}
       @media(max-width:650px){.company-grid,.company-perms{grid-template-columns:1fr}.company-qr-card{flex-direction:column;align-items:stretch}.company-qr-box{margin:auto}}
     `;document.head.appendChild(s);
   }
@@ -441,7 +443,7 @@
       <div class="company-account-row">
         <h3 style="margin-top:0">🏢 إدارة الشركات</h3>
         <div class="actions"><button type="button" class="btn primary" onclick="window.openAdminCompanyCreate?.()">إضافة شركة</button></div>
-        <div id="companyPublicAdminList" style="margin-top:12px">${companies.length?companies.map(c=>`<div class="company-account-row"><div class="row" style="justify-content:space-between;align-items:center"><div><b>${esc(c.name||'شركة')}</b> ${c.verified?'<span class="pill">✓ موثقة</span>':'<span class="pill">غير موثقة</span>'}<div class="muted">${esc(c.phone||'')} ${c.address?'• '+esc(c.address):''}</div></div><div id="companyQrAdmin_${attr(c.id)}" class="company-qr-box"></div></div><div class="actions"><button class="btn secondary" type="button" onclick="window.openCompanyById('${attr(c.id)}')">فتح الشركة</button><button class="btn secondary" type="button" onclick="window.printCompanyQR('${attr(c.id)}')">طباعة QR</button><button class="btn primary" type="button" onclick="window.openAdminCompanyEdit?.('${attr(c.id)}')">تعديل الشركة</button><button class="btn secondary" type="button" onclick="window.toggleAdminCompanyVerification?.('${attr(c.id)}')">${c.verified?'إلغاء التوثيق':'توثيق الشركة'}</button><button class="btn danger" type="button" onclick="window.deleteAdminCompany?.('${attr(c.id)}')">حذف الشركة</button></div><div class="muted" id="companyVisit_${attr(c.id)}">إجمالي زيارات الشركة: —</div></div>`).join(''):'<div class="muted">لا توجد شركات مسجلة.</div>'}</div>
+        <div id="companyPublicAdminList" style="margin-top:12px">${companies.length?companies.map(c=>`<div class="company-account-row"><div class="row" style="justify-content:space-between;align-items:center"><div><b>${esc(c.name||'شركة')}</b> ${c.verified?'<span class="pill">✓ موثقة</span>':'<span class="pill">غير موثقة</span>'}<div class="muted">${esc(c.phone||'')} ${c.address?'• '+esc(c.address):''}</div></div><div id="companyQrAdmin_${attr(c.id)}" class="company-qr-box"></div></div><div class="actions"><button class="btn secondary" type="button" onclick="window.openCompanyById('${attr(c.id)}')">فتح الشركة</button><button class="btn primary" type="button" onclick="window.adminManageCompanyProducts?.('${attr(c.id)}')">إدارة مواد الشركة</button><button class="btn secondary" type="button" onclick="window.printCompanyQR('${attr(c.id)}')">طباعة QR</button><button class="btn primary" type="button" onclick="window.openAdminCompanyEdit?.('${attr(c.id)}')">تعديل الشركة</button><button class="btn secondary" type="button" onclick="window.toggleAdminCompanyVerification?.('${attr(c.id)}')">${c.verified?'إلغاء التوثيق':'توثيق الشركة'}</button><button class="btn danger" type="button" onclick="window.deleteAdminCompany?.('${attr(c.id)}')">حذف الشركة</button></div><div class="muted" id="companyVisit_${attr(c.id)}">إجمالي زيارات الشركة: —</div></div>`).join(''):'<div class="muted">لا توجد شركات مسجلة.</div>'}</div>
       </div>`;
 
     $('directCompanySave').onclick=async()=>{
@@ -450,23 +452,35 @@
       if(!email||!companyId)return alert('أدخل بريد صاحب الشركة واختر الشركة.');
       const msg=$('directCompanyMsg'); msg.textContent='جاري الحفظ...';
       try{
-        const r=await supabaseClient.rpc('admin_link_company_user_by_email',{
-          p_email:email,
-          p_company_id:companyId,
-          p_can_manage_products:!!$('direct_manage').checked,
-          p_can_manage_categories:!!$('direct_cat').checked,
-          p_can_edit_prices:!!$('direct_edit').checked,
-          p_can_delete_products:!!$('direct_delete').checked,
-          p_can_manage_settings:!!$('direct_settings').checked,
-          p_can_view_orders:!!$('direct_orders').checked,
-          p_can_view_stats:!!$('direct_stats').checked
-        });
-        if(r.error)throw r.error;
-        const uid=r.data?.user_id;
-        if(uid){
-          const pr=await supabaseClient.from('profiles').update({role:'company',company_id:companyId,store_id:null,can_edit_prices:false,verified:true}).eq('id',uid);
-          if(pr.error) throw pr.error;
+        // لا نعتمد هنا على اسم/توقيع دالة RPC القديمة؛ يتم الربط مباشرة من لوحة المدير.
+        const prFind=await supabaseClient.from('profiles').select('id,email').ilike('email',email).limit(1).maybeSingle();
+        if(prFind.error)throw prFind.error;
+        if(!prFind.data?.id)throw new Error('لم يتم العثور على حساب بهذا البريد.');
+        const uid=prFind.data.id;
+        const payload={
+          user_id:uid,
+          company_id:companyId,
+          active:true,
+          can_manage_products:!!$('direct_manage').checked,
+          can_manage_categories:!!$('direct_cat').checked,
+          can_edit_prices:!!$('direct_edit').checked,
+          can_delete_products:!!$('direct_delete').checked,
+          can_manage_settings:!!$('direct_settings').checked,
+          can_view_orders:!!$('direct_orders').checked,
+          can_view_stats:!!$('direct_stats').checked,
+          updated_at:new Date().toISOString()
+        };
+        const cu=await supabaseClient.from('company_users').select('id').eq('user_id',uid).limit(1).maybeSingle();
+        if(cu.error)throw cu.error;
+        let save;
+        if(cu.data?.id){
+          save=await supabaseClient.from('company_users').update(payload).eq('id',cu.data.id).select('id').maybeSingle();
+        }else{
+          save=await supabaseClient.from('company_users').insert(payload).select('id').single();
         }
+        if(save.error)throw save.error;
+        const profileUpdate=await supabaseClient.from('profiles').update({role:'company',company_id:companyId,store_id:null,verified:true}).eq('id',uid);
+        if(profileUpdate.error)throw profileUpdate.error;
         msg.textContent='تم ربط الحساب بالشركة وتفعيل الصلاحيات المحددة ✅';
         await renderAdminCompanyBox();
       }catch(err){ msg.textContent='تعذر الربط: '+(err.message||err); }
@@ -484,6 +498,97 @@
       }catch(_){}
     }
   }
+
+  function adminCompanyProductModalHtml(company,products){
+    const rows=products.length?products.map(p=>`<div class="company-admin-product-row" data-admin-company-product="${attr(p.id)}"><div class="row" style="justify-content:space-between;gap:10px"><div><b>${esc(p.name||'مادة')}</b><div class="muted">${esc(p.barcode||'بدون باركود')} • ${p.price_new==null?'بدون سعر':money(p.price_new)+' ل.س'}${p.category?` • ${esc(p.category)}`:''}</div></div><span class="pill">${p.active===false?'مخفي':'نشط'}</span></div><div class="actions"><button class="btn secondary" type="button" onclick="window.adminEditCompanyProduct?.('${attr(company.id)}','${attr(p.id)}')">تعديل</button><button class="btn danger" type="button" onclick="window.adminDeleteCompanyProduct?.('${attr(company.id)}','${attr(p.id)}')">حذف</button></div></div>`).join(''):'<div class="muted">لا توجد مواد لهذه الشركة.</div>';
+    return `<div id="adminCompanyProductList">${rows}</div>`;
+  }
+
+  async function adminGetCompanyProducts(companyId){
+    const r=await supabaseClient.from('company_products').select('*').eq('company_id',companyId).order('created_at',{ascending:false});
+    if(r.error)throw r.error;
+    return r.data||[];
+  }
+
+  async function adminReloadCompanyProducts(companyId,company){
+    const host=$('adminCompanyProductListWrap'); if(!host)return;
+    try{
+      const products=await adminGetCompanyProducts(companyId);
+      host.innerHTML=adminCompanyProductModalHtml(company,products);
+    }catch(err){host.innerHTML=`<div class="muted">تعذر تحميل المواد: ${esc(err.message||err)}</div>`;}
+  }
+
+  window.adminManageCompanyProducts=async function(companyId){
+    if(role()!=='admin')return alert('المدير فقط يستطيع إدارة مواد الشركات.');
+    const cr=await supabaseClient.from('companies').select('*').eq('id',companyId).maybeSingle();
+    if(cr.error)return alert(cr.error.message);
+    const company=cr.data;if(!company)return alert('الشركة غير موجودة.');
+    const modal=document.createElement('div');
+    modal.id='adminCompanyProductModal';modal.className='company-modal';
+    modal.innerHTML=`<div class="company-modal-inner">
+      <div class="row" style="justify-content:space-between;align-items:center;gap:10px"><div><h2 style="margin:0">إدارة مواد الشركة</h2><div class="muted">${esc(company.name||'شركة')}</div></div><button type="button" class="btn secondary" id="adminCompanyProductClose">×</button></div>
+      <div class="actions" style="margin-top:12px"><button type="button" class="btn primary" id="adminCompanyProductAdd">+ إضافة مادة</button></div>
+      <div id="adminCompanyProductListWrap" style="margin-top:10px"></div>
+    </div>`;
+    document.body.appendChild(modal);
+    $('adminCompanyProductClose').onclick=()=>modal.remove();
+    $('adminCompanyProductAdd').onclick=()=>window.adminEditCompanyProduct(companyId,null,company);
+    await adminReloadCompanyProducts(companyId,company);
+  };
+
+  window.adminEditCompanyProduct=async function(companyId,productId,companyArg){
+    if(role()!=='admin')return alert('المدير فقط يستطيع إضافة أو تعديل مواد الشركات.');
+    let company=companyArg;
+    if(!company){
+      const cr=await supabaseClient.from('companies').select('*').eq('id',companyId).maybeSingle();
+      if(cr.error)return alert(cr.error.message); company=cr.data;
+    }
+    if(!company)return alert('الشركة غير موجودة.');
+    let existing=null;
+    if(productId){
+      const r=await supabaseClient.from('company_products').select('*').eq('id',productId).eq('company_id',companyId).maybeSingle();
+      if(r.error)return alert(r.error.message); existing=r.data;
+      if(!existing)return alert('المادة غير موجودة.');
+    }
+    const modal=document.createElement('div');modal.id='adminCompanyProductEditor';modal.className='company-modal';
+    const p=existing||{};
+    modal.innerHTML=`<div class="company-modal-inner">
+      <div class="row" style="justify-content:space-between;align-items:center"><h2 style="margin:0">${existing?'تعديل مادة':'إضافة مادة'} — ${esc(company.name||'شركة')}</h2><button type="button" class="btn secondary" id="adminCepClose">×</button></div>
+      <div class="two" style="margin-top:12px"><input id="admin_cep_name" value="${attr(p.name||'')}" placeholder="اسم المادة"><input id="admin_cep_brand" value="${attr(p.brand||'')}" placeholder="العلامة التجارية (اختياري)"><input id="admin_cep_unit" value="${attr(p.unit||'')}" placeholder="الوزن / الحجم"><input id="admin_cep_category" value="${attr(p.category||'')}" placeholder="التصنيف"><input id="admin_cep_barcode" value="${attr(p.barcode||'')}" placeholder="الباركود"><input id="admin_cep_price" value="${p.price_new==null?'':attr(p.price_new)}" type="number" min="0" step="0.01" placeholder="السعر — اختياري"><input id="admin_cep_image" type="file" accept="image/*"></div>
+      <textarea id="admin_cep_desc" style="width:100%;min-height:95px;margin-top:10px;background:#0d1418;color:#fff;border:1px solid #303b40;border-radius:10px;padding:12px" placeholder="وصف المادة (اختياري)">${esc(p.description||'')}</textarea>
+      <label class="muted" style="display:block;margin-top:10px"><input id="admin_cep_active" type="checkbox" ${p.active!==false?'checked':''}> المادة نشطة</label>
+      <p id="admin_cep_msg" class="muted"></p><div class="actions"><button type="button" class="btn primary" id="admin_cep_save">حفظ</button><button type="button" class="btn secondary" id="admin_cep_cancel">إلغاء</button></div>
+    </div>`;
+    document.body.appendChild(modal);
+    $('adminCepClose').onclick=()=>modal.remove();$('admin_cep_cancel').onclick=()=>modal.remove();
+    $('admin_cep_save').onclick=async()=>{
+      const msg=$('admin_cep_msg');msg.textContent='جاري الحفظ...';
+      try{
+        const name=$('admin_cep_name').value.trim();if(!name)throw new Error('اسم المادة مطلوب.');
+        const rawPrice=$('admin_cep_price').value.trim();const price=rawPrice===''?null:Number(rawPrice);if(price!==null&&(!Number.isFinite(price)||price<0))throw new Error('السعر غير صالح.');
+        let imageUrl=p.image_url||null;const f=$('admin_cep_image').files?.[0];if(f&&window.uploadImage)imageUrl=await window.uploadImage(f,'company-products');
+        const payload={name,brand:$('admin_cep_brand').value.trim()||null,unit:$('admin_cep_unit').value.trim()||null,category:$('admin_cep_category').value.trim()||null,category_id:null,barcode:$('admin_cep_barcode').value.trim()||null,description:$('admin_cep_desc').value.trim()||null,image_url:imageUrl,price_new:price,active:!!$('admin_cep_active').checked};
+        let r;
+        if(existing) r=await supabaseClient.from('company_products').update(payload).eq('id',existing.id).eq('company_id',companyId).select('id').maybeSingle();
+        else r=await supabaseClient.from('company_products').insert({...payload,company_id:companyId}).select('id').single();
+        if(r.error)throw r.error;
+        modal.remove();
+        const manager=$('adminCompanyProductModal');
+        if(manager){const cc=await supabaseClient.from('companies').select('*').eq('id',companyId).maybeSingle();await adminReloadCompanyProducts(companyId,cc.data||company);}
+        alert(existing?'تم تعديل مادة الشركة بنجاح ✅':'تمت إضافة مادة للشركة بنجاح ✅');
+      }catch(err){msg.textContent='تعذر الحفظ: '+(err.message||err);}
+    };
+  };
+
+  window.adminDeleteCompanyProduct=async function(companyId,productId){
+    if(role()!=='admin')return alert('المدير فقط يستطيع حذف مواد الشركات.');
+    if(!confirm('حذف هذه المادة من الشركة؟'))return;
+    const r=await supabaseClient.from('company_products').delete().eq('id',productId).eq('company_id',companyId);
+    if(r.error)return alert('تعذر حذف المادة: '+r.error.message);
+    const manager=$('adminCompanyProductModal');
+    if(manager){const c=await supabaseClient.from('companies').select('*').eq('id',companyId).maybeSingle();await adminReloadCompanyProducts(companyId,c.data);}
+    alert('تم حذف المادة ✅');
+  };
 
   window.adminSaveCompanyPermissions=async function(companyUserId){
     if(role()!=='admin')return alert('المدير فقط.');
