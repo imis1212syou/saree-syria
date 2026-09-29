@@ -13,7 +13,6 @@
   const canManageStore = storeId => isAdmin() || (
     role() === 'store' &&
     !!profileData?.store_id &&
-    profileData?.can_edit_prices === true &&
     String(profileData.store_id) === String(storeId)
   );
   const userStoreId = () => profileData?.store_id || null;
@@ -369,15 +368,15 @@
       $('addSubmitBtn').textContent='إضافة ونشر';
       return;
     }
-    if(role()!=='store' || !profileData.store_id || profileData.can_edit_prices!==true){
-      return alert('حسابك غير مصرح له حالياً. يجب أن يربطك المدير بمتجر ويفعّل صلاحية الأسعار والمواد.');
+    if(role()!=='store' || !profileData.store_id){
+      return alert('الحساب غير مرتبط بمتجر بعد.');
     }
     const st=(stores||[]).find(s=>String(s.id)===String(profileData.store_id));
     window.__editingMaterial = null;
     window.show('add');
     $('merchantStoreBox').innerHTML=`<div class="notice">المتجر المرتبط: <b>${esc(st?.name||'غير ظاهر')}</b></div>`;
     $('addHeading').textContent='إضافة مادة أو سعر';
-    $('addSubmitBtn').textContent='إرسال للمراجعة';
+    $('addSubmitBtn').textContent='إضافة ونشر';
   };
 
   window.editStoreMaterial = async function(listingId,storeId){
@@ -471,7 +470,7 @@
 
     let storeId=null;
     if(isAdmin()) storeId=$('merchantStoreSelect')?.value||null;
-    else if(role()==='store' && profileData.store_id && profileData.can_edit_prices===true) storeId=profileData.store_id;
+    else if(role()==='store' && profileData.store_id) storeId=profileData.store_id;
     if(!storeId) return alert('اختر المتجر أولاً.');
     if(!selected&&!n) return alert('اكتب اسم المادة الجديدة.');
 
@@ -518,6 +517,35 @@
       }
 
       const user=await ensureCurrentUser();
+      if(role()==='store'){
+        if(!storeId) return alert('الحساب غير مرتبط بمتجر بعد.');
+        let finalProductId=productId;
+        if(!finalProductId){
+          if(barcode && await storeBarcodeExists(storeId,barcode,null)) return alert('هذا الباركود مستخدم بالفعل داخل هذا المتجر.');
+          const {data:p,error}=await supabaseClient.from('products').insert({
+            name:n,brand:brand||null,unit:unit||null,category,barcode:barcode||null,image_url:imageUrl,active:true,created_by:user.id
+          }).select().single();
+          if(error) throw error;
+          finalProductId=p.id;
+        }
+        const {data:existing,error:existingError}=await supabaseClient.from('price_listings').select('id').eq('product_id',finalProductId).eq('store_id',storeId).maybeSingle();
+        if(existingError) throw existingError;
+        const pricePayload={price_new:v,price:v,approved:true,submitted_by:user.id,approved_by:user.id,updated_at:new Date().toISOString()};
+        if(existing){
+          const {error}=await supabaseClient.from('price_listings').update(pricePayload).eq('id',existing.id).eq('store_id',storeId);
+          if(error) throw error;
+        }else{
+          const {error}=await supabaseClient.from('price_listings').insert({product_id:finalProductId,store_id:storeId,...pricePayload});
+          if(error) throw error;
+        }
+        $('addMsg').textContent='تمت إضافة المادة والسعر ونشرهما مباشرة ✅';
+        resetMaterialForm();
+        // يبقى في شاشة الإضافة جاهزاً لمادة جديدة بعد تحديث البيانات.
+        showAdd();
+        await window.refreshAll?.();
+        return;
+      }
+
       const payload={request_type:productId?'price':'product',product_id:productId,store_id:storeId,price_new:v,product_name:productId?null:n,product_description:null,product_category:category,product_unit:unit,product_image_url:imageUrl,submitted_by:user.id,status:'pending'};
       const reqError=await insertChangeRequest(payload,productId?null:barcode);
       if(reqError) throw reqError;
@@ -536,21 +564,21 @@
     if(role()!=='store') return;
     window.show('merchant');
     const st=(stores||[]).find(s=>String(s.id)===String(userStoreId()));
-    const can=!!profileData.store_id && profileData.can_edit_prices===true;
+    const can=!!profileData.store_id;
     let reqs=[],error=null;
     if(profileData.id){
       const q=await supabaseClient.from('change_requests').select('*').eq('submitted_by',profileData.id).order('created_at',{ascending:false});
       reqs=q.data||[]; error=q.error;
     }
-    $('merchantRole').textContent = st ? `المتجر المرتبط: ${st.name}.` : 'الحساب غير مرتبط بمتجر بعد.';
+    $('merchantRole').textContent = st ? `المتجر المرتبط: ${st.name}. لديك صلاحية كاملة لإدارة متجرك ونشر التعديلات مباشرة.` : 'الحساب غير مرتبط بمتجر بعد.';
     $('merchantPanel').innerHTML=`
       <div class="card">
         ${st?.image_url ? `<img class="img storeLogo" src="${esc(st.image_url)}" alt="${esc(st.name)}">` : ''}
         <div class="name">${esc(st?.name||'لا يوجد متجر مرتبط')}</div>
-        <div class="notice ${can?'':'pending'}">${can?'الصلاحية مفعّلة لإدارة مواد وأسعار متجرك فقط.':'الصلاحية غير مفعّلة. المدير هو من يربط المتجر ويفعّل الصلاحية.'}</div>
+        <div class="notice ${can?'':'pending'}">${can?'صلاحية كاملة لإدارة متجرك ومواده وأسعاره والنشر المباشر.':'الحساب غير مرتبط بمتجر بعد.'}</div>
         ${st ? `<div class="card" style="margin-top:10px"><div class="name" id="merchantVisitorCount">—</div><div class="muted">إجمالي زيارات المتجر</div></div>` : ''}
         <div class="actions">
-          ${st ? `<button type="button" class="btn primary" onclick="openStore('${esc(st.id)}')">فتح متجري</button>` : ''}
+          ${st ? `<button type="button" class="btn primary" onclick="openStore('${esc(st.id)}')">فتح متجري</button><button type="button" class="btn secondary" onclick="openMerchantStoreEdit('${esc(st.id)}')">تعديل بيانات المتجر</button>` : ''}
           <button type="button" class="btn primary" ${can?'':'disabled'} onclick="showAdd()">إضافة مادة / سعر</button>
           <button type="button" class="btn secondary" onclick="logout()">تسجيل الخروج</button>
         </div>
@@ -629,15 +657,18 @@
       return alert('تعذر التحقق من نوع الحساب: '+(err.message||err));
     }
     const checked=document.querySelector(`input[name="merchant-store-${CSS.escape(merchantId)}"]:checked`);
-    const permission=$('merchantPermission_'+merchantId);
     const storeId=checked?.value||null;
-    const canEdit=!!storeId && !!permission?.checked;
     try{
-      const {error}=await supabaseClient.from('profiles').update({role:'store',store_id:storeId,can_edit_prices:canEdit}).eq('id',merchantId);
+      if(storeId){
+        // ربط التاجر بمتجره يعني تفعيل متجره وصلاحياته فوراً؛ لا توجد موافقة إضافية أو صلاحية منفصلة.
+        const {error:storeError}=await supabaseClient.from('stores').update({active:true,verified:true}).eq('id',storeId);
+        if(storeError) throw storeError;
+      }
+      const {error}=await supabaseClient.from('profiles').update({role:'store',store_id:storeId,can_edit_prices:!!storeId,verified:!!storeId}).eq('id',merchantId);
       if(error) throw error;
-      alert(storeId ? (canEdit?'تم ربط التاجر وتفعيل صلاحية الأسعار والمواد ✅':'تم ربط التاجر مع إبقاء الصلاحية متوقفة.') : 'تم فك ربط التاجر وإيقاف الصلاحية.');
+      alert(storeId ? 'تم ربط التاجر بالمتجر وتفعيل كامل الصلاحيات والنشر المباشر فوراً ✅' : 'تم فك ربط التاجر.');
       await window.renderAdmin();
-    }catch(err){ alert('تعذر حفظ الصلاحيات: '+(err.message||'خطأ غير معروف')); }
+    }catch(err){ alert('تعذر حفظ الربط: '+(err.message||'خطأ غير معروف')); }
   };
 
   window.saveUser = window.saveUser || (async()=>{});
@@ -894,7 +925,7 @@
     const merchantHtml=merchants.length ? merchants.map(u=>{
       const current=(stores||[]).find(s=>String(s.id)===String(u.store_id));
       return `<div class="priceRow merchantAdminItem">
-        <div class="accordionHead" data-toggle-id="merchant_${esc(u.id)}"><div><b>${esc(u.name||'تاجر')}</b><div class="muted">${current?`مرتبط بـ ${esc(current.name)}`:'غير مرتبط بمتجر'} • ${u.can_edit_prices?'الصلاحية مفعّلة':'الصلاحية متوقفة'}</div></div><span>▾</span></div>
+        <div class="accordionHead" data-toggle-id="merchant_${esc(u.id)}"><div><b>${esc(u.name||'تاجر')}</b><div class="muted">${current?`مرتبط بـ ${esc(current.name)}`:'غير مرتبط بمتجر'} • ${current?'صلاحية كاملة':'بدون متجر'}</div></div><span>▾</span></div>
         <div id="merchant_${esc(u.id)}" class="accordionBody hidden">
           <p class="muted">اضغط «ربط التاجر بالمتجر» لعرض قائمة المتاجر. يمكن اختيار متجر واحد فقط.</p>
           <div class="actions">
@@ -904,8 +935,8 @@
         </div>
           <div id="merchantStores_${esc(u.id)}" class="hidden" style="margin-top:10px">
             <div class="card"><b>اختر متجرًا واحدًا</b>${(stores||[]).map(s=>`<label class="merchantStoreOption"><input type="radio" name="merchant-store-${esc(u.id)}" value="${esc(s.id)}" ${String(u.store_id)===String(s.id)?'checked':''}> ${esc(s.name)}${s.city?' — '+esc(s.city):''}</label>`).join('') || '<p class="muted">لا توجد متاجر.</p>'}
-            <label class="rememberRow"><input id="merchantPermission_${esc(u.id)}" type="checkbox" ${u.can_edit_prices?'checked':''}> تفعيل صلاحيات إضافة وتعديل وحذف مواد وأسعار هذا المتجر</label>
-            <div class="actions"><button type="button" class="btn primary" onclick="saveMerchantPermission('${esc(u.id)}')">حفظ الربط والصلاحية</button><button type="button" class="btn danger" onclick="clearMerchantLink('${esc(u.id)}')">فك الربط وتعطيل الصلاحية</button></div></div>
+            <div class="notice">عند ربط التاجر بمتجر يحصل تلقائياً على كامل صلاحيات إدارة متجره والنشر المباشر، ولا توجد صلاحية منفصلة للتفعيل.</div>
+            <div class="actions"><button type="button" class="btn primary" onclick="saveMerchantPermission('${esc(u.id)}')">حفظ ربط المتجر</button><button type="button" class="btn danger" onclick="clearMerchantLink('${esc(u.id)}')">فك ربط المتجر</button></div></div>
           </div>
         </div>
       </div>`;
@@ -921,12 +952,12 @@
     $('adminPanel').innerHTML=`
       <div class="grid"><div class="card"><div class="name">${requests.length}</div><div class="muted">طلبات معلقة</div></div><div class="card"><div class="name">${(stores||[]).length}</div><div class="muted">متاجر</div></div><div class="card"><div class="name">${(products||[]).length}</div><div class="muted">منتجات</div></div><div class="card"><div class="name">${users.length}</div><div class="muted">حسابات</div></div><div class="card"><div class="name" id="visitorCount">—</div><div class="muted">إجمالي زيارات الموقع</div></div></div>
       <div class="card"><div class="accordionHead" data-toggle-id="adminRequestsBody"><h2>طلبات التجار</h2><span>▾</span></div><div id="adminRequestsBody" class="accordionBody hidden">${pending}</div></div>
-      <div class="card"><h2>إضافة متجر</h2><div class="two"><input id="sn" placeholder="اسم المتجر"><input id="scity" placeholder="المدينة"><input id="sarea" placeholder="المنطقة"><input id="saddr" placeholder="العنوان"><input id="sphone" placeholder="الهاتف"><input id="swhatsapp" placeholder="رابط واتساب المتجر"><select id="scompany"><option value="">بدون شركة</option>${companies.map(c=>`<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')}</select><input id="shours" placeholder="ساعات الدوام"><input id="sdays" placeholder="أيام العمل"><input id="simg" type="file" accept="image/*"></div><button class="btn primary" onclick="adminAddStore()">إضافة المتجر</button></div>
-      <div id="adminMerchantPermissionsBox" class="card"><div class="accordionHead" data-toggle-id="adminMerchantsBody"><div><h2>إدارة وربط التجار</h2><div class="muted">كل تاجر يمكن ربطه بمتجر واحد، وتفعيل الصلاحية بشكل مستقل.</div></div><span>▾</span></div><div id="adminMerchantsBody" class="accordionBody">${merchantHtml}</div></div>
+      <div class="card"><div class="accordionHead" data-toggle-id="adminAddStoreBody"><h2>إضافة متجر</h2><span>▾</span></div><div id="adminAddStoreBody" class="accordionBody hidden"><div class="two"><input id="sn" placeholder="اسم المتجر"><input id="scity" placeholder="المدينة"><input id="sarea" placeholder="المنطقة"><input id="saddr" placeholder="العنوان"><input id="sphone" placeholder="الهاتف"><input id="swhatsapp" placeholder="رابط واتساب المتجر"><select id="scompany"><option value="">بدون شركة</option>${companies.map(c=>`<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')}</select><input id="shours" placeholder="ساعات الدوام"><input id="sdays" placeholder="أيام العمل"><input id="simg" type="file" accept="image/*"></div><button class="btn primary" onclick="adminAddStore()">إضافة المتجر</button></div></div>
+      <div id="adminMerchantPermissionsBox" class="card"><div class="accordionHead" data-toggle-id="adminMerchantsBody"><div><h2>إدارة وربط التجار</h2><div class="muted">كل تاجر يمكن ربطه بمتجر واحد، ويحصل تلقائياً على كامل الصلاحيات والنشر المباشر.</div></div><span>▾</span></div><div id="adminMerchantsBody" class="accordionBody hidden">${merchantHtml}</div></div>
       <div class="card"><div class="accordionHead" data-toggle-id="adminStoresBody"><h2>إدارة المتاجر</h2><span>▾</span></div><div id="adminStoresBody" class="accordionBody hidden">${storesHtml}</div></div>
       <div class="card"><div class="accordionHead" data-toggle-id="adminUsersBody"><h2>الحسابات</h2><span>▾</span></div><div id="adminUsersBody" class="accordionBody hidden">${usersHtml}</div></div>
-      <div class="card"><h2>📥 استيراد المواد والأسعار دفعة واحدة</h2><p class="muted">ارفع ملف CSV واحداً يحتوي على اسم المتجر واسم المادة والتصنيف والباركود والسعر. لا تحتاج إلى معرفة store_id؛ يكفي اسم المتجر المطابق لما هو مسجل في الموقع.</p><div class="actions"><button type="button" class="btn secondary" onclick="downloadBulkImportTemplate()">تحميل نموذج CSV</button><label class="btn primary" style="display:inline-block;margin:0;cursor:pointer">اختيار ملف CSV<input id="bulkImportFile" type="file" accept=".csv,text/csv" style="display:none" onchange="importMaterialsCsv(this)"></label></div><p id="bulkImportMsg" class="muted"></p><div id="bulkImportResult"></div></div>
-      <div class="card"><h2>روابط الموقع</h2><p class="muted">هذه الإعدادات للمدير فقط.</p><div class="two"><input id="siteWhatsapp" placeholder="رابط واتساب الموقع"><input id="siteTelegram" placeholder="رابط تلغرام الموقع"></div><button class="btn primary" onclick="saveSiteLinks()">حفظ روابط الموقع</button><p id="siteLinksMsg" class="muted"></p></div>
+      <div class="card"><div class="accordionHead" data-toggle-id="adminBulkImportBody"><h2>📥 استيراد المواد والأسعار دفعة واحدة</h2><span>▾</span></div><div id="adminBulkImportBody" class="accordionBody hidden"><p class="muted">ارفع ملف CSV واحداً يحتوي على اسم المتجر واسم المادة والتصنيف والباركود والسعر. لا تحتاج إلى معرفة store_id؛ يكفي اسم المتجر المطابق لما هو مسجل في الموقع.</p><div class="actions"><button type="button" class="btn secondary" onclick="downloadBulkImportTemplate()">تحميل نموذج CSV</button><label class="btn primary" style="display:inline-block;margin:0;cursor:pointer">اختيار ملف CSV<input id="bulkImportFile" type="file" accept=".csv,text/csv" style="display:none" onchange="importMaterialsCsv(this)"></label></div><p id="bulkImportMsg" class="muted"></p><div id="bulkImportResult"></div></div></div>
+      <div class="card"><div class="accordionHead" data-toggle-id="adminSiteLinksBody"><h2>روابط الموقع</h2><span>▾</span></div><div id="adminSiteLinksBody" class="accordionBody hidden"><p class="muted">هذه الإعدادات للمدير فقط.</p><div class="two"><input id="siteWhatsapp" placeholder="رابط واتساب الموقع"><input id="siteTelegram" placeholder="رابط تلغرام الموقع"></div><button class="btn primary" onclick="saveSiteLinks()">حفظ روابط الموقع</button><p id="siteLinksMsg" class="muted"></p></div></div>
       <div class="actions"><button class="btn secondary" onclick="show('home')">العودة للموقع</button><button class="btn secondary" onclick="logout()">تسجيل الخروج</button></div>`;
     bindAdminAccordions();
     $('adminPanel').querySelectorAll('[data-link-merchant]').forEach(btn=>btn.onclick=()=>{

@@ -25,7 +25,7 @@
 </section>
 
 <section id="home" class="page active">
-<div class="hero"><h1>مقارنة أسعار المنتجات في سوريا</h1><p class="muted">الأرخص يظهر أولاً. التاجر لا يستطيع نشر سعر أو مادة جديدة للعامة قبل موافقة المدير.</p><div id="roleActions" class="actions"></div></div><div id="adsHome" class="adSlot hidden"></div>
+<div class="hero"><h1>مقارنة أسعار المنتجات في سوريا</h1><p class="muted">الأرخص يظهر أولاً. التاجر المرتبط بمتجره ينشر المواد والأسعار مباشرة بعد الحفظ.</p><div id="roleActions" class="actions"></div></div><div id="adsHome" class="adSlot hidden"></div>
 <div class="grid"><div class="stat"><b id="pc">0</b> منتجات</div><div class="stat"><b id="sc">0</b> متاجر</div><div class="stat"><b id="approvedCount">0</b> أسعار معتمدة</div><div class="stat"><b id="basketCount">0</b> في السلة</div></div>
 <div class="searchbar"><input id="search" placeholder="ابحث عن منتج أو علامة أو تصنيف أو مدينة..." oninput="renderProducts()"><div class="two"><select id="cityFilter" onchange="renderProducts()"><option value="">كل المدن</option></select><select id="catFilter" onchange="renderProducts()"><option value="">كل التصنيفات</option></select></div></div>
 <h2>أفضل الأسعار حالياً</h2><div id="products" class="grid"></div>
@@ -42,7 +42,7 @@
   <div class="hero">
     <h1 id="addHeading">إضافة مادة أو سعر</h1>
     <p class="muted">
-      كل طلب يحتاج موافقة المدير قبل ظهوره للعامة.
+      للتاجر المرتبط بمتجر يتم نشر المادة والسعر مباشرة بعد الحفظ.
     </p>
   </div>
 
@@ -168,7 +168,7 @@
 <label class="rememberRow"><input id="rememberLogin" type="checkbox"> حفظ تسجيل الدخول على هذا الجهاز (التاجر / المدير)</label>
 <div class="actions"><button class="btn primary" onclick="login()">تسجيل الدخول</button><button class="btn secondary" onclick="forgotPassword()">نسيت كلمة السر؟</button><button class="btn secondary" onclick="show('signup')">إنشاء حساب</button><button class="btn secondary" onclick="enterVisitorFromLogin()">الدخول كزائر</button></div><p id="msg" class="muted"></p></div></section>
 
-<section id="signup" class="page"><div class="hero"><h1>إنشاء حساب</h1><p class="muted">كل بريد إلكتروني يمكنه امتلاك حساب واحد فقط. حساب التاجر يبدأ بدون متجر وبدون صلاحيات حتى يوافق المدير.</p></div><div class="card">
+<section id="signup" class="page"><div class="hero"><h1>إنشاء حساب</h1><p class="muted">كل بريد إلكتروني يمكنه امتلاك حساب واحد فقط. حساب التاجر يبدأ بدون متجر، وعند ربطه بمتجر من المدير يحصل فوراً على كامل صلاحيات متجره والنشر المباشر دون طلبات موافقة.</p></div><div class="card">
 <input id="signupName" placeholder="الاسم"><input id="signupEmail" type="email" placeholder="البريد الإلكتروني"><input id="signupPass" type="password" placeholder="كلمة المرور"><input id="signupPass2" type="password" placeholder="تأكيد كلمة المرور">
 <select id="accountType"><option value="user">حساب مستخدم</option><option value="store">حساب تاجر</option><option value="company">حساب شركة</option></select>
 <div class="actions"><button class="btn primary" onclick="signup()">إنشاء الحساب</button><button class="btn secondary" onclick="show('login')">لدي حساب</button><button class="btn secondary" onclick="enterVisitorFromLogin()">الدخول كزائر</button></div><p id="signupMsg" class="muted"></p></div></section>
@@ -180,8 +180,8 @@
     class="btn"
     onclick="adminMerchantPermissions()"
   >
-    👑 صلاحيات التجار
-  </button><button type="button" class="btn" onclick="openAdminAds()">📢 إدارة الإعلانات</button><div class="hero"><h1>لوحة الإدارة والصلاحيات</h1><p id="role" class="muted"></p></div><div id="adminPanel"></div></section>
+    👑 حسابات التجار
+  </button><button type="button" class="btn" onclick="adminCompanyAccounts()">🏢 حسابات الشركات</button><button type="button" class="btn" onclick="openAdminAds()">📢 إدارة الإعلانات</button><div class="hero"><h1>لوحة الإدارة والصلاحيات</h1><p id="role" class="muted"></p></div><div id="adminPanel"></div></section>
 <section id="merchant" class="page"><div class="hero"><h1>بوابة التاجر</h1><p id="merchantRole" class="muted"></p></div><div id="merchantPanel"></div></section>
 <section id="company" class="page"><div class="hero"><h1>بوابة الشركة</h1><p id="companyRole" class="muted"></p></div><div id="companyPanel"></div></section>
 </div>
@@ -239,6 +239,10 @@ function e(x){return String(x??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;
 function f(n){return Number(n||0).toLocaleString('en-US',{maximumFractionDigits:2})}
 function old(n){return f(Number(n||0)*100)}
 function escAttr(x){return e(x).replace(/`/g,'&#096;')}
+const SAREE_VIEW_KEY='saree_current_view';
+const RESTORABLE_VIEWS=new Set(['home','basket','favorites','companies','stores','categories','add','login','signup','admin','merchant','company']);
+function setCurrentView(id){try{sessionStorage.setItem(SAREE_VIEW_KEY,id)}catch(_){}}
+function getCurrentView(){try{const v=sessionStorage.getItem(SAREE_VIEW_KEY);return RESTORABLE_VIEWS.has(v)?v:'home'}catch(_){return 'home'}}
 function show(id){
   document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
   $(id)?.classList.add('active');
@@ -246,6 +250,7 @@ function show(id){
   const navPage=(id==='storeDetail'||id==='companyDetail')?'stores':id;
   const navBtn=document.querySelector(`.nav button[onclick="openNav('${navPage}')"]`);
   if(navBtn) navBtn.classList.add('active');
+  setCurrentView(id);
   window.scrollTo(0,0);
   if(id==='basket')renderBasket();
   if(id==='favorites')renderFavorites();
@@ -302,9 +307,7 @@ function renderTopAccount(){const b=$('topAccountBtn');if(!b)return;b.classList.
 function renderRoleActions(){const box=$('roleActions');if(!box)return;box.innerHTML='';if(!profileData)return;if(profileData.is_admin===true||profileData.role==='admin'){box.innerHTML='<button class="btn primary" onclick="showAdd()">إضافة مادة أو سعر</button><button class="btn secondary" onclick="openPriceUpdate()">لوحة التحكم</button><button class="btn secondary" onclick="show(\'admin\');renderAdmin()">فتح لوحة المدير</button>';}else if(profileData.role==='store'){box.innerHTML='<button class="btn primary" onclick="showAdd()">تسجيل سعر جديد</button><button class="btn secondary" onclick="openPriceUpdate()">تحديث الأسعار</button>';}else if(profileData.role==='company'){box.innerHTML='<button class="btn primary" onclick="window.openCompanyDashboard?.()">لوحة شركتي</button><button class="btn secondary" onclick="show(\'companies\')">صفحة الشركات</button>';}}
 async function openPriceUpdate(){if(await sareeCheckAdmin()){show('admin');await renderAdmin();return;}if(profileData?.role==='store'){renderMerchant();return;}if(profileData?.role==='company'){window.openCompanyDashboard?.();return;}alert('هذه الميزة للحسابات المصرح لها فقط.');}
 function openNav(id){
-  if(new URLSearchParams(location.search).has('store')){
-    history.replaceState({},'',window.location.pathname);
-  }
+  if(new URLSearchParams(location.search).has('store') || new URLSearchParams(location.search).has('company')) history.replaceState({},'',window.location.pathname);
   show(id);
   if(id==='basket' && basket.length===0) $('basketList').innerHTML='<div class="card"><div class="name">السلة</div><div class="price">0</div><div class="muted">عدد المنتجات في السلة: صفر</div></div>';
   if(id==='favorites' && favorites.length===0) $('favoritesList').innerHTML='<div class="card"><div class="name">المفضلة</div><div class="price">0</div><div class="muted">عدد المواد المفضلة: صفر</div></div>';
@@ -426,16 +429,53 @@ async function loadProfile(){
     return false;
   }
 }
+async function restoreCurrentView(){
+  const q=new URLSearchParams(location.search);
+  const storeId=q.get('store');
+  const companyId=q.get('company');
+  if(storeId){
+    show('storeDetail');
+    await window.renderStoreDetail?.(storeId);
+    return;
+  }
+  if(companyId){
+    if(typeof window.openCompanyById==='function'){await window.openCompanyById(companyId);return}
+    show('companyDetail');
+    return;
+  }
+
+  const view=getCurrentView();
+  if(view==='admin'){
+    if(await sareeCheckAdmin()) {await window.renderAdmin?.();return}
+  }else if(view==='merchant'){
+    if(profileData?.role==='store'){await window.renderMerchant?.();return}
+  }else if(view==='company'){
+    if(profileData?.role==='company'){await window.openCompanyDashboard?.();return}
+  }else if(view==='add'){
+    const allowed=!!(profileData && (profileData.is_admin===true || profileData.role==='admin' || (profileData.role==='store' && profileData.store_id)));
+    if(allowed && typeof window.showAdd==='function'){window.showAdd();return}
+  }else if(RESTORABLE_VIEWS.has(view)){
+    show(view);
+    return;
+  }
+
+  if(profileData?.is_admin===true || profileData?.role==='admin'){await window.renderAdmin?.();return}
+  if(profileData?.role==='store'){await window.renderMerchant?.();return}
+  if(profileData?.role==='company'){await window.openCompanyDashboard?.();return}
+  show('home');
+}
 async function refreshAll(){
+  const requestedView=getCurrentView();
   renderProducts();renderStores();renderCategories();renderBasket();renderFavorites();
   try{await loadPublicData();}catch(err){console.warn('public data:',err)}
   try{await loadProfileIfNeeded();}catch(err){console.warn('profile:',err)}
   renderProducts();renderStores();renderCategories();renderBasket();renderFavorites();
-  // بعد تحديث الصفحة نعود دائماً إلى الرئيسية، ولا نعيد فتح صفحة المتجر من رابط ?store.
-  if(new URLSearchParams(location.search).has('store')){
-    history.replaceState({},'',window.location.pathname);
+  // بعد التحديث نحافظ على الصفحة الحالية بدلاً من الرجوع تلقائياً إلى الرئيسية.
+  if(requestedView==='storeDetail' || requestedView==='companyDetail'){
+    try{await restoreCurrentView();}catch(err){console.warn('restore detail:',err)}
+  }else{
+    try{await restoreCurrentView();}catch(err){console.warn('restore view:',err);show('home')}
   }
-  show('home');
 }
 async function loadProfileIfNeeded(){
   try{
@@ -505,7 +545,6 @@ async function showAdd(){
  if(adminOk){show('admin');await renderAdmin();return}
  if(!profileData){alert('هذه الميزة للحسابات المصرح لها فقط.');return}
  if(profileData.role!=='store'){alert('إضافة الأسعار والمواد من الحسابات المصرح لها فقط.');return}
- if(!profileData.can_edit_prices){alert('الحساب غير مصرح له حالياً.');return}
  if(!profileData.store_id){alert('الحساب غير مرتبط بمتجر بعد.');return}
  show('add');$('merchantStoreBox').innerHTML=`<div class="notice">المتجر المرتبط: ${e(stores.find(s=>s.id===profileData.store_id)?.name||'غير ظاهر')}</div>`;
 }
@@ -543,14 +582,7 @@ async function submitPrice(){
   const isStore =
     String(profileData.role).toLowerCase() === 'store';
 
-  if(
-    !isAdmin &&
-    (
-      !isStore ||
-      !profileData.store_id ||
-      profileData.can_edit_prices !== true
-    )
-  ){
+  if(!isAdmin && (!isStore || !profileData.store_id)){
     return alert('حسابك غير مخول لإضافة مادة أو سعر.');
   }
 
@@ -799,11 +831,11 @@ async function loadMerchantStoreVisitorCount(){
 }
 
 async function renderMerchant(){
- show('merchant');$('merchantRole').textContent='الحساب مربوط بمتجر واحد فقط. لا يمكنك تعديل متجر آخر أو النشر مباشرة.';
+ show('merchant');$('merchantRole').textContent='الحساب مربوط بمتجر واحد فقط. يمكنك إدارة متجرك والنشر المباشر.';
  const s=stores.find(x=>x.id===profileData.store_id);
  const {data,error}=await supabaseClient.from('change_requests').select('*').eq('submitted_by',profileData.id).order('created_at',{ascending:false}).limit(30);
  const reqs=data||[];
- $('merchantPanel').innerHTML=`<div class="card"><div class="name">${e(s?.name||'لم يتم ربط متجر بعد')}</div><div class="muted">${e(s?.city||'')} ${e(s?.area||'')}<br>${e(s?.address||'')}<br>${e(s?.phone||'')}</div><div class="notice ${profileData.can_edit_prices?'':'pending'}">${profileData.can_edit_prices&&s?'الصلاحية مفعّلة، وكل طلب يحتاج موافقة المدير.':'لا توجد لديك صلاحية إرسال أسعار أو مواد حالياً.'}</div>${s?`<div class="card" style="margin-top:10px"><div class="name" id="merchantVisitorCount">—</div><div class="muted">إجمالي زيارات المتجر</div></div>`:''}<div class="actions"><button class="btn primary" ${profileData.can_edit_prices&&s?'':'disabled'} onclick="showAdd()">إضافة مادة / سعر</button><button class="btn secondary" onclick="openPriceUpdate()">تحديث الأسعار</button><button class="btn secondary" onclick="logout()">تسجيل الخروج</button></div></div><div class="card"><h2>طلباتك</h2>${error?`<p class="muted">${e(error.message)}</p>`:reqs.length?reqs.map(r=>`<div class="priceRow"><b>${e(r.product_name||'تعديل سعر')}</b><div class="muted">${r.price_new!=null?f(r.price_new)+' ل.س جديدة':''} • ${new Date(r.created_at).toLocaleString('ar')}</div><span class="pill">${r.status==='pending'?'قيد المراجعة':r.status==='approved'?'مقبول':'مرفوض'}</span>${r.reason?`<div class="muted">السبب: ${e(r.reason)}</div>`:''}</div>`).join(''):'<p class="muted">لا توجد طلبات.</p>'}</div>`;
+ $('merchantPanel').innerHTML=`<div class="card"><div class="name">${e(s?.name||'لم يتم ربط متجر بعد')}</div><div class="muted">${e(s?.city||'')} ${e(s?.area||'')}<br>${e(s?.address||'')}<br>${e(s?.phone||'')}</div><div class="notice ${s?'':'pending'}">${s?'لديك صلاحية كاملة لإدارة متجرك والنشر المباشر.':'الحساب غير مرتبط بمتجر بعد.'}</div>${s?`<div class="card" style="margin-top:10px"><div class="name" id="merchantVisitorCount">—</div><div class="muted">إجمالي زيارات المتجر</div></div>`:''}<div class="actions"><button class="btn primary" ${s?'':'disabled'} onclick="showAdd()">إضافة مادة / سعر</button><button class="btn secondary" onclick="openPriceUpdate()">تحديث الأسعار</button><button class="btn secondary" onclick="logout()">تسجيل الخروج</button></div></div><div class="card"><h2>طلباتك</h2>${error?`<p class="muted">${e(error.message)}</p>`:reqs.length?reqs.map(r=>`<div class="priceRow"><b>${e(r.product_name||'تعديل سعر')}</b><div class="muted">${r.price_new!=null?f(r.price_new)+' ل.س جديدة':''} • ${new Date(r.created_at).toLocaleString('ar')}</div><span class="pill">${r.status==='pending'?'قيد المراجعة':r.status==='approved'?'مقبول':'مرفوض'}</span>${r.reason?`<div class="muted">السبب: ${e(r.reason)}</div>`:''}</div>`).join(''):'<p class="muted">لا توجد طلبات.</p>'}</div>`;
  loadMerchantStoreVisitorCount();
 }
 async function loadVisitorCount(){
@@ -921,7 +953,6 @@ supabaseClient.auth.onAuthStateChange((event)=>{
   const hasVisitor=localStorage.getItem('visitor_name');
   $('visitorName').value=hasVisitor?currentName():'';
   renderTopAccount();renderRoleActions();
-  show('home');
   renderProducts();renderStores();renderCategories();renderBasket();renderFavorites();
   setTimeout(async()=>{
     try{
@@ -937,7 +968,7 @@ supabaseClient.auth.onAuthStateChange((event)=>{
     refreshAll().catch(err=>console.warn('startup:',err));
   },0);
 })();
-// لا نعيد فتح المتجر بعد تحديث الصفحة؛ البداية دائماً من الرئيسية.
+// يحافظ التطبيق على الصفحة الحالية بعد تحديث الصفحة.
 </script>
 
 <script src="barcode_scanner.js?v=7"></script>

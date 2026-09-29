@@ -21,9 +21,14 @@
 
   window.closeAdminEditor=()=>$('sareeAdminOverlay')?.remove();
 
-  window.openAdminStoreEdit=function(id){
-    if(!onlyAdmin())return;
+  function isMerchantOwner(id){
+    const p=profile();
+    return !!p && String(p.role||'').toLowerCase()==='store' && !!p.store_id && String(p.store_id)===String(id);
+  }
+
+  function openStoreEditor(id,ownerMode){
     const st=storeById(id); if(!st)return alert('المتجر غير موجود.');
+    if(ownerMode ? !isMerchantOwner(id) : !admin()) return alert(ownerMode?'يمكن للتاجر تعديل متجره المرتبط فقط.':'المدير فقط يستطيع استخدام هذه الميزة.');
     const companyName=st.company_name||st.company||'';
     overlay(`<h2>تعديل المتجر</h2>
       <div class="two">
@@ -38,13 +43,16 @@
         <select id="sa_company"><option value="">بدون شركة</option></select>
         <input id="sa_image" type="file" accept="image/*">
       </div>
-      <label class="muted"><input id="sa_verified" type="checkbox" ${st.verified?'checked':''}> المتجر موثّق</label>
-      <label class="muted"><input id="sa_active" type="checkbox" ${st.active!==false?'checked':''}> المتجر نشط</label>
+      ${ownerMode ? '<div class="notice">التعديلات على متجرك تُنشر مباشرة ولا تحتاج موافقة المدير.</div>' : `<label class="muted"><input id="sa_verified" type="checkbox" ${st.verified?'checked':''}> المتجر موثّق</label><label class="muted"><input id="sa_active" type="checkbox" ${st.active!==false?'checked':''}> المتجر نشط</label>`}
       <p id="sa_msg" class="muted"></p>
       <div class="actions"><button type="button" class="btn primary" id="sa_save">حفظ التعديلات</button><button type="button" class="btn secondary" onclick="closeAdminEditor()">إغلاق</button></div>`);
     loadCompanyOptions(st.company_id||'',companyName);
-    $('sa_save').onclick=()=>saveStore(id);
-  };
+    $('sa_save').onclick=()=>saveStore(id,ownerMode);
+  }
+
+  window.openAdminStoreEdit=function(id){openStoreEditor(id,false)};
+  window.openMerchantStoreEdit=function(id){openStoreEditor(id,true)};
+
 
   async function loadCompanyOptions(selectedId,selectedName){
     const sel=$('sa_company'); if(!sel)return;
@@ -55,19 +63,29 @@
     }catch(e){console.warn('companies:',e)}
   }
 
-  async function saveStore(id){
-    if(!onlyAdmin())return;
+  async function saveStore(id,ownerMode=false){
     const st=storeById(id); if(!st)return;
+    if(ownerMode){if(!isMerchantOwner(id))return alert('يمكن للتاجر تعديل متجره المرتبط فقط.');}
+    else if(!onlyAdmin())return;
     const name=$('sa_name')?.value.trim(); if(!name)return alert('اسم المتجر مطلوب.');
     let image_url=st.image_url||st.logo_url||null;
     const file=$('sa_image')?.files?.[0];
     if(file){try{image_url=await window.uploadImage(file,'stores')}catch(e){return alert('فشل رفع الصورة: '+e.message)}}
     const companyId=$('sa_company')?.value||null;
-    const payload={name,city:$('sa_city').value.trim()||null,area:$('sa_area').value.trim()||null,address:$('sa_address').value.trim()||null,phone:$('sa_phone').value.trim()||null,whatsapp_url:$('sa_whatsapp').value.trim()||null,opening_hours:$('sa_hours').value.trim()||null,working_days:$('sa_days').value.trim()||null,image_url,verified:!!$('sa_verified').checked,active:!!$('sa_active').checked,company_id:companyId};
+    const payload={name,city:$('sa_city').value.trim()||null,area:$('sa_area').value.trim()||null,address:$('sa_address').value.trim()||null,phone:$('sa_phone').value.trim()||null,whatsapp_url:$('sa_whatsapp').value.trim()||null,opening_hours:$('sa_hours').value.trim()||null,working_days:$('sa_days').value.trim()||null,image_url};
+    if(ownerMode){
+      payload.verified=true;
+      payload.active=true;
+      payload.company_id=companyId;
+    }else{
+      payload.verified=!!$('sa_verified')?.checked;
+      payload.active=!!$('sa_active')?.checked;
+      payload.company_id=companyId;
+    }
     $('sa_msg').textContent='جاري الحفظ...';
     const {error}=await supabaseClient.from('stores').update(payload).eq('id',id).select('id').maybeSingle();
     if(error){$('sa_msg').textContent=error.message;return}
-    closeAdminEditor(); alert('تم تعديل المتجر بنجاح.'); await refreshEverything();
+    closeAdminEditor(); alert(ownerMode?'تم تعديل المتجر ونشر التعديلات مباشرة ✅':'تم تعديل المتجر بنجاح.'); await refreshEverything();
   }
 
   window.toggleAdminStoreVerification=async function(id){

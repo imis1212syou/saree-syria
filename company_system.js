@@ -27,7 +27,7 @@
       .company-modal{position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.78);padding:12px;overflow:auto}
       .company-modal-inner{width:min(980px,100%);margin:20px auto;background:#10191e;border:1px solid #303b40;border-radius:20px;padding:16px}
       .company-chip{display:inline-flex;align-items:center;gap:6px;background:#183b2b;color:#7ff0aa;border-radius:999px;padding:5px 10px;font-size:12px}
-      .company-account-row{border:1px solid #263137;border-radius:13px;padding:11px;margin-top:9px}
+      .company-account-row{border:1px solid #263137;border-radius:13px;padding:11px;margin-top:9px}.company-account-row .accordionBody{margin-top:10px}
       .company-perms{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:10px}
       .company-perms label{margin:0;background:#0d1418;border:1px solid #263137;padding:9px;border-radius:10px}
       .company-barcode{display:flex;gap:8px}.company-barcode input{margin:0;flex:1}
@@ -169,6 +169,7 @@
     try{
       const {company,stores:linkedStores}=await loadCompanyById(id); currentCompany=company;
       history.pushState({},'',window.location.pathname+'?company='+encodeURIComponent(id));
+      try{sessionStorage.setItem('saree_current_view','companyDetail')}catch(_){}
       $('companyDetailName').textContent=company.name;
       const image=company.image_url?`<img class="img storeDetailLogo" src="${attr(company.image_url)}" alt="${attr(company.name)}">`:'';
       $('companyDetailBody').innerHTML=`
@@ -207,6 +208,7 @@
     const navName=id==='companyDetail'?'companies':id;
     const navBtn=document.querySelector(`.nav button[onclick="openNav('${navName}')"]`);
     if(navBtn)navBtn.classList.add('active');
+    try{sessionStorage.setItem('saree_current_view',id)}catch(_){}
     window.scrollTo(0,0);
   }
   const oldShow=window.show;
@@ -369,6 +371,7 @@
         if(r.error) throw r.error;
         modal.remove();
         await loadCompanyDashboardData(window.companyContext);
+        if(!existing && window.companyContext?.can_manage_products){companyProductEditor();return;}
         if(currentCompany) await window.openCompanyById(currentCompany.id);
       }catch(err){
         alert(err.message||'تعذر حفظ المادة');
@@ -410,6 +413,81 @@
     const modal=document.createElement('div');modal.id='companyLinkModal';modal.className='company-modal';modal.innerHTML=`<div class="company-modal-inner"><h2>ربط حساب الشركة</h2><p class="muted">الحساب: ${esc(requestedName||userId)}</p><select id="acl_company">${comps.data.map(c=>`<option value="${attr(c.id)}">${esc(c.name)}</option>`).join('')}</select>${permissionInputs({},'acl')}<div class="actions"><button class="btn primary" id="acl_save">حفظ وربط</button><button class="btn secondary" id="acl_close">إلغاء</button></div></div>`;document.body.appendChild(modal);$('acl_close').onclick=()=>modal.remove();$('acl_save').onclick=async()=>{const payload={p_request_id:requestId,p_company_id:$('acl_company').value,p_can_manage_products:$('acl_manage').checked,p_can_edit_products:$('acl_edit').checked,p_can_delete_products:$('acl_delete').checked,p_can_manage_categories:$('acl_cat').checked,p_can_manage_settings:$('acl_settings').checked,p_can_view_orders:$('acl_orders').checked};const {error}=await supabaseClient.rpc('admin_link_company_account',payload);if(error)return alert(error.message);modal.remove();await renderAdminCompanyBox()};
   };
 
+  async function getCompanyAccountsForAdmin(){
+    const [profilesRes,linkedRes]=await Promise.all([
+      supabaseClient.from('profiles').select('id,name,role,company_id,store_id,verified').eq('role','company').order('created_at',{ascending:false}),
+      supabaseClient.rpc('admin_list_company_users_v2')
+    ]);
+    if(profilesRes.error)throw profilesRes.error;
+    const linked=linkedRes.error?[]:(linkedRes.data||[]);
+    const map=new Map();
+    (profilesRes.data||[]).forEach(u=>map.set(String(u.id),{...u,user_id:u.id}));
+    linked.forEach(u=>{const id=String(u.user_id||'');if(!id)return;map.set(id,{...(map.get(id)||{}),...u,user_id:id});});
+    try{
+      const dir=await supabaseClient.rpc('get_users_for_company_link');
+      if(!dir.error)(dir.data||[]).forEach(u=>{
+        const id=String(u.id||u.user_id||'');
+        const type=String(u.account_type||u.role||'').toLowerCase();
+        if(id&&type==='company')map.set(id,{...(map.get(id)||{}),...u,user_id:id});
+      });
+    }catch(_){ }
+    return [...map.values()].sort((a,b)=>String(a.name||a.email||'').localeCompare(String(b.name||b.email||''),'ar'));
+  }
+
+  function companyAccountAdminRows(accounts,companies){
+    if(!accounts.length)return '<div class="muted">لا توجد حسابات شركات حالياً.</div>';
+    return accounts.map(u=>{
+      const uid=String(u.id||u.user_id||'');
+      const linked=companyUsers.find(x=>String(x.user_id)===uid);
+      const selected=String(linked?.company_id||u.company_id||'');
+      const prefix='companyAccount_'+uid.replace(/[^A-Za-z0-9_]/g,'');
+      const label=esc(u.name||u.requested_name||u.email||uid);
+      const email=esc(u.email||'بدون بريد');
+      const status=linked?.active===false?'موقوف':(selected?'مرتبط بشركة':'غير مرتبط');
+      return `<div class="company-account-row">
+        <div class="accordionHead" data-company-toggle="${prefix}_body"><div><b>${label}</b><div class="muted">${email} • ${status}</div></div><span>▾</span></div>
+        <div id="${prefix}_body" class="accordionBody hidden">
+          <select id="${prefix}_company"><option value="">اختر الشركة</option>${companies.filter(c=>c.active!==false).map(c=>`<option value="${attr(c.id)}" ${String(c.id)===selected?'selected':''}>${esc(c.name)}</option>`).join('')}</select>
+          ${permissionInputs(linked||u,prefix)}
+          <div class="actions"><button type="button" class="btn primary" onclick="window.adminSaveCompanyAccount('${attr(uid)}')">ربط وحفظ الحساب</button>${selected?`<button type="button" class="btn danger" onclick="window.adminUnlinkCompany('${attr(uid)}')">فك الربط</button>`:''}</div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  window.adminSaveCompanyAccount=async function(uid){
+    if(role()!=='admin')return alert('المدير فقط.');
+    const prefix='companyAccount_'+String(uid).replace(/[^A-Za-z0-9_]/g,'');
+    const companyId=$(`${prefix}_company`)?.value;
+    if(!companyId)return alert('اختر الشركة أولاً.');
+    const host=$(`${prefix}_body`);const val=k=>!!host?.querySelector(`input[data-perm="${k}"]`)?.checked;
+    const existing=companyUsers.find(x=>String(x.user_id)===String(uid));
+    const payload={user_id:uid,company_id:companyId,active:true,can_manage_products:val('manage'),can_manage_categories:val('cat'),can_edit_prices:val('edit'),can_delete_products:val('delete'),can_manage_settings:val('settings'),can_view_orders:val('orders'),can_view_stats:val('stats'),updated_at:new Date().toISOString()};
+    try{
+      const save=existing?.id?await supabaseClient.from('company_users').update(payload).eq('id',existing.id).select('id').maybeSingle():await supabaseClient.from('company_users').insert(payload).select('id').single();
+      if(save.error)throw save.error;
+      const pr=await supabaseClient.from('profiles').update({role:'company',company_id:companyId,store_id:null,verified:true}).eq('id',uid);
+      if(pr.error)throw pr.error;
+      alert('تم ربط حساب الشركة وحفظ الصلاحيات ✅');await renderAdminCompanyBox();
+    }catch(err){alert('تعذر ربط حساب الشركة: '+(err.message||err));}
+  };
+
+  window.adminCompanyAccounts=async function(){
+    if(role()!=='admin')return alert('هذه الصفحة للمدير فقط.');
+    await window.renderAdmin?.();
+    const box=$('companyFullAdminBox');
+    if(!box)return;
+    $('companyFullAdminBody')?.classList.remove('hidden');
+    $('companyAccountsListBody')?.classList.remove('hidden');
+    box.scrollIntoView({behavior:'smooth',block:'start'});
+  };
+
+  function bindCompanyAccordions(){
+    document.querySelectorAll('[data-company-toggle]').forEach(head=>head.onclick=()=>{
+      const target=$(head.dataset.companyToggle);if(target)target.classList.toggle('hidden');
+    });
+  }
+
   async function renderAdminCompanyBox(){
     if(role()!=='admin')return;
     const panel=$('adminPanel'); if(!panel)return;
@@ -430,6 +508,8 @@
     }
     companyUsers=linked;
 
+    let allCompanyAccounts=[];try{allCompanyAccounts=await getCompanyAccountsForAdmin()}catch(err){console.warn('company account list:',err)}
+    const companyAccountsHtml=companyAccountAdminRows(allCompanyAccounts,companies);
     const companyOptions=companies.filter(c=>c.active!==false).map(c=>`<option value="${attr(c.id)}">${esc(c.name)}</option>`).join('');
     const linkedHtml=linked.length?linked.map(u=>{
       const uid=String(u.user_id||'');
@@ -446,30 +526,40 @@
     }).join(''):'<div class="muted">لا توجد حسابات شركات مرتبطة حالياً.</div>';
 
     box.innerHTML=`
-      <h2>🏢 الشركات وربط أصحاب الشركات</h2>
-      <p class="muted">المدير يحدد الحساب والشركة والصلاحيات. صاحب الشركة يرى ويدير الشركة المرتبطة به فقط.</p>
+      <div class="accordionHead" data-company-toggle="companyFullAdminBody"><div><h2>🏢 الشركات وربط أصحاب الشركات</h2><div class="muted">حسابات الشركات وربطها بالشركات وإدارتها.</div></div><span>▾</span></div>
+      <div id="companyFullAdminBody" class="accordionBody hidden">
+      <div class="company-account-row">
+        <div class="accordionHead" data-company-toggle="companyAccountsListBody"><div><h3 style="margin:0">👥 حسابات الشركات</h3><div class="muted">كل حساب من نوع «حساب شركة» يظهر هنا ويمكن ربطه بشركة.</div></div><span>▾</span></div>
+        <div id="companyAccountsListBody" class="accordionBody hidden">${companyAccountsHtml}</div>
+      </div>
 
       <div class="company-account-row">
-        <h3 style="margin-top:0">🔗 ربط حساب بشركة</h3>
-        <input id="directCompanyEmail" type="text" placeholder="اسم حساب صاحب الشركة">
-        <select id="directCompanyId"><option value="">اختر الشركة</option>${companyOptions}</select>
-        ${permissionInputs({},'direct')}
-        <div class="actions">
-          <button type="button" class="btn primary" id="directCompanySave">ربط وحفظ الصلاحيات</button>
+        <div class="accordionHead" data-company-toggle="directCompanyBody"><div><h3 style="margin:0">🔗 ربط حساب بشركة</h3><div class="muted">ربط حساب شركة موجود بالشركة وتحديد صلاحياته.</div></div><span>▾</span></div>
+        <div id="directCompanyBody" class="accordionBody hidden">
+          <input id="directCompanyEmail" type="text" placeholder="اسم حساب صاحب الشركة أو بريده">
+          <select id="directCompanyId"><option value="">اختر الشركة</option>${companyOptions}</select>
+          ${permissionInputs({},'direct')}
+          <div class="actions">
+            <button type="button" class="btn primary" id="directCompanySave">ربط وحفظ الصلاحيات</button>
+          </div>
+          <p id="directCompanyMsg" class="muted"></p>
         </div>
-        <p id="directCompanyMsg" class="muted"></p>
       </div>
 
       <div class="company-account-row">
-        <h3 style="margin-top:0">👥 الحسابات المرتبطة حالياً</h3>
-        <div>${linkedHtml}</div>
+        <div class="accordionHead" data-company-toggle="linkedCompanyAccountsBody"><div><h3 style="margin:0">👥 الحسابات المرتبطة حالياً</h3><div class="muted">الحسابات المرتبطة بشركات مع صلاحياتها.</div></div><span>▾</span></div>
+        <div id="linkedCompanyAccountsBody" class="accordionBody hidden"><div>${linkedHtml}</div></div>
       </div>
 
       <div class="company-account-row">
-        <h3 style="margin-top:0">🏢 إدارة الشركات</h3>
-        <div class="actions"><button type="button" class="btn primary" onclick="window.openAdminCompanyCreate?.()">إضافة شركة</button></div>
-        <div id="companyPublicAdminList" style="margin-top:12px">${companies.length?companies.map(c=>`<div class="company-account-row"><div class="row" style="justify-content:space-between;align-items:center"><div><b>${esc(c.name||'شركة')}</b> ${c.verified?'<span class="pill">✓ موثقة</span>':'<span class="pill">غير موثقة</span>'}<div class="muted">${esc(c.phone||'')} ${c.address?'• '+esc(c.address):''}</div></div><div id="companyQrAdmin_${attr(c.id)}" class="company-qr-box"></div></div><div class="actions"><button class="btn secondary" type="button" onclick="window.openCompanyById('${attr(c.id)}')">فتح الشركة</button><button class="btn primary" type="button" onclick="window.adminManageCompanyProducts?.('${attr(c.id)}')">إدارة مواد الشركة</button><button class="btn secondary" type="button" onclick="window.printCompanyQR('${attr(c.id)}')">طباعة QR</button><button class="btn primary" type="button" onclick="window.openAdminCompanyEdit?.('${attr(c.id)}')">تعديل الشركة</button><button class="btn secondary" type="button" onclick="window.toggleAdminCompanyVerification?.('${attr(c.id)}')">${c.verified?'إلغاء التوثيق':'توثيق الشركة'}</button><button class="btn danger" type="button" onclick="window.deleteAdminCompany?.('${attr(c.id)}')">حذف الشركة</button></div><div class="muted" id="companyVisit_${attr(c.id)}">إجمالي زيارات الشركة: —</div></div>`).join(''):'<div class="muted">لا توجد شركات مسجلة.</div>'}</div>
+        <div class="accordionHead" data-company-toggle="companyManageBody"><div><h3 style="margin:0">🏢 إدارة الشركات</h3><div class="muted">إضافة وتعديل وحذف الشركات وموادها.</div></div><span>▾</span></div>
+        <div id="companyManageBody" class="accordionBody hidden">
+          <div class="actions"><button type="button" class="btn primary" onclick="window.openAdminCompanyCreate?.()">إضافة شركة</button></div>
+          <div id="companyPublicAdminList" style="margin-top:12px">${companies.length?companies.map(c=>`<div class="company-account-row"><div class="row" style="justify-content:space-between;align-items:center"><div><b>${esc(c.name||'شركة')}</b> ${c.verified?'<span class="pill">✓ موثقة</span>':'<span class="pill">غير موثقة</span>'}<div class="muted">${esc(c.phone||'')} ${c.address?'• '+esc(c.address):''}</div></div><div id="companyQrAdmin_${attr(c.id)}" class="company-qr-box"></div></div><div class="actions"><button class="btn secondary" type="button" onclick="window.openCompanyById('${attr(c.id)}')">فتح الشركة</button><button class="btn primary" type="button" onclick="window.adminManageCompanyProducts?.('${attr(c.id)}')">إدارة مواد الشركة</button><button class="btn secondary" type="button" onclick="window.printCompanyQR('${attr(c.id)}')">طباعة QR</button><button class="btn primary" type="button" onclick="window.openAdminCompanyEdit?.('${attr(c.id)}')">تعديل الشركة</button><button class="btn secondary" type="button" onclick="window.toggleAdminCompanyVerification?.('${attr(c.id)}')">${c.verified?'إلغاء التوثيق':'توثيق الشركة'}</button><button class="btn danger" type="button" onclick="window.deleteAdminCompany?.('${attr(c.id)}')">حذف الشركة</button></div><div class="muted" id="companyVisit_${attr(c.id)}">إجمالي زيارات الشركة: —</div></div>`).join(''):'<div class="muted">لا توجد شركات مسجلة.</div>'}</div>
+        </div>
+      </div>
       </div>`;
+    bindCompanyAccordions();
 
     $('directCompanySave').onclick=async()=>{
       const accountName=$('directCompanyEmail').value.trim();
