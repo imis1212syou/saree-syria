@@ -559,6 +559,19 @@
     if(typeof window.loadMerchantStoreVisitorCount==='function') window.loadMerchantStoreVisitorCount();
   };
 
+  // تسجيل زيارة المتجر وتحديث العداد
+  window.recordStoreVisit = async function(storeId){
+    if(!storeId || !window.supabaseClient) return false;
+    try{
+      const {error}=await supabaseClient.rpc('record_store_visit',{p_store_id:storeId});
+      if(error) throw error;
+      return true;
+    }catch(err){
+      console.warn('record store visit:',err);
+      return false;
+    }
+  };
+
   window.loadMerchantStoreVisitorCount = async function(){
     if(!profileData || role()!=='store' || !profileData.store_id) return;
     try{

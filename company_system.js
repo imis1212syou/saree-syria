@@ -426,7 +426,7 @@
 
       <div class="company-account-row">
         <h3 style="margin-top:0">🔗 ربط حساب بشركة</h3>
-        <input id="directCompanyEmail" type="email" placeholder="بريد صاحب الشركة">
+        <input id="directCompanyEmail" type="text" placeholder="اسم حساب صاحب الشركة">
         <select id="directCompanyId"><option value="">اختر الشركة</option>${companyOptions}</select>
         ${permissionInputs({},'direct')}
         <div class="actions">
@@ -447,15 +447,15 @@
       </div>`;
 
     $('directCompanySave').onclick=async()=>{
-      const email=$('directCompanyEmail').value.trim().toLowerCase();
+      const accountName=$('directCompanyEmail').value.trim();
       const companyId=$('directCompanyId').value;
-      if(!email||!companyId)return alert('أدخل بريد صاحب الشركة واختر الشركة.');
+      if(!accountName||!companyId)return alert('أدخل اسم الحساب واختر الشركة.');
       const msg=$('directCompanyMsg'); msg.textContent='جاري الحفظ...';
       try{
         // لا نعتمد هنا على اسم/توقيع دالة RPC القديمة؛ يتم الربط مباشرة من لوحة المدير.
-        const prFind=await supabaseClient.from('profiles').select('id,email').ilike('email',email).limit(1).maybeSingle();
+        const prFind=await supabaseClient.from('profiles').select('id,full_name').ilike('full_name',accountName).limit(1).maybeSingle();
         if(prFind.error)throw prFind.error;
-        if(!prFind.data?.id)throw new Error('لم يتم العثور على حساب بهذا البريد.');
+        if(!prFind.data?.id)throw new Error('لم يتم العثور على حساب بهذا الاسم.');
         const uid=prFind.data.id;
         const payload={
           user_id:uid,
