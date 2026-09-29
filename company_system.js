@@ -453,10 +453,22 @@
       const msg=$('directCompanyMsg'); msg.textContent='جاري الحفظ...';
       try{
         // لا نعتمد هنا على اسم/توقيع دالة RPC القديمة؛ يتم الربط مباشرة من لوحة المدير.
-        const prFind=await supabaseClient.from('profiles').select('id,full_name').ilike('full_name',accountName).limit(1).maybeSingle();
-        if(prFind.error)throw prFind.error;
-        if(!prFind.data?.id)throw new Error('لم يتم العثور على حساب بهذا الاسم.');
-        const uid=prFind.data.id;
+        const { data: users, error: userError } = await supabaseClient
+          .rpc('get_users_for_company_link');
+
+        if (userError) {
+          throw userError;
+        }
+
+        const selectedUser = (users || []).find(
+          u => String(u.email || '').toLowerCase() === String(accountName || '').toLowerCase()
+        );
+
+        if (!selectedUser) {
+          throw new Error('لم يتم العثور على الحساب.');
+        }
+
+        const uid = selectedUser.id;
         const payload={
           user_id:uid,
           company_id:companyId,
