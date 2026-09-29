@@ -491,7 +491,7 @@
           save=await supabaseClient.from('company_users').insert(payload).select('id').single();
         }
         if(save.error)throw save.error;
-        const profileUpdate=await supabaseClient.from('profiles').update({role:'store',company_id:companyId,store_id:null,verified:true}).eq('id',uid);
+        const profileUpdate=await supabaseClient.from('profiles').update({role:'company',company_id:companyId,store_id:null,verified:true}).eq('id',uid);
         if(profileUpdate.error)throw profileUpdate.error;
         msg.textContent='تم ربط الحساب بالشركة وتفعيل الصلاحيات المحددة ✅';
         await renderAdminCompanyBox();
