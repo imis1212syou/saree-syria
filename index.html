@@ -255,6 +255,8 @@ function closePageView(id){
 }
 window.closePageView=closePageView;
 function show(id){
+  if(id!=='storeDetail') window.__sareeTrackedStoreVisitId=null;
+  if(id!=='companyDetail') window.__sareeTrackedCompanyVisitId=null;
   document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
   $(id)?.classList.add('active');
   ensurePageCloseButton(id);
@@ -271,7 +273,7 @@ function show(id){
   if(id==='home')renderRoleActions();
 }
 function storeUrl(id){return window.location.origin+window.location.pathname+'?store='+encodeURIComponent(id);}
-function openStore(id){if(!id)return;history.pushState({},'',window.location.pathname+'?store='+encodeURIComponent(id));show('storeDetail');const renderer=window.renderStoreDetail||renderStoreDetail;return renderer(id);}
+function openStore(id){if(!id)return;window.__sareeTrackedCompanyVisitId=null;history.pushState({},'',window.location.pathname+'?store='+encodeURIComponent(id));show('storeDetail');const renderer=window.renderStoreDetail||renderStoreDetail;return renderer(id);}
 async function recordStoreVisit(storeId){
   try{
     if(!storeId) return;
@@ -379,9 +381,14 @@ async function saveSignupPhoneSetting(enabled){
   const existing=await supabaseClient.from('site_settings').select('id').eq('key',settingKey).maybeSingle();
   if(existing.error) throw existing.error;
   const payload={whatsapp_url:enabled?'1':'0',updated_by:profileData.id};
-  const result=existing.data?.id
+  let result=existing.data?.id
     ? await supabaseClient.from('site_settings').update(payload).eq('id',existing.data.id)
-    : await supabaseClient.from('site_settings').insert({id:crypto.randomUUID(),...payload,key:settingKey});
+    : await supabaseClient.from('site_settings').insert({...payload,key:settingKey});
+  // بعض نسخ الجدول لا تملك قيمة افتراضية للـ id رغم كونه bigint؛ استخدم رقماً صالحاً فقط عند ظهور خطأ null للـ id.
+  if(result.error && !existing.data?.id && /null value in column ['"]id['"]|not-null constraint/i.test(String(result.error.message||''))){
+    const numericId=Number(`${Date.now()}${String(Math.floor(Math.random()*1000)).padStart(3,'0')}`);
+    result=await supabaseClient.from('site_settings').insert({id:numericId,...payload,key:settingKey});
+  }
   if(result.error) throw result.error;
   window.__sareeSignupPhoneEnabled=!!enabled;
   __signupPhoneSettingLoaded=true;
@@ -912,7 +919,7 @@ async function loadSiteLinks(){
 // ماسح الباركود موجود في barcode_scanner.js لتجنب تعارض BarcodeDetector مع المتصفح.
 // لا نعرّف scanBarcode هنا.
 async function renderAdmin(){
- show('admin');if($('role'))$('role').textContent='لوحة تحكم المدير: إدارة كاملة للمنتجات والأسعار والمتاجر والحسابات والموافقات.';
+ show('admin');
  const [rq,pr,st,us,co]=await Promise.all([
   supabaseClient.from('change_requests').select('*').eq('status','pending').order('created_at',{ascending:false}),
   supabaseClient.from('products').select('*').order('name'),

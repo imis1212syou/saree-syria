@@ -52,26 +52,6 @@
     return `<article class="card saree-medium-card"><div onclick="window.sareeOpenProductInfo('${esc(p.id)}')" style="cursor:pointer">${p.image_url?`<img class="img" src="${esc(p.image_url)}" alt="${esc(p.name)}" loading="lazy">`:''}<span class="pill">${esc(p.category||'عام')}</span><div class="name">${esc(p.name||'مادة')}</div>${p.brand?`<div class="muted">${esc(p.brand)}</div>`:''}${p.unit?`<div class="muted">${esc(p.unit)}</div>`:''}${c?`<div class="price">${money(c.price_new)} ل.س</div><div class="muted">${esc(c.stores?.name||'')}</div>`:`<div class="notice pending">لا يوجد سعر معتمد حالياً</div>`}</div><div class="actions"><button class="btn primary" onclick="window.sareeOpenProductInfo('${esc(p.id)}')">تفاصيل</button></div></article>`;
   }
 
-  window.sareeOpenStoreFromProduct=async function(storeId){
-    if(!storeId)return;
-    $('sareeProductModal')?.remove();
-    try{
-      const id=String(storeId);
-      history.pushState({},'',window.location.pathname+'?store='+encodeURIComponent(id));
-      if(typeof window.show==='function')window.show('storeDetail');
-      if(typeof window.renderStoreDetail==='function'){
-        await window.renderStoreDetail(id);
-        return;
-      }
-      if(typeof window.openStore==='function'){
-        await window.openStore(id);
-      }
-    }catch(err){
-      console.warn('open store from product:',err);
-      if(typeof window.openStore==='function')window.openStore(storeId);
-    }
-  };
-
   window.sareeOpenProductInfo=function(productId){
     const p=getProducts().find(x=>String(x.id)===String(productId));if(!p)return;
     const rows=getPrices().filter(x=>String(x.product_id)===String(productId));
@@ -80,7 +60,7 @@
     const companyName=companyStores[0]?.company_name||'';
     const old=$('sareeProductModal');if(old)old.remove();
     const m=document.createElement('div');m.id='sareeProductModal';m.className='saree-modal';
-    m.innerHTML=`<div class="saree-modal-inner"><div class="saree-modal-head"><h2>${esc(p.name)}</h2><button class="btn secondary" id="sareeCloseProduct">×</button></div>${p.image_url?`<img class="img" style="height:210px;object-fit:contain" src="${esc(p.image_url)}">`:''}<div class="muted">${esc(p.unit||'')} ${p.brand?'• '+esc(p.brand):''}</div>${companyName?`<div class="notice">🏢 تصفح الشركة المنتجة: ${esc(companyName)}</div>`:''}<h3 style="margin-top:15px">الأسعار والمتاجر</h3><div class="saree-product-grid">${rows.length?rows.map(r=>{const st=getStores().find(x=>String(x.id)===String(r.store_id));const companyId=st?.company_id||st?.companies?.id||'';const companyLabel=st?.companies?.name||st?.company_name||st?.company||'';return `<div class="card"><div class="name">${esc(r.stores?.name||st?.name||'المتجر')}</div><div class="price">${money(r.price_new)} ل.س</div>${r.stores?.city||st?.city?`<div class="muted">${esc(r.stores?.city||st?.city||'')}</div>`:''}<div class="actions"><button class="btn primary" onclick="window.sareeOpenStoreFromProduct?.('${esc(r.store_id)}')">فتح المتجر</button>${companyId?`<button class="btn secondary" onclick="window.openCompanyById?.('${esc(companyId)}');document.getElementById('sareeProductModal')?.remove()">${companyLabel?'فتح الشركة: '+esc(companyLabel):'فتح الشركة'}</button>`:''}</div></div>`}).join(''):'<div class="card muted">لا توجد أسعار معتمدة.</div>'}</div></div>`;
+    m.innerHTML=`<div class="saree-modal-inner"><div class="saree-modal-head"><h2>${esc(p.name)}</h2><button class="btn secondary" id="sareeCloseProduct">×</button></div>${p.image_url?`<img class="img" style="height:210px;object-fit:contain" src="${esc(p.image_url)}">`:''}<div class="muted">${esc(p.unit||'')} ${p.brand?'• '+esc(p.brand):''}</div>${companyName?`<div class="notice">🏢 تصفح الشركة المنتجة: ${esc(companyName)}</div>`:''}<h3 style="margin-top:15px">الأسعار والمتاجر</h3><div class="saree-product-grid">${rows.length?rows.map(r=>{const st=getStores().find(x=>String(x.id)===String(r.store_id));const companyId=st?.company_id||st?.companies?.id||'';const companyLabel=st?.companies?.name||st?.company_name||st?.company||'';return `<div class="card"><div class="name">${esc(r.stores?.name||st?.name||'المتجر')}</div><div class="price">${money(r.price_new)} ل.س</div>${r.stores?.city||st?.city?`<div class="muted">${esc(r.stores?.city||st?.city||'')}</div>`:''}<div class="actions"><button class="btn primary" onclick="window.openStore('${esc(r.store_id)}');document.getElementById('sareeProductModal')?.remove()">فتح المتجر</button>${companyId?`<button class="btn secondary" onclick="window.openCompanyById?.('${esc(companyId)}');document.getElementById('sareeProductModal')?.remove()">${companyLabel?'فتح الشركة: '+esc(companyLabel):'فتح الشركة'}</button>`:''}</div></div>`}).join(''):'<div class="card muted">لا توجد أسعار معتمدة.</div>'}</div></div>`;
     document.body.appendChild(m);$('sareeCloseProduct').onclick=()=>m.remove();m.addEventListener('click',e=>{if(e.target===m)m.remove()});
   };
 

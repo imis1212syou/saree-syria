@@ -166,6 +166,7 @@
   }
 
   window.openCompanyById=async function(id){
+    window.__sareeTrackedStoreVisitId=null;
     try{
       const {company,stores:linkedStores}=await loadCompanyById(id); currentCompany=company;
       const companyQuery=new URLSearchParams(window.location.search).get('company');
@@ -183,9 +184,9 @@
       const render=()=>{const q=String($('companyProductSearch')?.value||'').trim().toLowerCase();const cat=String($('companyProductCategory')?.value||'');const pf=$('companyProductPriceFilter')?.value||'all';const rows=companyProducts.filter(p=>{const txt=[p.name,p.brand,p.unit,p.barcode,p.category].join(' ').toLowerCase();const has=p.price_new!==null&&p.price_new!==undefined&&p.price_new!=='';return (!q||txt.includes(q))&&(!cat||p.category===cat)&&(pf==='all'||(pf==='with'?has:!has))});$('companyProductsGrid').innerHTML=rows.length?rows.map(companyDetailCardProduct).join(''):'<div class="card muted">لا توجد مواد مطابقة.</div>';};
       $('companyProductSearch').oninput=render;$('companyProductCategory').onchange=render;$('companyProductPriceFilter').onchange=render;$('companyBarcodeSearchBtn').onclick=async()=>{const q=norm($('companyProductSearch').value);if(!q)return render();const exact=companyProducts.find(p=>norm(p.barcode)===q);if(exact){openCompanyProduct(exact.id);$('companyProductMsg').textContent='تم العثور على المادة بالباركود.'}else{$('companyProductMsg').textContent='لم يتم العثور على مادة بهذا الباركود.';render()}};$('companyProductSearch').onkeydown=ev=>{if(ev.key==='Enter')$('companyBarcodeSearchBtn').click()};$('companyBarcodeCamera').onclick=()=>window.openBarcodeScannerForCompany?.(id);render();
       try{
-        const visitKey='saree_company_visit_once_'+String(id);
-        if(sessionStorage.getItem(visitKey)!=='1'){
-          sessionStorage.setItem(visitKey,'1');
+        const visitCompanyId=String(id);
+        if(window.__sareeTrackedCompanyVisitId!==visitCompanyId){
+          window.__sareeTrackedCompanyVisitId=visitCompanyId;
           let visitId=localStorage.getItem('saree_visitor_id');
           if(!visitId){visitId=(crypto.randomUUID?crypto.randomUUID():('v_'+Date.now()+'_'+Math.random().toString(36).slice(2)));localStorage.setItem('saree_visitor_id',visitId);}
           await supabaseClient.rpc('record_company_visit',{p_company_id:id,p_visitor_id:visitId});
@@ -422,23 +423,32 @@
 
   async function getCompanyAccountsForAdmin(){
     const [profilesRes,linkedRes]=await Promise.all([
-      supabaseClient.from('profiles').select('id,name,role,company_id,store_id,verified').eq('role','company').order('created_at',{ascending:false}),
+      supabaseClient.from('profiles').select('id,name,role,company_id,store_id,verified').order('created_at',{ascending:false}),
       supabaseClient.rpc('admin_list_company_users_v2')
     ]);
     if(profilesRes.error)throw profilesRes.error;
     const linked=linkedRes.error?[]:(linkedRes.data||[]);
     const map=new Map();
-    (profilesRes.data||[]).forEach(u=>map.set(String(u.id),{...u,user_id:u.id}));
+    // الحساب المرتبط حالياً أو المصنف company في profiles.
+    (profilesRes.data||[]).forEach(u=>{
+      if(String(u.role||'').toLowerCase()==='company'||u.company_id){
+        map.set(String(u.id),{...u,user_id:u.id});
+      }
+    });
     linked.forEach(u=>{const id=String(u.user_id||'');if(!id)return;map.set(id,{...(map.get(id)||{}),...u,user_id:id});});
     try{
       const dir=await supabaseClient.rpc('get_users_for_company_link');
       if(!dir.error)(dir.data||[]).forEach(u=>{
         const id=String(u.id||u.user_id||'');
-        const meta=(u.user_metadata||u.raw_user_meta_data||u.user_meta_data||{});
-        const type=String(u.account_type||meta.account_type||u.role||'').toLowerCase();
+        let meta=u.user_metadata||u.raw_user_meta_data||u.user_meta_data||{};
+        if(typeof meta==='string'){try{meta=JSON.parse(meta)||{}}catch(_){meta={}}}
+        const type=String(
+          u.account_type||u.accountType||u.type||u.role||
+          meta.account_type||meta.accountType||meta.type||meta.role||''
+        ).trim().toLowerCase();
         if(id&&type==='company')map.set(id,{...(map.get(id)||{}),...u,user_id:id});
       });
-    }catch(_){ }
+    }catch(err){ console.warn('company account discovery:',err); }
     return [...map.values()].sort((a,b)=>String(a.name||a.email||'').localeCompare(String(b.name||b.email||''),'ar'));
   }
 

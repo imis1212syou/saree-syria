@@ -590,9 +590,9 @@
   window.recordStoreVisit = async function(storeId){
     if(!storeId || !window.supabaseClient) return false;
     try{
-      const key='saree_store_visit_once_'+String(storeId);
-      if(sessionStorage.getItem(key)==='1') return false;
-      sessionStorage.setItem(key,'1');
+      const id=String(storeId);
+      if(window.__sareeTrackedStoreVisitId===id) return false;
+      window.__sareeTrackedStoreVisitId=id;
       const {error}=await supabaseClient.rpc('record_store_visit',{p_store_id:storeId});
       if(error) throw error;
       return true;
