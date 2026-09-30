@@ -1,4 +1,8 @@
-/* سعرلي سوريا — Service Worker للإشعارات الهاتفية */
+/* سعرلي سوريا — Service Worker للإشعارات الهاتفية
+ * ملاحظة: التشغيل الفعلي موحّد في saree_sw.js لأن الموقع والتطبيق
+ * لا يمكن أن يستخدما عاملَي Service Worker متنافسين على نفس scope.
+ * يبقى هذا الملف متوافقاً مع نفس سلوك الإشعار لمنع اختلاف النسخ.
+ */
 self.addEventListener("push", event => {
   let d = {};
   try { d = event.data ? event.data.json() : {}; } catch (_) {}

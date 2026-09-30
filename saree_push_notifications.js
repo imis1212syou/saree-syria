@@ -164,7 +164,14 @@
       return { ok: false, skipped: true, reason: "not-granted" };
     }
 
-    const registration = await navigator.serviceWorker.ready;
+    const registration =
+      (await window.sareePwaRegistrationPromise) ||
+      await navigator.serviceWorker.ready;
+
+    if (!registration?.pushManager) {
+      return { ok: false, skipped: true, reason: "no-registration" };
+    }
+
     const vapidPublicKey = await getVapidPublicKey(cfg);
     let subscription = await registration.pushManager.getSubscription();
 

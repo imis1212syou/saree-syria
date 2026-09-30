@@ -15,10 +15,25 @@
 
   function registerSW() {
     if (!("serviceWorker" in navigator)) return;
-    window.addEventListener("load", () => {
-      navigator.serviceWorker.register(new URL("saree_sw.js", base).href, {
-        scope: base.pathname
-      }).catch(err => console.warn("PWA service worker:", err));
+
+    const swUrl = new URL("saree_sw.js?v=push-20260930", base).href;
+    window.sareePwaRegistrationPromise = new Promise(resolve => {
+      const register = async () => {
+        try {
+          const registration = await navigator.serviceWorker.register(swUrl, {
+            scope: base.pathname,
+            updateViaCache: "none"
+          });
+          try { await registration.update(); } catch (_) {}
+          resolve(registration);
+        } catch (err) {
+          console.warn("PWA service worker:", err);
+          resolve(null);
+        }
+      };
+
+      if (document.readyState === "complete") register();
+      else window.addEventListener("load", register, { once: true });
     });
   }
 

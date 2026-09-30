@@ -106,11 +106,36 @@
     await window.renderAdmin();
 
     // إرسال إشعار للأجهزة المشتركة بعد إنشاء إعلان جديد فقط.
+    // نستخدم عنوان Edge Function صريحاً مع ?action=send-ad بدلاً من
+    // تمرير query string داخل اسم الدالة، حتى لا يعتمد الإرسال على سلوك
+    // إصدار مكتبة Supabase المستخدم في المتصفح.
     if(newAdId && payload.active!==false){
       try{
-        const pushResult=await supabaseClient.functions.invoke('smart-action?action=send-ad',{body:{ad_id:newAdId}});
-        if(pushResult.error) console.warn('push send:',pushResult.error);
-        else console.log('push send result:',pushResult.data);
+        const sessionResult=await supabaseClient.auth.getSession();
+        const accessToken=sessionResult?.data?.session?.access_token || SUPABASE_KEY;
+        const controller=new AbortController();
+        const timer=setTimeout(()=>controller.abort(),15000);
+
+        const response=await fetch(
+          `${SUPABASE_URL}/functions/v1/smart-action?action=send-ad`,
+          {
+            method:'POST',
+            headers:{
+              'Content-Type':'application/json',
+              'apikey':SUPABASE_KEY,
+              'Authorization':`Bearer ${accessToken}`
+            },
+            body:JSON.stringify({ad_id:newAdId}),
+            signal:controller.signal
+          }
+        ).finally(()=>clearTimeout(timer));
+
+        const result=await response.json().catch(()=>({}));
+        if(!response.ok || result.ok===false){
+          console.warn('push send failed:',response.status,result);
+        }else{
+          console.log('push send result:',result);
+        }
       }catch(pushError){
         console.warn('push send failed:',pushError);
       }

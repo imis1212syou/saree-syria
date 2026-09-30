@@ -1,10 +1,14 @@
-const CACHE = "saree-pwa-v2";
+const CACHE = "saree-pwa-v3-push";
 self.addEventListener("install", event => {
   self.skipWaiting();
   event.waitUntil(caches.open(CACHE).then(c => c.addAll(["./", "./index.html"])).catch(()=>{}));
 });
 self.addEventListener("activate", event => {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil((async () => {
+    const names = await caches.keys();
+    await Promise.all(names.filter(name => name !== CACHE).map(name => caches.delete(name)));
+    await self.clients.claim();
+  })());
 });
 self.addEventListener("fetch", event => {
   if (event.request.method !== "GET") return;
@@ -20,7 +24,12 @@ self.addEventListener("fetch", event => {
 /* سعرلي سوريا — Web Push */
 self.addEventListener("push", event => {
   let data = {};
-  try { data = event.data ? event.data.json() : {}; } catch (_) {}
+  try {
+    if (event.data) {
+      try { data = event.data.json() || {}; }
+      catch (_) { data = { body: event.data.text() || "" }; }
+    }
+  } catch (_) {}
 
   const title = data.title || "سعرلي سوريا";
   const options = {
