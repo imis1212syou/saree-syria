@@ -415,7 +415,7 @@
 
   async function getCompanyAccountsForAdmin(){
     const [profilesRes,linkedRes]=await Promise.all([
-      supabaseClient.from('profiles').select('id,name,role,company_id,store_id,verified').eq('role','company').order('created_at',{ascending:false}),
+      supabaseClient.from('profiles').select('id,name,role,company_id,store_id,verified,phone').eq('role','company').order('created_at',{ascending:false}),
       supabaseClient.rpc('admin_list_company_users_v2')
     ]);
     if(profilesRes.error)throw profilesRes.error;
@@ -445,7 +445,7 @@
       const email=esc(u.email||'بدون بريد');
       const status=linked?.active===false?'موقوف':(selected?'مرتبط بشركة':'غير مرتبط');
       return `<div class="company-account-row">
-        <div class="accordionHead" data-company-toggle="${prefix}_body"><div><b>${label}</b><div class="muted">${email} • ${status}</div></div><span>▾</span></div>
+        <div class="accordionHead" data-company-toggle="${prefix}_body"><div><b>${label}</b><div class="muted">${u.phone?`📞 ${esc(u.phone)} • `:''}${email} • ${status}</div></div><span>▾</span></div>
         <div id="${prefix}_body" class="accordionBody hidden">
           <select id="${prefix}_company"><option value="">اختر الشركة</option>${companies.filter(c=>c.active!==false).map(c=>`<option value="${attr(c.id)}" ${String(c.id)===selected?'selected':''}>${esc(c.name)}</option>`).join('')}</select>
           ${permissionInputs(linked||u,prefix)}

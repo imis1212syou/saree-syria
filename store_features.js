@@ -910,7 +910,7 @@
       supabaseClient.from('change_requests').select('*').eq('status','pending').order('created_at',{ascending:false}),
       supabaseClient.from('products').select('*').order('name'),
       supabaseClient.from('stores').select('*,companies(id,name)').order('name'),
-      supabaseClient.from('profiles').select('id,name,role,store_id,company_id,can_edit_prices,verified').order('created_at',{ascending:false}),
+      supabaseClient.from('profiles').select('id,name,role,store_id,company_id,can_edit_prices,verified,phone').order('created_at',{ascending:false}),
       supabaseClient.from('companies').select('*').order('name'),
       supabaseClient.from('company_users').select('user_id').eq('active',true)
     ]);
@@ -925,7 +925,7 @@
     const merchantHtml=merchants.length ? merchants.map(u=>{
       const current=(stores||[]).find(s=>String(s.id)===String(u.store_id));
       return `<div class="priceRow merchantAdminItem">
-        <div class="accordionHead" data-toggle-id="merchant_${esc(u.id)}"><div><b>${esc(u.name||'تاجر')}</b><div class="muted">${current?`مرتبط بـ ${esc(current.name)}`:'غير مرتبط بمتجر'} • ${current?'صلاحية كاملة':'بدون متجر'}</div></div><span>▾</span></div>
+        <div class="accordionHead" data-toggle-id="merchant_${esc(u.id)}"><div><b>${esc(u.name||'تاجر')}</b><div class="muted">${u.phone?`📞 ${esc(u.phone)} • `:''}${current?`مرتبط بـ ${esc(current.name)}`:'غير مرتبط بمتجر'} • ${current?'صلاحية كاملة':'بدون متجر'}</div></div><span>▾</span></div>
         <div id="merchant_${esc(u.id)}" class="accordionBody hidden">
           <p class="muted">اضغط «ربط التاجر بالمتجر» لعرض قائمة المتاجر. يمكن اختيار متجر واحد فقط.</p>
           <div class="actions">
@@ -957,7 +957,6 @@
       <div class="card"><div class="accordionHead" data-toggle-id="adminStoresBody"><h2>إدارة المتاجر</h2><span>▾</span></div><div id="adminStoresBody" class="accordionBody hidden">${storesHtml}</div></div>
       <div class="card"><div class="accordionHead" data-toggle-id="adminUsersBody"><h2>الحسابات</h2><span>▾</span></div><div id="adminUsersBody" class="accordionBody hidden">${usersHtml}</div></div>
       <div class="card"><div class="accordionHead" data-toggle-id="adminBulkImportBody"><h2>📥 استيراد المواد والأسعار دفعة واحدة</h2><span>▾</span></div><div id="adminBulkImportBody" class="accordionBody hidden"><p class="muted">ارفع ملف CSV واحداً يحتوي على اسم المتجر واسم المادة والتصنيف والباركود والسعر. لا تحتاج إلى معرفة store_id؛ يكفي اسم المتجر المطابق لما هو مسجل في الموقع.</p><div class="actions"><button type="button" class="btn secondary" onclick="downloadBulkImportTemplate()">تحميل نموذج CSV</button><label class="btn primary" style="display:inline-block;margin:0;cursor:pointer">اختيار ملف CSV<input id="bulkImportFile" type="file" accept=".csv,text/csv" style="display:none" onchange="importMaterialsCsv(this)"></label></div><p id="bulkImportMsg" class="muted"></p><div id="bulkImportResult"></div></div></div>
-      <div class="card"><div class="accordionHead" data-toggle-id="adminSiteLinksBody"><h2>روابط الموقع</h2><span>▾</span></div><div id="adminSiteLinksBody" class="accordionBody hidden"><p class="muted">هذه الإعدادات للمدير فقط.</p><div class="two"><input id="siteWhatsapp" placeholder="رابط واتساب الموقع"><input id="siteTelegram" placeholder="رابط تلغرام الموقع"></div><button class="btn primary" onclick="saveSiteLinks()">حفظ روابط الموقع</button><p id="siteLinksMsg" class="muted"></p></div></div>
       <div class="actions"><button class="btn secondary" onclick="show('home')">العودة للموقع</button><button class="btn secondary" onclick="logout()">تسجيل الخروج</button></div>`;
     bindAdminAccordions();
     $('adminPanel').querySelectorAll('[data-link-merchant]').forEach(btn=>btn.onclick=()=>{
@@ -967,7 +966,6 @@
     });
     window.loadVisitorCount();
     window.loadAdminStoreVisitorCounts();
-    window.loadSiteLinks();
     setTimeout(buildAllQRCodes,30);
   };
 

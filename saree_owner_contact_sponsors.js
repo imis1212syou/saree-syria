@@ -293,44 +293,19 @@
 
   async function refreshSponsors() { renderSponsors(await loadSponsors()); }
 
-  async function injectAdminButton() {
-    if (!(await verifyAdminFromSupabase())) return;
-    if ($(ADMIN_BUTTON_ID)) return;
-
-    const panel = document.getElementById('adminPanel');
-    if (!panel) return;
-
-    const card = document.createElement('div');
-    card.id = ADMIN_BUTTON_ID;
-    card.className = 'card';
-    card.setAttribute('data-saree-ocs-admin-card', 'true');
-    card.innerHTML = `
-      <h2>🤝 تواصل الموقع والداعمون</h2>
-      <p class="muted">إدارة روابط واتساب وتلغرام وفيسبوك، وإضافة وتعديل ونشر الداعمين.</p>
-      <div class="actions">
-        <button type="button" class="btn primary" id="sareeOcsOpenAdminButton">فتح إدارة التواصل والداعمين</button>
-      </div>`;
-    panel.insertBefore(card, panel.firstChild);
-    card.querySelector('#sareeOcsOpenAdminButton').onclick = openAdmin;
-  }
-
+  async function injectAdminButton() { return; }
   async function boot() {
     css();
-    await currentUserId();
     contactButton();
     await refreshSponsors();
-    await injectAdminButton();
   }
 
   function observe() {
     let timer=0;
-    const mo=new MutationObserver(() => { clearTimeout(timer); timer=setTimeout(() => { contactButton(); void injectAdminButton(); if(!$(SPONSORS_ID)) refreshSponsors(); },250); });
+    const mo=new MutationObserver(() => { clearTimeout(timer); timer=setTimeout(() => { contactButton(); if(!$(SPONSORS_ID)) refreshSponsors(); },250); });
     mo.observe(document.body,{childList:true,subtree:true});
     window.addEventListener('load',()=>setTimeout(boot,50),{once:true});
     if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,50),{once:true}); else setTimeout(boot,50);
-    if(window.supabaseClient?.auth?.onAuthStateChange){
-      window.supabaseClient.auth.onAuthStateChange(() => setTimeout(async()=>{await currentUserId(); ADMIN_STATUS=null; await injectAdminButton();},150));
-    }
   }
 
   window.sareeOwnerContactSponsors = { openContact, openAdmin, refreshSponsors };
