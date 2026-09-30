@@ -404,8 +404,18 @@ async function loadProfile(navigate=true){
     const {data:{user},error:authError}=await supabaseClient.auth.getUser();
     if(authError) throw authError;
     if(!user){profileData=null;$('status').textContent=currentName()+' • زائر';return false}
-    const {data,error}=await supabaseClient.from('profiles')
-      .select('id,name,role,store_id,company_id,can_edit_prices,verified,phone').eq('id',user.id).maybeSingle();
+    // لا نجعل إضافة حقل الهاتف في قاعدة البيانات شرطاً لدخول الحساب.
+    // إذا لم تُنفّذ ترقية phone بعد، نعود تلقائياً للاستعلام القديم.
+    let data,error;
+    ({data,error}=await supabaseClient.from('profiles')
+      .select('id,name,role,store_id,company_id,can_edit_prices,verified,phone').eq('id',user.id).maybeSingle());
+    if(error){
+      const em=String(error.message||'').toLowerCase();
+      if(em.includes('phone') || em.includes('column') || em.includes('schema cache')){
+        ({data,error}=await supabaseClient.from('profiles')
+          .select('id,name,role,store_id,company_id,can_edit_prices,verified').eq('id',user.id).maybeSingle());
+      }
+    }
     if(error) throw error;
     if(!data){profileData=null;$('status').textContent=(user.email||'حساب')+' • حساب غير مكتمل';show('home');return false}
 
