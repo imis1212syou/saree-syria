@@ -912,7 +912,7 @@ async function loadSiteLinks(){
 // ماسح الباركود موجود في barcode_scanner.js لتجنب تعارض BarcodeDetector مع المتصفح.
 // لا نعرّف scanBarcode هنا.
 async function renderAdmin(){
- show('admin');$('role').textContent='لوحة تحكم المدير: إدارة كاملة للمنتجات والأسعار والمتاجر والحسابات والموافقات.';
+ show('admin');if($('role'))$('role').textContent='لوحة تحكم المدير: إدارة كاملة للمنتجات والأسعار والمتاجر والحسابات والموافقات.';
  const [rq,pr,st,us,co]=await Promise.all([
   supabaseClient.from('change_requests').select('*').eq('status','pending').order('created_at',{ascending:false}),
   supabaseClient.from('products').select('*').order('name'),
