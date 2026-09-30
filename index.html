@@ -26,7 +26,7 @@
 
 <section id="home" class="page active">
 <div class="hero"><h1>مقارنة أسعار المنتجات في سوريا</h1><p class="muted">الأرخص يظهر أولاً. التاجر المرتبط بمتجره ينشر المواد والأسعار مباشرة بعد الحفظ.</p><div id="roleActions" class="actions"></div></div><div id="adsHome" class="adSlot hidden"></div>
-<div class="grid"><div class="stat"><b id="pc">0</b> منتجات</div><div class="stat"><b id="sc">0</b> متاجر</div><div class="stat"><b id="approvedCount">0</b> أسعار معتمدة</div><div class="stat"><b id="basketCount">0</b> في السلة</div></div>
+<div class="grid"><div class="stat"><b id="pc">0</b> منتجات</div><div class="stat"><b id="sc">0</b> متاجر</div><div class="stat"><b id="cc">0</b> شركات</div><div class="stat"><b id="approvedCount">0</b> أسعار معتمدة</div><div class="stat"><b id="basketCount">0</b> في السلة</div></div>
 <div class="searchbar"><input id="search" placeholder="ابحث عن منتج أو علامة أو تصنيف أو مدينة..." oninput="renderProducts()"><div class="two"><select id="cityFilter" onchange="renderProducts()"><option value="">كل المدن</option></select><select id="catFilter" onchange="renderProducts()"><option value="">كل التصنيفات</option></select></div></div>
 <h2>أفضل الأسعار حالياً</h2><div id="products" class="grid"></div>
 </section>
@@ -545,14 +545,16 @@ async function loadProfileIfNeeded(){
 }
 async function loadPublicData(){
   try{
-    const [p,s,l]=await Promise.all([
+    const [p,s,l,c]=await Promise.all([
       supabaseClient.from('products').select('*').eq('active',true).order('name'),
       supabaseClient.from('stores').select('*').eq('active',true).order('name'),
-      supabaseClient.from('price_listings').select('*,stores(id,name,city,area,address,phone,image_url,verified)').eq('approved',true).order('price_new')
+      supabaseClient.from('price_listings').select('*,stores(id,name,city,area,address,phone,image_url,verified)').eq('approved',true).order('price_new'),
+      supabaseClient.from('companies').select('id').eq('active',true)
     ]);
     if(p.error||s.error||l.error) throw(p.error||s.error||l.error);
     products=p.data||[];stores=s.data||[];prices=l.data||[];
-    $('pc').textContent=products.length;$('sc').textContent=stores.length;
+    $('pc').textContent=products.length;$('sc').textContent=stores.length;$('cc').textContent=(c.data||[]).length;
+    if(c.error) console.warn('loadPublicData companies:',c.error);
     $('approvedCount').textContent=prices.length;$('basketCount').textContent=basket.length;
     fillFilters();
   }catch(err){console.warn('loadPublicData:',err)}
