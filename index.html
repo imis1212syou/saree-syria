@@ -33,7 +33,7 @@
 
 <section id="basket" class="page"><div class="hero"><h1>سلة المشتريات</h1><p class="muted">أرخص سعر لكل مادة.</p></div><div id="basketList"></div></section>
 <section id="favorites" class="page"><div class="hero"><h1>المفضلة والتنبيهات</h1></div><div id="favoritesList"></div></section>
-<section id="stores" class="page"><div id="adsStores" class="adSlot hidden"></div><div class="hero"><h1>المتاجر والشركات</h1><p class="muted">يمكنك تصفح المتاجر، صفحات الشركات، المسافة من موقعك، والتواصل المباشر مع المتجر.</p></div><h2>الشركات</h2><div id="companiesList" class="grid"></div><h2>المتاجر</h2><div id="storesList" class="grid"></div></section>
+<section id="stores" class="page"><div id="adsStores" class="adSlot hidden"></div><h2>المتاجر</h2><div id="storesList" class="grid"></div></section>
 <section id="storeDetail" class="page"><div id="adsStoreDetail" class="adSlot hidden"></div><div class="hero"><button class="btn secondary" onclick="openNav('stores')">← المتاجر</button><h1 id="storeDetailName">المتجر</h1><div id="storeDetailBody"></div></div></section>
 <section id="companyDetail" class="page"><div class="hero"><button class="btn secondary" onclick="openNav('companies')">← الشركات</button><h1 id="companyDetailName">الشركة</h1><div id="companyDetailBody"></div></div></section>
 <section id="categories" class="page"><div class="hero"><h1>التصنيفات</h1></div><div id="cats" class="grid"></div></section>
@@ -176,13 +176,7 @@
 
 <section id="admin" class="page">
 
-  <button
-    type="button"
-    class="btn"
-    onclick="adminMerchantPermissions()"
-  >
-    👑 حسابات التجار
-  </button><button type="button" class="btn" onclick="adminCompanyAccounts()">🏢 حسابات الشركات</button><button type="button" class="btn" onclick="openAdminAds()">📢 إدارة الإعلانات</button><div class="hero"><h1>لوحة الإدارة والصلاحيات</h1><p id="role" class="muted"></p></div><div id="adminPanel"></div></section>
+  <button type="button" class="btn" onclick="openAdminAds()">📢 إدارة الإعلانات</button><div id="adminPanel"></div></section>
 <section id="merchant" class="page"><div class="hero"><h1>بوابة التاجر</h1><p id="merchantRole" class="muted"></p></div><div id="merchantPanel"></div></section>
 <section id="company" class="page"><div class="hero"><h1>بوابة الشركة</h1><p id="companyRole" class="muted"></p></div><div id="companyPanel"></div></section>
 </div>
@@ -387,7 +381,7 @@ async function saveSignupPhoneSetting(enabled){
   const payload={whatsapp_url:enabled?'1':'0',updated_by:profileData.id};
   const result=existing.data?.id
     ? await supabaseClient.from('site_settings').update(payload).eq('id',existing.data.id)
-    : await supabaseClient.from('site_settings').insert({...payload,key:settingKey});
+    : await supabaseClient.from('site_settings').insert({id:crypto.randomUUID(),...payload,key:settingKey});
   if(result.error) throw result.error;
   window.__sareeSignupPhoneEnabled=!!enabled;
   __signupPhoneSettingLoaded=true;

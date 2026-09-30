@@ -267,7 +267,7 @@
         ${wa ? `<div class="actions"><a class="btn primary" href="${esc(wa)}" target="_blank" rel="noopener">💬 واتساب المتجر</a></div>` : ''}
         ${st.opening_hours ? `<p class="muted">🕐 ساعات الدوام: ${esc(st.opening_hours)}</p>` : ''}
         ${st.working_days ? `<p class="muted">📅 أيام العمل: ${esc(st.working_days)}</p>` : ''}
-        ${maps ? `<button type="button" class="btn secondary" id="storeDirectionsBtn">الاتجاهات في Google Maps</button>` : ''}
+        ${maps ? `<button type="button" class="btn secondary" id="storeDirectionsBtn">موقع واتجاه المتجر</button>` : ''}
       </div>
       <div class="card">
         <h3>بحث بالباركود داخل هذا المتجر فقط</h3>

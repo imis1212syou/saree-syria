@@ -434,7 +434,8 @@
       const dir=await supabaseClient.rpc('get_users_for_company_link');
       if(!dir.error)(dir.data||[]).forEach(u=>{
         const id=String(u.id||u.user_id||'');
-        const type=String(u.account_type||u.role||'').toLowerCase();
+        const meta=(u.user_metadata||u.raw_user_meta_data||u.user_meta_data||{});
+        const type=String(u.account_type||meta.account_type||u.role||'').toLowerCase();
         if(id&&type==='company')map.set(id,{...(map.get(id)||{}),...u,user_id:id});
       });
     }catch(_){ }
