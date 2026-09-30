@@ -161,7 +161,6 @@
     bindStoreListEvents(box);
     if(companyBox) bindStoreListEvents(companyBox);
     updateDistancesInPlace();
-    window.requestSareeLocation();
   };
 
   function bindStoreListEvents(root){
@@ -591,6 +590,9 @@
   window.recordStoreVisit = async function(storeId){
     if(!storeId || !window.supabaseClient) return false;
     try{
+      const key='saree_store_visit_once_'+String(storeId);
+      if(sessionStorage.getItem(key)==='1') return false;
+      sessionStorage.setItem(key,'1');
       const {error}=await supabaseClient.rpc('record_store_visit',{p_store_id:storeId});
       if(error) throw error;
       return true;
@@ -660,6 +662,9 @@
     const storeId=checked?.value||null;
     try{
       if(storeId){
+        const occupied=await supabaseClient.from('profiles').select('id,name').eq('role','store').eq('store_id',storeId).neq('id',merchantId).limit(1).maybeSingle();
+        if(occupied.error) throw occupied.error;
+        if(occupied.data) return alert('هذا المتجر مرتبط مسبقاً بحساب تاجر آخر. كل متجر يمكن ربطه بحساب تاجر واحد فقط.');
         // ربط التاجر بمتجره يعني تفعيل متجره وصلاحياته فوراً؛ لا توجد موافقة إضافية أو صلاحية منفصلة.
         const {error:storeError}=await supabaseClient.from('stores').update({active:true,verified:true}).eq('id',storeId);
         if(storeError) throw storeError;
@@ -910,7 +915,7 @@
       supabaseClient.from('change_requests').select('*').eq('status','pending').order('created_at',{ascending:false}),
       supabaseClient.from('products').select('*').order('name'),
       supabaseClient.from('stores').select('*,companies(id,name)').order('name'),
-      supabaseClient.from('profiles').select('id,name,role,store_id,company_id,can_edit_prices,verified,phone').order('created_at',{ascending:false}),
+      supabaseClient.from('profiles').select('*').order('created_at',{ascending:false}),
       supabaseClient.from('companies').select('*').order('name'),
       supabaseClient.from('company_users').select('user_id').eq('active',true)
     ]);
@@ -925,7 +930,7 @@
     const merchantHtml=merchants.length ? merchants.map(u=>{
       const current=(stores||[]).find(s=>String(s.id)===String(u.store_id));
       return `<div class="priceRow merchantAdminItem">
-        <div class="accordionHead" data-toggle-id="merchant_${esc(u.id)}"><div><b>${esc(u.name||'تاجر')}</b><div class="muted">${u.phone?`📞 ${esc(u.phone)} • `:''}${current?`مرتبط بـ ${esc(current.name)}`:'غير مرتبط بمتجر'} • ${current?'صلاحية كاملة':'بدون متجر'}</div></div><span>▾</span></div>
+        <div class="accordionHead" data-toggle-id="merchant_${esc(u.id)}"><div><b>${esc(u.name||'تاجر')}</b><div class="muted">${current?`مرتبط بـ ${esc(current.name)}`:'غير مرتبط بمتجر'} ${u.phone?'• 📞 '+esc(u.phone):''} • ${current?'صلاحية كاملة':'بدون متجر'}</div></div><span>▾</span></div>
         <div id="merchant_${esc(u.id)}" class="accordionBody hidden">
           <p class="muted">اضغط «ربط التاجر بالمتجر» لعرض قائمة المتاجر. يمكن اختيار متجر واحد فقط.</p>
           <div class="actions">
@@ -948,7 +953,7 @@
           <button type="button" class="btn secondary" onclick="toggleAdminStoreVerification('${esc(s.id)}')">${s.verified?'إلغاء توثيق المتجر':'توثيق المتجر'}</button>
           <button type="button" class="btn danger" onclick="deleteAdminStore('${esc(s.id)}')">حذف المتجر</button>
         </div></div></div>`).join('') : '<p class="muted">لا توجد متاجر.</p>';
-    const usersHtml=users.filter(u=>u.id!==ADMIN_UID).length ? users.filter(u=>u.id!==ADMIN_UID).map(u=>`<div class="priceRow"><div class="accordionHead" data-toggle-id="user_${esc(u.id)}"><b>${esc(u.name||u.id)}</b><span>▾</span></div><div id="user_${esc(u.id)}" class="accordionBody hidden"><div class="muted">الدور: ${esc(u.role||'user')}${u.store_id?' • مرتبط بمتجر':''}</div><div class="actions"><button type="button" class="btn secondary" onclick="setAccountToUser('${esc(u.id)}')">تحويل إلى مستخدم وإزالة الربط</button></div></div></div>`).join('') : '<p class="muted">لا توجد حسابات.</p>';
+    const usersHtml=users.filter(u=>u.id!==ADMIN_UID).length ? users.filter(u=>u.id!==ADMIN_UID).map(u=>`<div class="priceRow"><div class="accordionHead" data-toggle-id="user_${esc(u.id)}"><b>${esc(u.name||u.id)}</b><span>▾</span></div><div id="user_${esc(u.id)}" class="accordionBody hidden"><div class="muted">الدور: ${esc(u.role||'user')} ${u.phone?'• 📞 '+esc(u.phone):''}${u.store_id?' • مرتبط بمتجر':''}</div><div class="actions"><button type="button" class="btn secondary" onclick="setAccountToUser('${esc(u.id)}')">تحويل إلى مستخدم وإزالة الربط</button></div></div></div>`).join('') : '<p class="muted">لا توجد حسابات.</p>';
     $('adminPanel').innerHTML=`
       <div class="grid"><div class="card"><div class="name">${requests.length}</div><div class="muted">طلبات معلقة</div></div><div class="card"><div class="name">${(stores||[]).length}</div><div class="muted">متاجر</div></div><div class="card"><div class="name">${(products||[]).length}</div><div class="muted">منتجات</div></div><div class="card"><div class="name">${users.length}</div><div class="muted">حسابات</div></div><div class="card"><div class="name" id="visitorCount">—</div><div class="muted">إجمالي زيارات الموقع</div></div></div>
       <div class="card"><div class="accordionHead" data-toggle-id="adminRequestsBody"><h2>طلبات التجار</h2><span>▾</span></div><div id="adminRequestsBody" class="accordionBody hidden">${pending}</div></div>
@@ -956,6 +961,7 @@
       <div id="adminMerchantPermissionsBox" class="card"><div class="accordionHead" data-toggle-id="adminMerchantsBody"><div><h2>إدارة وربط التجار</h2><div class="muted">كل تاجر يمكن ربطه بمتجر واحد، ويحصل تلقائياً على كامل الصلاحيات والنشر المباشر.</div></div><span>▾</span></div><div id="adminMerchantsBody" class="accordionBody hidden">${merchantHtml}</div></div>
       <div class="card"><div class="accordionHead" data-toggle-id="adminStoresBody"><h2>إدارة المتاجر</h2><span>▾</span></div><div id="adminStoresBody" class="accordionBody hidden">${storesHtml}</div></div>
       <div class="card"><div class="accordionHead" data-toggle-id="adminUsersBody"><h2>الحسابات</h2><span>▾</span></div><div id="adminUsersBody" class="accordionBody hidden">${usersHtml}</div></div>
+      <div class="card"><h2>رقم الهاتف عند إنشاء الحساب</h2><label class="rememberRow"><input id="signupPhoneAdminToggle" type="checkbox" onchange="saveSignupPhoneSetting(this.checked).then(()=>{this.closest('.card').querySelector('.signupPhoneSettingMsg').textContent='تم حفظ الإعداد.'}).catch(e=>{this.checked=!this.checked;this.closest('.card').querySelector('.signupPhoneSettingMsg').textContent='تعذر حفظ الإعداد: '+e.message})"> إظهار حقل رقم الهاتف عند إنشاء حسابات التاجر والشركة</label><p class="muted signupPhoneSettingMsg">بدون تأكيد لرقم الهاتف.</p></div>
       <div class="card"><div class="accordionHead" data-toggle-id="adminBulkImportBody"><h2>📥 استيراد المواد والأسعار دفعة واحدة</h2><span>▾</span></div><div id="adminBulkImportBody" class="accordionBody hidden"><p class="muted">ارفع ملف CSV واحداً يحتوي على اسم المتجر واسم المادة والتصنيف والباركود والسعر. لا تحتاج إلى معرفة store_id؛ يكفي اسم المتجر المطابق لما هو مسجل في الموقع.</p><div class="actions"><button type="button" class="btn secondary" onclick="downloadBulkImportTemplate()">تحميل نموذج CSV</button><label class="btn primary" style="display:inline-block;margin:0;cursor:pointer">اختيار ملف CSV<input id="bulkImportFile" type="file" accept=".csv,text/csv" style="display:none" onchange="importMaterialsCsv(this)"></label></div><p id="bulkImportMsg" class="muted"></p><div id="bulkImportResult"></div></div></div>
       <div class="actions"><button class="btn secondary" onclick="show('home')">العودة للموقع</button><button class="btn secondary" onclick="logout()">تسجيل الخروج</button></div>`;
     bindAdminAccordions();
@@ -964,6 +970,7 @@
       box?.classList.toggle('hidden');
       if(box) btn.textContent=box.classList.contains('hidden')?'ربط التاجر بالمتجر':'إخفاء قائمة المتاجر';
     });
+    if($('signupPhoneAdminToggle')){ $('signupPhoneAdminToggle').checked=window.__sareeSignupPhoneEnabled===true; loadSignupPhoneSetting().then(()=>{ $('signupPhoneAdminToggle').checked=window.__sareeSignupPhoneEnabled===true; }).catch(console.warn); }
     window.loadVisitorCount();
     window.loadAdminStoreVisitorCounts();
     setTimeout(buildAllQRCodes,30);

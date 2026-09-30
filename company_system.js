@@ -168,22 +168,28 @@
   window.openCompanyById=async function(id){
     try{
       const {company,stores:linkedStores}=await loadCompanyById(id); currentCompany=company;
-      history.pushState({},'',window.location.pathname+'?company='+encodeURIComponent(id));
+      const companyQuery=new URLSearchParams(window.location.search).get('company');
+      if(String(companyQuery||'')!==String(id)) history.pushState({},'',window.location.pathname+'?company='+encodeURIComponent(id));
       try{sessionStorage.setItem('saree_current_view','companyDetail')}catch(_){}
       $('companyDetailName').textContent=company.name;
       const image=company.image_url?`<img class="img storeDetailLogo" src="${attr(company.image_url)}" alt="${attr(company.name)}">`:'';
       $('companyDetailBody').innerHTML=`
         ${image}<div class="card"><div class="row" style="justify-content:space-between;align-items:center"><div><span class="company-chip">🏢 شركة</span><div class="name">${esc(company.name)} ${company.verified?'✓':''}</div></div>${company.whatsapp_url?`<a class="btn primary" target="_blank" rel="noopener" href="${attr(company.whatsapp_url)}">💬 واتساب</a>`:''}</div><div class="muted">${esc(company.address||'')}</div>${company.phone?`<div class="muted">📞 ${esc(company.phone)}</div>`:''}<div class="company-qr-card"><div><b>QR خاص بالشركة</b><div class="muted">امسح الرمز لفتح صفحة الشركة مباشرة.</div><div class="actions"><button class="btn secondary" type="button" onclick="window.printCompanyQR('${attr(company.id)}')">طباعة QR</button></div></div><div id="companyQrBox" class="company-qr-box"></div></div></div>
-        <div class="company-toolbar"><div class="company-barcode"><input id="companyProductSearch" placeholder="ابحث عن اسم أو باركود..."><button class="btn secondary" type="button" id="companyBarcodeSearchBtn">بحث</button></div><div class="two"><select id="companyProductCategory"><option value="">كل التصنيفات</option>${companyCategories.map(c=>`<option value="${attr(c.name)}">${esc(c.name)}</option>`).join('')}</select><select id="companyProductPriceFilter"><option value="all">كل المواد</option><option value="with">مواد بسعر</option><option value="without">مواد بدون سعر</option></select></div><p id="companyProductMsg" class="muted"></p></div>
+        <div class="company-toolbar"><div class="company-barcode"><input id="companyProductSearch" inputmode="search" autocomplete="off" placeholder="ابحث عن اسم أو باركود..."><button class="btn secondary" type="button" id="companyBarcodeCamera">📷</button><button class="btn secondary" type="button" id="companyBarcodeSearchBtn">بحث</button></div><div class="two"><select id="companyProductCategory"><option value="">كل التصنيفات</option>${companyCategories.map(c=>`<option value="${attr(c.name)}">${esc(c.name)}</option>`).join('')}</select><select id="companyProductPriceFilter"><option value="all">كل المواد</option><option value="with">مواد بسعر</option><option value="without">مواد بدون سعر</option></select></div><p id="companyProductMsg" class="muted"></p></div>
         <h2 style="margin-top:15px">منتجات الشركة (${companyProducts.length})</h2><div id="companyProductsGrid" class="company-grid"></div>
         <h2 style="margin-top:20px">المتاجر المرتبطة بالشركة (${linkedStores.length})</h2><div class="grid">${linkedStores.length?linkedStores.map(renderLinkedStore).join(''):'<div class="card muted">لا توجد متاجر مرتبطة بهذه الشركة حالياً.</div>'}</div>`;
       showPage('companyDetail');
       buildCompanyQR(id);
       const render=()=>{const q=String($('companyProductSearch')?.value||'').trim().toLowerCase();const cat=String($('companyProductCategory')?.value||'');const pf=$('companyProductPriceFilter')?.value||'all';const rows=companyProducts.filter(p=>{const txt=[p.name,p.brand,p.unit,p.barcode,p.category].join(' ').toLowerCase();const has=p.price_new!==null&&p.price_new!==undefined&&p.price_new!=='';return (!q||txt.includes(q))&&(!cat||p.category===cat)&&(pf==='all'||(pf==='with'?has:!has))});$('companyProductsGrid').innerHTML=rows.length?rows.map(companyDetailCardProduct).join(''):'<div class="card muted">لا توجد مواد مطابقة.</div>';};
-      $('companyProductSearch').oninput=render;$('companyProductCategory').onchange=render;$('companyProductPriceFilter').onchange=render;$('companyBarcodeSearchBtn').onclick=async()=>{const q=norm($('companyProductSearch').value);if(!q)return render();const exact=companyProducts.find(p=>norm(p.barcode)===q);if(exact){openCompanyProduct(exact.id);$('companyProductMsg').textContent='تم العثور على المادة بالباركود.'}else{$('companyProductMsg').textContent='لم يتم العثور على مادة بهذا الباركود.';render()}};render();
+      $('companyProductSearch').oninput=render;$('companyProductCategory').onchange=render;$('companyProductPriceFilter').onchange=render;$('companyBarcodeSearchBtn').onclick=async()=>{const q=norm($('companyProductSearch').value);if(!q)return render();const exact=companyProducts.find(p=>norm(p.barcode)===q);if(exact){openCompanyProduct(exact.id);$('companyProductMsg').textContent='تم العثور على المادة بالباركود.'}else{$('companyProductMsg').textContent='لم يتم العثور على مادة بهذا الباركود.';render()}};$('companyProductSearch').onkeydown=ev=>{if(ev.key==='Enter')$('companyBarcodeSearchBtn').click()};$('companyBarcodeCamera').onclick=()=>window.openBarcodeScannerForCompany?.(id);render();
       try{
-        const visitId=(crypto.randomUUID?crypto.randomUUID():('company_visit_'+Date.now()+'_'+Math.random().toString(36).slice(2)));
-        await supabaseClient.rpc('record_company_visit',{p_company_id:id,p_visitor_id:visitId});
+        const visitKey='saree_company_visit_once_'+String(id);
+        if(sessionStorage.getItem(visitKey)!=='1'){
+          sessionStorage.setItem(visitKey,'1');
+          let visitId=localStorage.getItem('saree_visitor_id');
+          if(!visitId){visitId=(crypto.randomUUID?crypto.randomUUID():('v_'+Date.now()+'_'+Math.random().toString(36).slice(2)));localStorage.setItem('saree_visitor_id',visitId);}
+          await supabaseClient.rpc('record_company_visit',{p_company_id:id,p_visitor_id:visitId});
+        }
       }catch(_){ }
     }catch(err){alert(err.message||'تعذر فتح الشركة')}
   };
@@ -202,6 +208,7 @@
   };
 
   function showPage(id){
+    window.ensurePageCloseButton?.(id);
     document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
     $(id)?.classList.add('active');
     document.querySelectorAll('.nav button').forEach(x=>x.classList.remove('active'));
@@ -410,12 +417,12 @@
   window.adminLinkCompany=async function(requestId,userId,requestedName){
     if(role()!=='admin')return;
     const comps=await supabaseClient.from('companies').select('id,name').eq('active',true).order('name');if(comps.error)return alert(comps.error.message);if(!comps.data?.length)return alert('أنشئ الشركة أولاً.');
-    const modal=document.createElement('div');modal.id='companyLinkModal';modal.className='company-modal';modal.innerHTML=`<div class="company-modal-inner"><h2>ربط حساب الشركة</h2><p class="muted">الحساب: ${esc(requestedName||userId)}</p><select id="acl_company">${comps.data.map(c=>`<option value="${attr(c.id)}">${esc(c.name)}</option>`).join('')}</select>${permissionInputs({},'acl')}<div class="actions"><button class="btn primary" id="acl_save">حفظ وربط</button><button class="btn secondary" id="acl_close">إلغاء</button></div></div>`;document.body.appendChild(modal);$('acl_close').onclick=()=>modal.remove();$('acl_save').onclick=async()=>{const payload={p_request_id:requestId,p_company_id:$('acl_company').value,p_can_manage_products:$('acl_manage').checked,p_can_edit_products:$('acl_edit').checked,p_can_delete_products:$('acl_delete').checked,p_can_manage_categories:$('acl_cat').checked,p_can_manage_settings:$('acl_settings').checked,p_can_view_orders:$('acl_orders').checked};const {error}=await supabaseClient.rpc('admin_link_company_account',payload);if(error)return alert(error.message);modal.remove();await renderAdminCompanyBox()};
+    const modal=document.createElement('div');modal.id='companyLinkModal';modal.className='company-modal';modal.innerHTML=`<div class="company-modal-inner"><h2>ربط حساب الشركة</h2><p class="muted">الحساب: ${esc(requestedName||userId)}</p><select id="acl_company">${comps.data.map(c=>`<option value="${attr(c.id)}">${esc(c.name)}</option>`).join('')}</select>${permissionInputs({},'acl')}<div class="actions"><button class="btn primary" id="acl_save">حفظ وربط</button><button class="btn secondary" id="acl_close">إلغاء</button></div></div>`;document.body.appendChild(modal);$('acl_close').onclick=()=>modal.remove();$('acl_save').onclick=async()=>{const selectedCompanyId=$('acl_company').value;const availability=await ensureCompanyAccountAvailability(userId,selectedCompanyId,'');if(availability)return alert(availability);const payload={p_request_id:requestId,p_company_id:selectedCompanyId,p_can_manage_products:$('acl_manage').checked,p_can_edit_products:$('acl_edit').checked,p_can_delete_products:$('acl_delete').checked,p_can_manage_categories:$('acl_cat').checked,p_can_manage_settings:$('acl_settings').checked,p_can_view_orders:$('acl_orders').checked};const {error}=await supabaseClient.rpc('admin_link_company_account',payload);if(error)return alert(error.message);modal.remove();await renderAdminCompanyBox()};
   };
 
   async function getCompanyAccountsForAdmin(){
     const [profilesRes,linkedRes]=await Promise.all([
-      supabaseClient.from('profiles').select('id,name,role,company_id,store_id,verified,phone').eq('role','company').order('created_at',{ascending:false}),
+      supabaseClient.from('profiles').select('id,name,role,company_id,store_id,verified').eq('role','company').order('created_at',{ascending:false}),
       supabaseClient.rpc('admin_list_company_users_v2')
     ]);
     if(profilesRes.error)throw profilesRes.error;
@@ -445,7 +452,7 @@
       const email=esc(u.email||'بدون بريد');
       const status=linked?.active===false?'موقوف':(selected?'مرتبط بشركة':'غير مرتبط');
       return `<div class="company-account-row">
-        <div class="accordionHead" data-company-toggle="${prefix}_body"><div><b>${label}</b><div class="muted">${u.phone?`📞 ${esc(u.phone)} • `:''}${email} • ${status}</div></div><span>▾</span></div>
+        <div class="accordionHead" data-company-toggle="${prefix}_body"><div><b>${label}</b><div class="muted">${email} • ${status}</div></div><span>▾</span></div>
         <div id="${prefix}_body" class="accordionBody hidden">
           <select id="${prefix}_company"><option value="">اختر الشركة</option>${companies.filter(c=>c.active!==false).map(c=>`<option value="${attr(c.id)}" ${String(c.id)===selected?'selected':''}>${esc(c.name)}</option>`).join('')}</select>
           ${permissionInputs(linked||u,prefix)}
@@ -453,6 +460,17 @@
         </div>
       </div>`;
     }).join('');
+  }
+
+  async function ensureCompanyAccountAvailability(uid,companyId,existingId){
+    const companyTaken=await supabaseClient.from('company_users').select('id,user_id').eq('company_id',companyId).eq('active',true).neq('user_id',uid).limit(1).maybeSingle();
+    if(companyTaken.error)throw companyTaken.error;
+    if(companyTaken.data)return 'هذه الشركة مرتبطة مسبقاً بحساب شركة آخر. كل شركة يمكن ربطها بحساب شركة واحد فقط.';
+    const userLinks=await supabaseClient.from('company_users').select('id,company_id').eq('user_id',uid).eq('active',true);
+    if(userLinks.error)throw userLinks.error;
+    const other=userLinks.data?.find(x=>String(x.company_id)!==String(companyId) && String(x.id)!==String(existingId||''));
+    if(other)return 'هذا الحساب مرتبط مسبقاً بشركة أخرى. كل حساب شركة يمكن ربطه بشركة واحدة فقط.';
+    return '';
   }
 
   window.adminSaveCompanyAccount=async function(uid){
@@ -464,6 +482,8 @@
     const existing=companyUsers.find(x=>String(x.user_id)===String(uid));
     const payload={user_id:uid,company_id:companyId,active:true,can_manage_products:val('manage'),can_manage_categories:val('cat'),can_edit_prices:val('edit'),can_delete_products:val('delete'),can_manage_settings:val('settings'),can_view_orders:val('orders'),can_view_stats:val('stats'),updated_at:new Date().toISOString()};
     try{
+      const availability=await ensureCompanyAccountAvailability(uid,companyId,existing?.id);
+      if(availability)return alert(availability);
       const save=existing?.id?await supabaseClient.from('company_users').update(payload).eq('id',existing.id).select('id').maybeSingle():await supabaseClient.from('company_users').insert(payload).select('id').single();
       if(save.error)throw save.error;
       const pr=await supabaseClient.from('profiles').update({role:'company',company_id:companyId,store_id:null,verified:true}).eq('id',uid);
@@ -584,6 +604,10 @@
         }
 
         const uid = selectedUser.id;
+        const existingForUser=await supabaseClient.from('company_users').select('id,company_id').eq('user_id',uid).eq('active',true).limit(1).maybeSingle();
+        if(existingForUser.error)throw existingForUser.error;
+        const availability=await ensureCompanyAccountAvailability(uid,companyId,existingForUser.data?.id);
+        if(availability)throw new Error(availability);
         const payload={
           user_id:uid,
           company_id:companyId,

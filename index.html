@@ -9,7 +9,7 @@
 <style>
 *{box-sizing:border-box}body{margin:0;background:#080d11;color:#f1f4f5;font-family:Arial,Tahoma,sans-serif}.app{max-width:950px;margin:auto;padding:16px 14px 92px}.logo{font-size:25px;font-weight:800;color:#35d07f}.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:15px}.status,.muted{color:#9da9ae;font-size:13px;line-height:1.7}.card,.hero,.stat{background:#12191d;border:1px solid #202b30;border-radius:18px;padding:16px}.hero{margin-bottom:14px}h1{margin:0 0 8px;font-size:24px}h2{margin:0 0 12px;font-size:19px}.actions,.row{display:flex;gap:9px;flex-wrap:wrap;margin-top:14px}.btn{border:0;border-radius:11px;padding:12px 15px;font-weight:bold;cursor:pointer}.btn:disabled{opacity:.45;cursor:not-allowed}.primary{background:#35d07f;color:#06100a}.secondary{background:#1a2429;color:#fff;border:1px solid #303b40}.danger{background:#6d2525;color:#fff}.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:11px}.pill{display:inline-block;background:#183b2b;color:#54dc92;border-radius:999px;padding:5px 9px;font-size:11px}.name{font-size:18px;font-weight:800;margin:9px 0 4px}.price{font-size:24px;font-weight:900;color:#35d07f;margin-top:10px}.old{color:#7f8b90;font-size:12px}.meta{display:flex;justify-content:space-between;gap:8px;color:#98a5aa;font-size:12px;margin-top:8px}.page{display:none}.page.active{display:block}.nav{position:fixed;bottom:0;left:0;right:0;background:#0d1418;border-top:1px solid #263137;z-index:10}.navin{max-width:900px;margin:auto;display:grid;grid-template-columns:repeat(6,1fr)}.nav button{background:none;border:0;color:#9da9ae;padding:11px 4px;font-size:11px;transition:background .2s,color .2s,transform .2s}
 .nav button.active{background:#183b2b;color:#7ff0aa;border-radius:12px 12px 0 0;font-weight:800;box-shadow:inset 0 2px 0 #35d07f}
-.nav button:active{transform:scale(.97)}.notice{padding:10px;border-radius:10px;background:#17231d;color:#7ff0aa;margin-top:10px}.pending{background:#3b3218;color:#f4d878}.dangerbox{background:#35191b;color:#ff9da2}.img{width:100%;height:160px;object-fit:cover;border-radius:12px;margin-bottom:8px}.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}.table{width:100%;border-collapse:collapse;font-size:12px}.table th,.table td{border-bottom:1px solid #29343a;padding:9px;text-align:right;vertical-align:top}.hidden{display:none!important}.searchbar{position:sticky;top:0;background:#080d11;padding:5px 0 10px;z-index:3}.priceRow{padding:10px;border:1px solid #263137;border-radius:12px;margin-top:8px}.approve{background:#173a28;color:#70e6a2}.reject{background:#402020;color:#ff9b9b}input,select{width:100%;padding:12px;margin-top:9px;border-radius:10px;border:1px solid #303b40;background:#0d1418;color:#fff}label{display:block;margin-top:10px}@media(max-width:650px){.grid,.two{grid-template-columns:1fr}.app{padding-top:12px}.table{font-size:11px}}
+.nav button:active{transform:scale(.97)}.notice{padding:10px;border-radius:10px;background:#17231d;color:#7ff0aa;margin-top:10px}.pending{background:#3b3218;color:#f4d878}.dangerbox{background:#35191b;color:#ff9da2}.img{width:100%;height:160px;object-fit:cover;border-radius:12px;margin-bottom:8px}.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}.table{width:100%;border-collapse:collapse;font-size:12px}.table th,.table td{border-bottom:1px solid #29343a;padding:9px;text-align:right;vertical-align:top}.hidden{display:none!important}.searchbar{position:sticky;top:0;background:#080d11;padding:5px 0 10px;z-index:3}.pageCloseBtn{display:flex;justify-content:flex-start;margin:0 0 10px}.pageCloseBtn button{min-width:44px;min-height:40px;font-size:18px}.priceRow{padding:10px;border:1px solid #263137;border-radius:12px;margin-top:8px}.approve{background:#173a28;color:#70e6a2}.reject{background:#402020;color:#ff9b9b}input,select{width:100%;padding:12px;margin-top:9px;border-radius:10px;border:1px solid #303b40;background:#0d1418;color:#fff}label{display:block;margin-top:10px}@media(max-width:650px){.grid,.two{grid-template-columns:1fr}.app{padding-top:12px}.table{font-size:11px}}
 .verse{margin-top:2px;color:#aeb8bd;font-size:12px}.storeContact{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.storeContact a{text-decoration:none}.barcodeSearch{display:flex;gap:8px;align-items:center;margin:12px 0}.barcodeSearch input{margin:0;flex:1}.accordionHead{display:flex;justify-content:space-between;align-items:center;cursor:pointer}.accordionBody{margin-top:10px}.adminGroup{margin-top:12px}.companyBadge{background:#1b2d36;color:#b7e6ff}.qrbox{background:#fff;border-radius:12px;padding:10px;width:max-content;margin-top:10px}.qrbox img{display:block}
 
 .adSlot{margin:0 0 14px}.adCard{position:relative;display:flex;gap:12px;align-items:center;background:#12191d;border:1px solid #303b40;border-radius:16px;padding:10px;overflow:hidden}.adImage{width:130px;height:82px;object-fit:cover;border-radius:11px;flex:none}.adContent{min-width:0;flex:1}.adBody{margin-top:4px}.adButton{display:inline-block;text-decoration:none;margin-top:8px}.adLabel{position:absolute;top:7px;left:7px;font-size:9px;padding:3px 6px;border-radius:999px;background:#263137;color:#aeb8bd}.rememberRow{display:flex;align-items:center;gap:10px;margin:12px 0;color:#aeb8bd;cursor:pointer}.rememberRow input{width:20px;height:20px;accent-color:#35d07f}
@@ -33,7 +33,7 @@
 
 <section id="basket" class="page"><div class="hero"><h1>سلة المشتريات</h1><p class="muted">أرخص سعر لكل مادة.</p></div><div id="basketList"></div></section>
 <section id="favorites" class="page"><div class="hero"><h1>المفضلة والتنبيهات</h1></div><div id="favoritesList"></div></section>
-<section id="stores" class="page"><div id="adsStores" class="adSlot hidden"></div><div class="hero"><h1>المتاجر والشركات</h1><p class="muted">يمكنك تصفح المتاجر، صفحات الشركات، المسافة من موقعك، والتواصل المباشر مع المتجر.</p><button type="button" class="btn secondary" onclick="requestSareeLocation()">📍 تحديد موقعي</button></div><h2>الشركات</h2><div id="companiesList" class="grid"></div><h2>المتاجر</h2><div id="storesList" class="grid"></div></section>
+<section id="stores" class="page"><div id="adsStores" class="adSlot hidden"></div><div class="hero"><h1>المتاجر والشركات</h1><p class="muted">يمكنك تصفح المتاجر، صفحات الشركات، المسافة من موقعك، والتواصل المباشر مع المتجر.</p></div><h2>الشركات</h2><div id="companiesList" class="grid"></div><h2>المتاجر</h2><div id="storesList" class="grid"></div></section>
 <section id="storeDetail" class="page"><div id="adsStoreDetail" class="adSlot hidden"></div><div class="hero"><button class="btn secondary" onclick="openNav('stores')">← المتاجر</button><h1 id="storeDetailName">المتجر</h1><div id="storeDetailBody"></div></div></section>
 <section id="companyDetail" class="page"><div class="hero"><button class="btn secondary" onclick="openNav('companies')">← الشركات</button><h1 id="companyDetailName">الشركة</h1><div id="companyDetailBody"></div></div></section>
 <section id="categories" class="page"><div class="hero"><h1>التصنيفات</h1></div><div id="cats" class="grid"></div></section>
@@ -169,8 +169,9 @@
 <div class="actions"><button class="btn primary" onclick="login()">تسجيل الدخول</button><button class="btn secondary" onclick="forgotPassword()">نسيت كلمة السر؟</button><button class="btn secondary" onclick="show('signup')">إنشاء حساب</button><button class="btn secondary" onclick="enterVisitorFromLogin()">الدخول كزائر</button></div><p id="msg" class="muted"></p></div></section>
 
 <section id="signup" class="page"><div class="hero"><h1>إنشاء حساب</h1><p class="muted">كل بريد إلكتروني يمكنه امتلاك حساب واحد فقط. حساب التاجر يبدأ بدون متجر، وعند ربطه بمتجر من المدير يحصل فوراً على كامل صلاحيات متجره والنشر المباشر دون طلبات موافقة.</p></div><div class="card">
-<input id="signupName" placeholder="الاسم"><input id="signupEmail" type="email" placeholder="البريد الإلكتروني"><input id="signupPhone" type="tel" inputmode="tel" autocomplete="tel" placeholder="رقم الهاتف" class="hidden"><input id="signupPass" type="password" placeholder="كلمة المرور"><input id="signupPass2" type="password" placeholder="تأكيد كلمة المرور">
+<input id="signupName" placeholder="الاسم"><input id="signupEmail" type="email" placeholder="البريد الإلكتروني"><input id="signupPass" type="password" placeholder="كلمة المرور"><input id="signupPass2" type="password" placeholder="تأكيد كلمة المرور">
 <select id="accountType"><option value="user">حساب مستخدم</option><option value="store">حساب تاجر</option><option value="company">حساب شركة</option></select>
+<div id="signupPhoneWrap" class="hidden"><input id="signupPhone" type="tel" inputmode="tel" autocomplete="tel" placeholder="رقم الهاتف"><div class="muted">رقم الهاتف لا يحتاج إلى تأكيد.</div></div>
 <div class="actions"><button class="btn primary" onclick="signup()">إنشاء الحساب</button><button class="btn secondary" onclick="show('login')">لدي حساب</button><button class="btn secondary" onclick="enterVisitorFromLogin()">الدخول كزائر</button></div><p id="signupMsg" class="muted"></p></div></section>
 
 <section id="admin" class="page">
@@ -206,8 +207,6 @@ window.supabaseClient=supabaseClient;
 let products=[],stores=[],prices=[],requests=[],companies=[],profileData=null;
 /* ===== Supabase admin authority ===== */
 let sareeAdminStatus = null;
-let sareeAuthSession=false;
-let sareeLoginInProgress=false;
 async function sareeCheckAdmin(force=false){
   if(!force && sareeAdminStatus !== null) return sareeAdminStatus;
   try{
@@ -242,12 +241,29 @@ function f(n){return Number(n||0).toLocaleString('en-US',{maximumFractionDigits:
 function old(n){return f(Number(n||0)*100)}
 function escAttr(x){return e(x).replace(/`/g,'&#096;')}
 const SAREE_VIEW_KEY='saree_current_view';
-const RESTORABLE_VIEWS=new Set(['home','basket','favorites','companies','stores','categories','add','login','signup','admin','merchant','company']);
+const RESTORABLE_VIEWS=new Set(['home','basket','favorites','companies','stores','categories','add','login','signup','admin','merchant','company','storeDetail','companyDetail']);
 function setCurrentView(id){try{sessionStorage.setItem(SAREE_VIEW_KEY,id)}catch(_){}}
 function getCurrentView(){try{const v=sessionStorage.getItem(SAREE_VIEW_KEY);return RESTORABLE_VIEWS.has(v)?v:'home'}catch(_){return 'home'}}
+function ensurePageCloseButton(id){
+  const page=$(id);
+  if(!page || ['home','basket','favorites','stores','categories','welcome'].includes(id)) return;
+  if(page.querySelector(':scope > .pageCloseBtn')) return;
+  const wrap=document.createElement('div');
+  wrap.className='pageCloseBtn';
+  wrap.innerHTML='<button type="button" class="btn secondary" aria-label="إغلاق">× إغلاق</button>';
+  wrap.querySelector('button').onclick=()=>closePageView(id);
+  page.insertBefore(wrap,page.firstChild);
+}
+function closePageView(id){
+  if(id==='storeDetail'){history.replaceState({},'',window.location.pathname);show('stores');return;}
+  if(id==='companyDetail'){history.replaceState({},'',window.location.pathname);show('companies');return;}
+  show('home');
+}
+window.closePageView=closePageView;
 function show(id){
   document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
   $(id)?.classList.add('active');
+  ensurePageCloseButton(id);
   document.querySelectorAll('.nav button').forEach(x=>x.classList.remove('active'));
   const navPage=(id==='storeDetail'||id==='companyDetail')?'stores':id;
   const navBtn=document.querySelector(`.nav button[onclick="openNav('${navPage}')"]`);
@@ -258,15 +274,17 @@ function show(id){
   if(id==='favorites')renderFavorites();
   if(id==='stores')renderStores();
   if(id==='categories')renderCategories();
-  if(id==='storeDetail')renderStoreDetail();
   if(id==='home')renderRoleActions();
 }
 function storeUrl(id){return window.location.origin+window.location.pathname+'?store='+encodeURIComponent(id);}
-function openStore(id){if(!id)return;history.pushState({},'',window.location.pathname+'?store='+encodeURIComponent(id));show('storeDetail');renderStoreDetail(id);}
+function openStore(id){if(!id)return;history.pushState({},'',window.location.pathname+'?store='+encodeURIComponent(id));show('storeDetail');const renderer=window.renderStoreDetail||renderStoreDetail;return renderer(id);}
 async function recordStoreVisit(storeId){
   try{
     if(!storeId) return;
-    const visitId=(crypto.randomUUID?crypto.randomUUID():('visit_'+Date.now()+'_'+Math.random().toString(36).slice(2)));
+    const key='saree_store_visit_once_'+String(storeId);
+    if(sessionStorage.getItem(key)==='1') return;
+    sessionStorage.setItem(key,'1');
+    const visitId=visitorId();
     const {error}=await supabaseClient.from('store_visitor_visits').insert({store_id:storeId,visitor_id:visitId});
     if(error) throw error;
   }catch(err){console.warn('store visit:',err)}
@@ -305,7 +323,7 @@ async function scanBarcodeForStore(storeId){
 }
 function handleStoreDeepLink(){const id=new URLSearchParams(location.search).get('store');if(id){setTimeout(()=>{show('storeDetail');renderStoreDetail(id);},0);}}
 window.addEventListener('popstate',()=>{const id=new URLSearchParams(location.search).get('store');if(id){show('storeDetail');renderStoreDetail(id);}else{show('home');}});
-function renderTopAccount(){const b=$('topAccountBtn');if(!b)return;b.classList.remove('hidden');if(profileData||sareeAuthSession){b.textContent='تسجيل الخروج';b.onclick=confirmLogout;}else{b.textContent='دخول الحساب';b.onclick=()=>show('login');}}
+function renderTopAccount(){const b=$('topAccountBtn');if(!b)return;b.classList.remove('hidden');if(profileData){b.textContent='تسجيل الخروج';b.onclick=confirmLogout;}else{b.textContent='دخول الحساب';b.onclick=()=>show('login');}}
 function renderRoleActions(){const box=$('roleActions');if(!box)return;box.innerHTML='';if(!profileData)return;if(profileData.is_admin===true||profileData.role==='admin'){box.innerHTML='<button class="btn primary" onclick="showAdd()">إضافة مادة أو سعر</button><button class="btn secondary" onclick="openPriceUpdate()">لوحة التحكم</button><button class="btn secondary" onclick="show(\'admin\');renderAdmin()">فتح لوحة المدير</button>';}else if(profileData.role==='store'){box.innerHTML='<button class="btn primary" onclick="showAdd()">تسجيل سعر جديد</button><button class="btn secondary" onclick="openPriceUpdate()">تحديث الأسعار</button>';}else if(profileData.role==='company'){box.innerHTML='<button class="btn primary" onclick="window.openCompanyDashboard?.()">لوحة شركتي</button><button class="btn secondary" onclick="show(\'companies\')">صفحة الشركات</button>';}}
 async function openPriceUpdate(){if(await sareeCheckAdmin()){show('admin');await renderAdmin();return;}if(profileData?.role==='store'){renderMerchant();return;}if(profileData?.role==='company'){window.openCompanyDashboard?.();return;}alert('هذه الميزة للحسابات المصرح لها فقط.');}
 function openNav(id){
@@ -329,8 +347,10 @@ function visitorId(){
 }
 async function recordVisitor(){
  try{
-   const visitId=(crypto.randomUUID?crypto.randomUUID():('site_visit_'+Date.now()+'_'+Math.random().toString(36).slice(2)));
-   await supabaseClient.from('visitor_visits').insert({visitor_id:visitId});
+   const key='saree_site_visit_once';
+   if(sessionStorage.getItem(key)==='1') return;
+   sessionStorage.setItem(key,'1');
+   await supabaseClient.from('visitor_visits').insert({visitor_id:visitorId()});
  }catch(err){console.warn('visitor tracking:',err)}
 }
 function confirmLogout(){if(confirm('هل أنت متأكد أنك تريد تسجيل الخروج؟')) logout();}
@@ -341,32 +361,55 @@ function enterVisitorFromLogin(){
  refreshAll().catch(console.warn);
 }
 
-function updateSignupPhoneField(){
- const field=$('signupPhone'),type=$('accountType')?.value;
- if(!field)return;
- const showPhone=window.sareeSignupPhoneEnabled===true && (type==='store'||type==='company');
- field.classList.toggle('hidden',!showPhone);
- field.required=showPhone;
- if(!showPhone)field.value='';
+let __signupPhoneSettingLoaded=false;
+async function loadSignupPhoneSetting(){
+  if(__signupPhoneSettingLoaded) return window.__sareeSignupPhoneEnabled===true;
+  try{
+    const {data,error}=await supabaseClient.from('site_settings').select('id,whatsapp_url').eq('key','signup_phone_enabled').maybeSingle();
+    if(!error && data){window.__sareeSignupPhoneEnabled=String(data.whatsapp_url||'')==='1';}else if(window.__sareeSignupPhoneEnabled==null){window.__sareeSignupPhoneEnabled=false;}
+  }catch(err){if(window.__sareeSignupPhoneEnabled==null)window.__sareeSignupPhoneEnabled=false;console.warn('signup phone setting:',err)}
+  __signupPhoneSettingLoaded=true;
+  setupSignupPhoneField();
+  return window.__sareeSignupPhoneEnabled===true;
 }
-window.updateSignupPhoneField=updateSignupPhoneField;
-$('accountType')?.addEventListener('change',updateSignupPhoneField);
+function setupSignupPhoneField(){
+  const wrap=$('signupPhoneWrap'); const type=$('accountType');
+  if(!wrap)return;
+  const enabled=window.__sareeSignupPhoneEnabled===true;
+  const showField=enabled && (type?.value==='store'||type?.value==='company');
+  wrap.classList.toggle('hidden',!showField);
+}
+async function saveSignupPhoneSetting(enabled){
+  if(!(await sareeCheckAdmin(true))) return false;
+  const settingKey='signup_phone_enabled';
+  const existing=await supabaseClient.from('site_settings').select('id').eq('key',settingKey).maybeSingle();
+  if(existing.error) throw existing.error;
+  const payload={whatsapp_url:enabled?'1':'0',updated_by:profileData.id};
+  const result=existing.data?.id
+    ? await supabaseClient.from('site_settings').update(payload).eq('id',existing.data.id)
+    : await supabaseClient.from('site_settings').insert({...payload,key:settingKey});
+  if(result.error) throw result.error;
+  window.__sareeSignupPhoneEnabled=!!enabled;
+  __signupPhoneSettingLoaded=true;
+  setupSignupPhoneField();
+  return true;
+}
 
 async function signup(){
- const name=$('signupName').value.trim(),email=$('signupEmail').value.trim().toLowerCase(),phone=$('signupPhone')?.value.trim()||'',p1=$('signupPass').value,p2=$('signupPass2').value,type=$('accountType').value;
- const needsPhone=window.sareeSignupPhoneEnabled===true && (type==='store'||type==='company');
+ const name=$('signupName').value.trim(),email=$('signupEmail').value.trim().toLowerCase(),p1=$('signupPass').value,p2=$('signupPass2').value,type=$('accountType').value,phone=String($('signupPhone')?.value||'').trim();
  if(!name||!email||!p1)return $('signupMsg').textContent='املأ جميع الحقول.';
- if(needsPhone && !phone)return $('signupMsg').textContent='أدخل رقم الهاتف.';
  if(p1.length<6)return $('signupMsg').textContent='كلمة المرور يجب أن تكون 6 أحرف على الأقل.';
  if(p1!==p2)return $('signupMsg').textContent='كلمتا المرور غير متطابقتين.';
  $('signupMsg').textContent='جاري إنشاء الحساب...';
- const {data,error}=await supabaseClient.auth.signUp({email,password:p1,options:{data:{name,account_type:type,phone:needsPhone?phone:null}}});
+ const signupMeta={name,account_type:type};
+ if(type!=='user' && window.__sareeSignupPhoneEnabled===true && phone) signupMeta.phone=phone;
+ const {data,error}=await supabaseClient.auth.signUp({email,password:p1,options:{data:signupMeta}});
  if(error){
    const m=error.message.toLowerCase();
    $('signupMsg').textContent=(m.includes('already')||m.includes('registered')||m.includes('exists'))?'هذا البريد مستخدم مسبقاً. كل بريد له حساب واحد فقط.':'تعذر إنشاء الحساب: '+error.message;
    return;
  }
- if(data.session){await loadProfile();await refreshAll();return}
+ if(data.session){await loadProfile();setCurrentView('home');await refreshAll();return}
  $('signupMsg').textContent='تم إنشاء الحساب. إذا طلب النظام تأكيد البريد، افتح رسالة التأكيد ثم سجّل الدخول.';
  show('login');
 }
@@ -377,17 +420,14 @@ async function login(){
  const remember=!!$('rememberLogin')?.checked;
  if(!em||!pw){$('msg').textContent='اكتب البريد وكلمة المرور';return}
  $('msg').textContent='جاري تسجيل الدخول...';
- if(remember)localStorage.setItem('saree_login_email',em);else localStorage.removeItem('saree_login_email');
  sessionStorage.setItem('saree_explicit_login','1');
- sareeLoginInProgress=true;
  const {error}=await supabaseClient.auth.signInWithPassword({email:em,password:pw});
- if(error){sessionStorage.removeItem('saree_explicit_login');sareeLoginInProgress=false;$('msg').textContent='تعذر تسجيل الدخول. تأكد من البريد وكلمة المرور.';return}
- if(remember)localStorage.setItem('saree_remember_login','1');else localStorage.removeItem('saree_remember_login');
+ if(error){sessionStorage.removeItem('saree_explicit_login');$('msg').textContent='تعذر تسجيل الدخول. تأكد من البريد وكلمة المرور.';return}
+ if(remember){localStorage.setItem('saree_remember_login','1');localStorage.setItem('saree_saved_email',em);}else{localStorage.removeItem('saree_remember_login');localStorage.setItem('saree_saved_email',em);}
  localStorage.removeItem('visitor_name');
- sareeAuthSession=true;
- sareeLoginInProgress=false;
  const ok=await loadProfile();
- if(!ok){sareeLoginInProgress=false;await supabaseClient.auth.signOut();sareeAuthSession=false;$('msg').textContent='تعذر فتح الحساب حالياً. يمكنك الدخول كزائر بدون حساب.';show('login');return}
+ if(!ok){await supabaseClient.auth.signOut();$('msg').textContent='تعذر فتح الحساب حالياً. يمكنك الدخول كزائر بدون حساب.';show('login');return}
+ setCurrentView('home');
  $('msg').textContent='تم تسجيل الدخول.';
  renderTopAccount();renderRoleActions();
  await refreshAll();
@@ -398,26 +438,23 @@ async function forgotPassword(){
  const {error}=await supabaseClient.auth.resetPasswordForEmail(em,{redirectTo:location.origin+location.pathname});
  alert(error?'خطأ: '+error.message:'تم إرسال رابط إعادة تعيين كلمة السر إذا كان الحساب موجوداً.');
 }
-async function logout(){localStorage.removeItem('saree_remember_login');sareeAuthSession=false;sessionStorage.removeItem('saree_explicit_login');try{await supabaseClient.auth.signOut()}catch(e){console.warn(e)}profileData=null;window.companyContext=null;sareeAdminStatus=null;window.__SAREE_ADMIN_STATUS__=false;renderTopAccount();renderRoleActions();$('status').textContent=currentName()+' • زائر';show('home');await refreshAll()}
-async function loadProfile(navigate=true){
+async function logout(){localStorage.removeItem('saree_remember_login');sessionStorage.removeItem('saree_explicit_login');try{await supabaseClient.auth.signOut()}catch(e){console.warn(e)}profileData=null;window.companyContext=null;sareeAdminStatus=null;window.__SAREE_ADMIN_STATUS__=false;renderTopAccount();renderRoleActions();$('status').textContent=currentName()+' • زائر';show('home');await refreshAll()}
+async function loadProfile(){
   try{
     const {data:{user},error:authError}=await supabaseClient.auth.getUser();
     if(authError) throw authError;
     if(!user){profileData=null;$('status').textContent=currentName()+' • زائر';return false}
-    // لا نجعل إضافة حقل الهاتف في قاعدة البيانات شرطاً لدخول الحساب.
-    // إذا لم تُنفّذ ترقية phone بعد، نعود تلقائياً للاستعلام القديم.
-    let data,error;
-    ({data,error}=await supabaseClient.from('profiles')
-      .select('id,name,role,store_id,company_id,can_edit_prices,verified,phone').eq('id',user.id).maybeSingle());
-    if(error){
-      const em=String(error.message||'').toLowerCase();
-      if(em.includes('phone') || em.includes('column') || em.includes('schema cache')){
-        ({data,error}=await supabaseClient.from('profiles')
-          .select('id,name,role,store_id,company_id,can_edit_prices,verified').eq('id',user.id).maybeSingle());
-      }
-    }
+    const {data,error}=await supabaseClient.from('profiles')
+      .select('*').eq('id',user.id).maybeSingle();
     if(error) throw error;
     if(!data){profileData=null;$('status').textContent=(user.email||'حساب')+' • حساب غير مكتمل';show('home');return false}
+    try{
+      const metaPhone=String(user.user_metadata?.phone||'').trim();
+      if(metaPhone && Object.prototype.hasOwnProperty.call(data,'phone') && String(data.phone||'')!==metaPhone){
+        await supabaseClient.from('profiles').update({phone:metaPhone}).eq('id',user.id);
+        data.phone=metaPhone;
+      }
+    }catch(phoneErr){console.warn('profile phone sync:',phoneErr)}
 
     // نوع الحساب الفعلي يُحسم من الربط الإداري نفسه: حساب شركة مرتبط في
     // company_users لا يُعامل كتاجر حتى لو بقيت قيمة role القديمة = store.
@@ -430,14 +467,6 @@ async function loadProfile(navigate=true){
       console.warn('company account lookup:',companyErr);
     }
 
-    sareeAuthSession=true;
-    const metadataPhone=String(user.user_metadata?.phone||'').trim();
-    if(metadataPhone && String(data.phone||'')!==metadataPhone){
-      try{
-        const phoneUpdate=await supabaseClient.from('profiles').update({phone:metadataPhone}).eq('id',user.id);
-        if(!phoneUpdate.error)data.phone=metadataPhone;
-      }catch(phoneErr){console.warn('profile phone sync:',phoneErr)}
-    }
     const adminOk=await sareeCheckAdmin(true);
     profileData={...data,email:user.email||'',is_admin:adminOk};
     window.companyContext=activeCompany||null;
@@ -451,13 +480,6 @@ async function loadProfile(navigate=true){
       window.companyContext=activeCompany;
     }
     $('status').textContent=(data.name||user.email||'حساب');
-    renderTopAccount();renderRoleActions();
-    if(navigate){
-      if(adminOk) await renderAdmin();
-      else if(profileData.role==='company') show('home');
-      else if(data.role==='store') await renderMerchant();
-      else show('home');
-    }
     renderTopAccount();renderRoleActions();
     return true;
   }catch(err){
@@ -493,9 +515,6 @@ async function restoreCurrentView(){
   }else if(view==='add'){
     const allowed=!!(profileData && (profileData.is_admin===true || profileData.role==='admin' || (profileData.role==='store' && profileData.store_id)));
     if(allowed && typeof window.showAdd==='function'){window.showAdd();return}
-  }else if(view==='home'){
-    show('home');
-    return;
   }else if(RESTORABLE_VIEWS.has(view)){
     show(view);
     return;
@@ -508,11 +527,7 @@ async function restoreCurrentView(){
 }
 async function refreshAll(){
   const requestedView=getCurrentView();
-  renderProducts();renderStores();renderCategories();renderBasket();renderFavorites();
-  await Promise.all([
-    loadPublicData().catch(err=>console.warn('public data:',err)),
-    loadProfileIfNeeded(false).catch(err=>console.warn('profile:',err))
-  ]);
+  try{await Promise.all([loadPublicData(),loadProfileIfNeeded()]);}catch(err){console.warn('refresh data:',err)}
   renderProducts();renderStores();renderCategories();renderBasket();renderFavorites();
   // بعد التحديث نحافظ على الصفحة الحالية بدلاً من الرجوع تلقائياً إلى الرئيسية.
   if(requestedView==='storeDetail' || requestedView==='companyDetail'){
@@ -521,10 +536,10 @@ async function refreshAll(){
     try{await restoreCurrentView();}catch(err){console.warn('restore view:',err);show('home')}
   }
 }
-async function loadProfileIfNeeded(navigate=false){
+async function loadProfileIfNeeded(){
   try{
     const {data:{user}}=await supabaseClient.auth.getUser();
-    if(user&&!profileData) await loadProfile(navigate);
+    if(user&&!profileData) await loadProfile();
   }catch(err){console.warn('auth check:',err)}
 }
 async function loadPublicData(){
@@ -592,7 +607,7 @@ async function showAdd(){
  if(!profileData.store_id){alert('الحساب غير مرتبط بمتجر بعد.');return}
  show('add');$('merchantStoreBox').innerHTML=`<div class="notice">المتجر المرتبط: ${e(stores.find(s=>s.id===profileData.store_id)?.name||'غير ظاهر')}</div>`;
 }
-$('existingProduct').addEventListener('change',()=>{const on=!!$('existingProduct').value;$('pn').disabled=on;$('brand').disabled=on;$('unit').disabled=on;$('cat').disabled=on})
+$('existingProduct').addEventListener('change',()=>{const on=!!$('existingProduct').value;$('pn').disabled=on;$('brand').disabled=on;$('unit').disabled=on;$('cat').disabled=on}); $('accountType')?.addEventListener('change',setupSignupPhoneField); loadSignupPhoneSetting().catch(console.warn)
 async function uploadImage(file,folder){
  if(!file)return null;const {data:{user}}=await supabaseClient.auth.getUser();if(!user)throw Error('يجب تسجيل الدخول');
  const ext=(file.name.split('.').pop()||'jpg').toLowerCase(),path=`${folder}/${user.id}/${Date.now()}.${ext}`;
@@ -908,7 +923,7 @@ async function renderAdmin(){
   supabaseClient.from('change_requests').select('*').eq('status','pending').order('created_at',{ascending:false}),
   supabaseClient.from('products').select('*').order('name'),
   supabaseClient.from('stores').select('*').order('name'),
-  supabaseClient.from('profiles').select('id,name,role,store_id,can_edit_prices,verified').order('created_at',{ascending:false}),
+  supabaseClient.from('profiles').select('*').order('created_at',{ascending:false}),
   supabaseClient.from('companies').select('*').order('name')
  ]);
  const er=rq.error||pr.error||st.error||us.error||co.error;
@@ -918,12 +933,13 @@ async function renderAdmin(){
  const requestBlock=requests.length?requests.map(requestHtml).join(''):'<p class="muted">لا توجد طلبات معلقة.</p>';
  const merchantBlock=merchantUsers.length?merchantUsers.map((u,i)=>{
    const opts='<option value="">بدون متجر</option>'+stores.map(st=>`<option value="${st.id}" ${u.store_id===st.id?'selected':''}>${e(st.name)}${st.city?' • '+e(st.city):''}</option>`).join('');
-   return `<div class="priceRow"><div class="accordionHead" onclick="toggleAdminGroup('merchant_${u.id}')"><b>${e(u.name||u.id)}</b><span>▾</span></div><div id="merchant_${u.id}" class="accordionBody hidden"><div class="muted">حساب تاجر • ${e(u.email||'بدون بريد')} • ${u.store_id?'مرتبط بمتجر':'غير مرتبط بمتجر'}</div><select id="store_${u.id}">${opts}</select><label class="muted"><input id="edit_${u.id}" type="checkbox" ${u.can_edit_prices?'checked':''}> تفعيل صلاحية إرسال الأسعار والمواد</label><button class="btn primary" onclick="saveUser('${u.id}')">ربط وحفظ الصلاحيات</button></div></div>`;
+   return `<div class="priceRow"><div class="accordionHead" onclick="toggleAdminGroup('merchant_${u.id}')"><b>${e(u.name||u.id)}</b><span>▾</span></div><div id="merchant_${u.id}" class="accordionBody hidden"><div class="muted">حساب تاجر • ${e(u.email||'بدون بريد')} ${u.phone?'• 📞 '+e(u.phone):''} • ${u.store_id?'مرتبط بمتجر':'غير مرتبط بمتجر'}</div><select id="store_${u.id}">${opts}</select><label class="muted"><input id="edit_${u.id}" type="checkbox" ${u.can_edit_prices?'checked':''}> تفعيل صلاحية إرسال الأسعار والمواد</label><button class="btn primary" onclick="saveUser('${u.id}')">ربط وحفظ الصلاحيات</button></div></div>`;
  }).join(''):'<p class="muted">لا توجد حسابات تجار حالياً.</p>';
- const usersBlock=users.map(u=>u.id!==ADMIN_UID?`<div class="priceRow"><div class="accordionHead" onclick="toggleAdminGroup('user_${u.id}')"><b>${e(u.name||u.id)}</b><span>▾</span></div><div id="user_${u.id}" class="accordionBody hidden"><div class="muted">البريد: ${e(u.email||'بدون بريد')} • الدور: ${e(u.role)}${u.store_id?' • مرتبط بمتجر':''}</div><select id="role_${u.id}"><option value="user" ${u.role==='user'?'selected':''}>مستخدم</option><option value="store" ${u.role==='store'?'selected':''}>تاجر</option></select><button class="btn secondary" onclick="saveRoleOnly('${u.id}')">حفظ الدور</button></div></div>`:'<div class="priceRow"><b>حساب المدير</b><span class="pill">مدير النظام</span></div>').join('');
+ const usersBlock=users.map(u=>u.id!==ADMIN_UID?`<div class="priceRow"><div class="accordionHead" onclick="toggleAdminGroup('user_${u.id}')"><b>${e(u.name||u.id)}</b><span>▾</span></div><div id="user_${u.id}" class="accordionBody hidden"><div class="muted">البريد: ${e(u.email||'بدون بريد')} ${u.phone?'• 📞 '+e(u.phone):''} • الدور: ${e(u.role)}${u.store_id?' • مرتبط بمتجر':''}</div><select id="role_${u.id}"><option value="user" ${u.role==='user'?'selected':''}>مستخدم</option><option value="store" ${u.role==='store'?'selected':''}>تاجر</option></select><button class="btn secondary" onclick="saveRoleOnly('${u.id}')">حفظ الدور</button></div></div>`:'<div class="priceRow"><b>حساب المدير</b><span class="pill">مدير النظام</span></div>').join('');
  const storeBlock=stores.length?stores.map(st=>`<div class="priceRow admin-store-row" id="adminStoreRow_${st.id}"><b>${e(st.name)}</b>${st.verified?'<span class="pill">✓ موثّق</span>':'<span class="pill">غير موثّق</span>'}<div class="muted">${e(st.city||'')} • ${e(st.area||'')} • ${e(st.address||'')}</div><div class="muted">إجمالي زيارات المتجر: <b id="sv_${st.id}">—</b></div><div id="qr_${st.id}" class="qrbox"></div><div class="actions"><button type="button" class="btn secondary" onclick="event.stopPropagation();openStore('${st.id}')">فتح صفحة المتجر</button><button type="button" class="btn secondary" onclick="event.stopPropagation();printStoreQR('${st.id}')">طباعة QR</button><button type="button" class="btn primary" onclick="event.stopPropagation();openAdminStoreEdit('${st.id}')">تعديل المتجر</button><button type="button" class="btn secondary" onclick="event.stopPropagation();toggleAdminStoreVerification('${st.id}')">${st.verified?'إلغاء التوثيق':'توثيق المتجر'}</button><button type="button" class="btn danger" onclick="event.stopPropagation();deleteAdminStore('${st.id}')">حذف المتجر</button></div></div>`).join(''):'<p class="muted">لا توجد متاجر حالياً.</p>';
- $('adminPanel').innerHTML=`<div class="grid"><div class="card"><div class="name">${requests.length}</div><div class="muted">طلبات معلقة</div></div><div class="card"><div class="name">${stores.length}</div><div class="muted">متاجر</div></div><div class="card"><div class="name">${products.length}</div><div class="muted">منتجات</div></div><div class="card"><div class="name">${users.length}</div><div class="muted">حسابات</div></div><div class="card"><div class="name" id="visitorCount">—</div><div class="muted">إجمالي زيارات الموقع</div></div></div><div class="card"><h2>طلبات التجار</h2>${requestBlock}</div><div class="card"><h2>إضافة متجر</h2><div class="two"><input id="sn" placeholder="اسم المتجر"><input id="scity" placeholder="المدينة"><input id="sarea" placeholder="المنطقة"><input id="saddr" placeholder="العنوان"><input id="sphone" placeholder="الهاتف"><input id="swhatsapp" placeholder="رابط واتساب المتجر"><input id="scompany" placeholder="اسم الشركة (اختياري)"><input id="shours" placeholder="ساعات الدوام"><input id="sdays" placeholder="أيام العمل"><input id="simg" type="file" accept="image/*"></div><button class="btn primary" onclick="adminAddStore()">إضافة المتجر</button></div><div class="card"><h2>ربط حسابات التجار بالمتاجر</h2><p class="muted">أنشئ المتجر أولاً، ثم اختر حساب التاجر واربطه بمتجر واحد فقط. الحساب الجديد يبقى بلا صلاحيات حتى تفعّلها أنت.</p>${merchantBlock}</div><div class="card"><h2>جميع الحسابات</h2>${usersBlock}</div><div class="card"><h2>إدارة الشركات</h2><p class="muted">إضافة وتعديل وتوثيق وحذف الشركات. ربط المتجر بالشركة يتم من شاشة تعديل المتجر.</p><div class="actions"><button type="button" class="btn primary" onclick="openAdminCompanyCreate()">إضافة شركة</button></div><div id="adminCompaniesList" class="grid" style="margin-top:12px">${companies.length?companies.map(c=>`<div class="priceRow admin-company-row" id="adminCompanyRow_${c.id}"><b>${e(c.name)}</b> ${c.verified?'<span class="pill">✓ موثقة</span>':'<span class="pill">غير موثقة</span>'}<div class="muted">${e(c.phone||'')} ${c.address?'• '+e(c.address):''}</div><div class="actions"><button type="button" class="btn primary" onclick="openAdminCompanyEdit('${c.id}')">تعديل الشركة</button><button type="button" class="btn secondary" onclick="toggleAdminCompanyVerification('${c.id}')">${c.verified?'إلغاء التوثيق':'توثيق الشركة'}</button><button type="button" class="btn danger" onclick="deleteAdminCompany('${c.id}')">حذف الشركة</button></div></div>`).join(''):'<div class="card muted">لا توجد شركات مسجلة.</div>'}</div></div><div class="card"><h2>المتاجر و QR Code</h2><p class="muted">لكل متجر QR Code فعلي. عند مسحه بكاميرا الهاتف يفتح صفحة المتجر مباشرة.</p>${storeBlock}</div><div class="actions"><button class="btn secondary" onclick="show('home')">العودة للموقع</button><button class="btn secondary" onclick="logout()">تسجيل الخروج</button></div>`;
- loadVisitorCount();loadAdminStoreVisitorCounts();setTimeout(buildAllQRCodes,50);
+ $('adminPanel').innerHTML=`<div class="grid"><div class="card"><div class="name">${requests.length}</div><div class="muted">طلبات معلقة</div></div><div class="card"><div class="name">${stores.length}</div><div class="muted">متاجر</div></div><div class="card"><div class="name">${products.length}</div><div class="muted">منتجات</div></div><div class="card"><div class="name">${users.length}</div><div class="muted">حسابات</div></div><div class="card"><div class="name" id="visitorCount">—</div><div class="muted">إجمالي زيارات الموقع</div></div></div><div class="card"><h2>طلبات التجار</h2>${requestBlock}</div><div class="card"><h2>إضافة متجر</h2><div class="two"><input id="sn" placeholder="اسم المتجر"><input id="scity" placeholder="المدينة"><input id="sarea" placeholder="المنطقة"><input id="saddr" placeholder="العنوان"><input id="sphone" placeholder="الهاتف"><input id="swhatsapp" placeholder="رابط واتساب المتجر"><input id="scompany" placeholder="اسم الشركة (اختياري)"><input id="shours" placeholder="ساعات الدوام"><input id="sdays" placeholder="أيام العمل"><input id="simg" type="file" accept="image/*"></div><button class="btn primary" onclick="adminAddStore()">إضافة المتجر</button></div><div class="card"><h2>ربط حسابات التجار بالمتاجر</h2><p class="muted">أنشئ المتجر أولاً، ثم اختر حساب التاجر واربطه بمتجر واحد فقط. الحساب الجديد يبقى بلا صلاحيات حتى تفعّلها أنت.</p>${merchantBlock}</div><div class="card"><h2>جميع الحسابات</h2>${usersBlock}</div><div class="card"><h2>رقم الهاتف عند إنشاء الحساب</h2><label class="rememberRow"><input id="signupPhoneAdminToggle" type="checkbox" onchange="saveSignupPhoneSetting(this.checked).then(()=>{this.closest('.card').querySelector('.signupPhoneSettingMsg').textContent='تم حفظ الإعداد.'}).catch(e=>{this.checked=!this.checked;this.closest('.card').querySelector('.signupPhoneSettingMsg').textContent='تعذر حفظ الإعداد: '+e.message})"> إظهار حقل رقم الهاتف عند إنشاء حسابات التاجر والشركة</label><p class="muted signupPhoneSettingMsg">بدون تأكيد لرقم الهاتف.</p></div><div class="card"><h2>إدارة الشركات</h2><p class="muted">إضافة وتعديل وتوثيق وحذف الشركات. ربط المتجر بالشركة يتم من شاشة تعديل المتجر.</p><div class="actions"><button type="button" class="btn primary" onclick="openAdminCompanyCreate()">إضافة شركة</button></div><div id="adminCompaniesList" class="grid" style="margin-top:12px">${companies.length?companies.map(c=>`<div class="priceRow admin-company-row" id="adminCompanyRow_${c.id}"><b>${e(c.name)}</b> ${c.verified?'<span class="pill">✓ موثقة</span>':'<span class="pill">غير موثقة</span>'}<div class="muted">${e(c.phone||'')} ${c.address?'• '+e(c.address):''}</div><div class="actions"><button type="button" class="btn primary" onclick="openAdminCompanyEdit('${c.id}')">تعديل الشركة</button><button type="button" class="btn secondary" onclick="toggleAdminCompanyVerification('${c.id}')">${c.verified?'إلغاء التوثيق':'توثيق الشركة'}</button><button type="button" class="btn danger" onclick="deleteAdminCompany('${c.id}')">حذف الشركة</button></div></div>`).join(''):'<div class="card muted">لا توجد شركات مسجلة.</div>'}</div></div><div class="card"><h2>المتاجر و QR Code</h2><p class="muted">لكل متجر QR Code فعلي. عند مسحه بكاميرا الهاتف يفتح صفحة المتجر مباشرة.</p>${storeBlock}</div><div class="actions"><button class="btn secondary" onclick="show('home')">العودة للموقع</button><button class="btn secondary" onclick="logout()">تسجيل الخروج</button></div>`;
+ $('signupPhoneAdminToggle').checked=window.__sareeSignupPhoneEnabled===true;loadSignupPhoneSetting().then(()=>{$('signupPhoneAdminToggle').checked=window.__sareeSignupPhoneEnabled===true}).catch(console.warn);
+ loadVisitorCount();loadAdminStoreVisitorCounts();loadSiteLinks();setTimeout(buildAllQRCodes,50);
 }
 async function loadAdminStoreVisitorCounts(){
   try{
@@ -986,44 +1002,33 @@ async function saveRoleOnly(id){
  }
  alert('تم حفظ الدور.');await renderAdmin();
 }
-supabaseClient.auth.onAuthStateChange((event,session)=>{
+supabaseClient.auth.onAuthStateChange((event)=>{
   if(event==='SIGNED_OUT'){
-    sareeAuthSession=false;
     profileData=null;renderTopAccount();renderRoleActions();$('status').textContent=currentName()+' • زائر';
     show('home');
   }
-  if(event==='SIGNED_IN' || event==='INITIAL_SESSION'){
-    sareeAuthSession=!!session;
-    renderTopAccount();
-    if(event==='SIGNED_IN' && !sareeLoginInProgress && !profileData) setTimeout(()=>loadProfile().catch(console.warn),0);
-  }
+  if(event==='SIGNED_IN') setTimeout(()=>loadProfile().catch(console.warn),0);
 });
-(async()=>{
+(()=>{
   const hasVisitor=localStorage.getItem('visitor_name');
   $('visitorName').value=hasVisitor?currentName():'';
-  const savedEmail=localStorage.getItem('saree_login_email')||'';
-  if($('email')&&savedEmail)$('email').value=savedEmail;
-  if($('rememberLogin'))$('rememberLogin').checked=localStorage.getItem('saree_remember_login')==='1';
-  updateSignupPhoneField();
+  if($('email')) $('email').value=localStorage.getItem('saree_saved_email')||'';
+  setupSignupPhoneField();
   renderTopAccount();renderRoleActions();
   renderProducts();renderStores();renderCategories();renderBasket();renderFavorites();
-  try{
-    const remember=localStorage.getItem('saree_remember_login')==='1';
-    const {data}=await supabaseClient.auth.getSession();
-    sareeAuthSession=!!data?.session;
-    renderTopAccount();
-    const explicit=sessionStorage.getItem('saree_explicit_login')==='1';
-    if(explicit){sessionStorage.removeItem('saree_explicit_login');}
-    if(!remember && data?.session && !explicit){
-      await supabaseClient.auth.signOut();
-      sareeAuthSession=false;
-      renderTopAccount();
-    }
-  }catch(err){console.warn('session check:',err)}
-  const savedView=getCurrentView();
-  if(savedView==='admin'||savedView==='merchant'||savedView==='company')sessionStorage.setItem(SAREE_VIEW_KEY,'home');
-  recordVisitor().catch(console.warn);
-  refreshAll().catch(err=>console.warn('startup:',err));
+  setTimeout(async()=>{
+    try{
+      const remember=localStorage.getItem('saree_remember_login')==='1';
+      const {data}=await supabaseClient.auth.getSession();
+      const explicit=sessionStorage.getItem('saree_explicit_login')==='1';
+      if(explicit){sessionStorage.removeItem('saree_explicit_login');}
+      if(!remember && data?.session && !explicit){
+        await supabaseClient.auth.signOut();
+      }
+    }catch(err){console.warn('session check:',err)}
+    recordVisitor().catch(console.warn);
+    refreshAll().catch(err=>console.warn('startup:',err));
+  },0);
 })();
 // يحافظ التطبيق على الصفحة الحالية بعد تحديث الصفحة.
 </script>

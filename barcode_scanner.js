@@ -12,6 +12,7 @@
   let scanner = null;
   let scannerMode = null;
   let scannerStoreId = null;
+  let scannerCompanyId = null;
   let scanLocked = false;
 
   function el(id) {
@@ -88,6 +89,7 @@
   window.openBarcodeScannerForAdd = function () {
     scannerMode = 'add';
     scannerStoreId = null;
+    scannerCompanyId = null;
     scanLocked = false;
 
     openScanner();
@@ -96,6 +98,16 @@
   window.openBarcodeScannerForStore = function (storeId) {
     scannerMode = 'store';
     scannerStoreId = storeId;
+    scannerCompanyId = null;
+    scanLocked = false;
+
+    openScanner();
+  };
+
+  window.openBarcodeScannerForCompany = function (companyId) {
+    scannerMode = 'company';
+    scannerCompanyId = companyId;
+    scannerStoreId = null;
     scanLocked = false;
 
     openScanner();
@@ -367,6 +379,9 @@ async function handleBarcode(barcode) {
     const storeId =
       scannerStoreId;
 
+    const companyId =
+      scannerCompanyId;
+
     await window.closeBarcodeScanner();
 
     if (mode === 'add') {
@@ -412,6 +427,16 @@ async function handleBarcode(barcode) {
       await showStoreBarcodeResult(
         clean,
         storeId
+      );
+
+      return;
+    }
+
+    if (mode === 'company') {
+
+      await showCompanyBarcodeResult(
+        clean,
+        companyId
       );
     }
   }
@@ -479,6 +504,60 @@ async function handleBarcode(barcode) {
       console.error(
         'Barcode product lookup:',
         error
+      );
+    }
+  }
+
+  async function showCompanyBarcodeResult(
+    barcode,
+    companyId
+  ) {
+
+    if (!companyId) {
+      showResult(
+        'الشركة غير محددة',
+        'لم يتم تحديد الشركة المطلوب البحث داخلها.'
+      );
+      return;
+    }
+
+    try {
+      const { data, error } =
+        await supabaseClient
+          .from('company_products')
+          .select('*')
+          .eq('company_id', companyId)
+          .eq('active', true)
+          .eq('barcode', barcode)
+          .limit(1)
+          .maybeSingle();
+
+      if (error) {
+        throw error;
+      }
+
+      if (!data) {
+        showResult(
+          'لم نجد المادة',
+          'لا توجد مادة بهذا الباركود داخل هذه الشركة.'
+        );
+        return;
+      }
+
+      if (typeof window.openCompanyProduct === 'function') {
+        window.openCompanyProduct(data.id);
+        return;
+      }
+
+      showResult(
+        'تم العثور على المادة',
+        'تم العثور على المادة، لكن تعذر فتح تفاصيلها.'
+      );
+    } catch (error) {
+      console.error('Company barcode lookup:', error);
+      showResult(
+        'تعذر البحث',
+        error?.message || 'حدث خطأ أثناء البحث داخل الشركة.'
       );
     }
   }
@@ -833,6 +912,9 @@ async function handleBarcode(barcode) {
         scanner = null;
       }
 
+      scannerMode = null;
+      scannerStoreId = null;
+      scannerCompanyId = null;
       scanLocked = false;
 
       const modal =
