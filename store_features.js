@@ -910,7 +910,6 @@
   window.renderAdmin = async function(){
     if(!isAdmin()) return;
     window.show('admin');
-    $('role').textContent='لوحة تحكم المدير: إدارة الطلبات والمتاجر والتجار والصلاحيات والإحصاءات.';
     const [rq,pr,st,us,co,cu]=await Promise.all([
       supabaseClient.from('change_requests').select('*').eq('status','pending').order('created_at',{ascending:false}),
       supabaseClient.from('products').select('*').order('name'),
