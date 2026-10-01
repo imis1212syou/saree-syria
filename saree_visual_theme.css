@@ -93,7 +93,7 @@ label{color:#55717f}
 .saree-ocs-admin-row{background:#f9fcfe !important;border-color:#deebf1 !important}
 .saree-ocs-sponsor{background:#fff !important;border-color:#dcecf2 !important;box-shadow:0 8px 24px rgba(36,92,117,.08)}
 .barcodeSearch button:first-of-type,#storeBarcodeCamera{min-width:44px !important;width:44px !important;padding:0 !important;font-size:0 !important}
-.barcodeSearch button:first-of-type:before,#storeBarcodeCamera:before{content:"";display:block;width:21px;height:21px;margin:auto;background:url("barcode.svg") center/contain no-repeat}
+.barcodeSearch button:first-of-type:before,#storeBarcodeCamera:before{content:"";display:block;width:21px;height:21px;margin:auto;background:url("camera.svg") center/contain no-repeat}
 .barcodeBox .actions .btn{display:inline-flex;align-items:center;gap:8px}
 .barcodeBox .actions .btn:before{content:"";display:inline-block;width:19px;height:19px;background:url("barcode.svg") center/contain no-repeat;opacity:.95}
 #admin>.btn:first-child{display:inline-flex;align-items:center;gap:8px}
