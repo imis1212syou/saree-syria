@@ -6,8 +6,6 @@
   let installRequested = false;
 
   function addManifest() {
-    // The manifest is now declared directly in index.html so Safari/iOS can
-    // see it during the initial page load. Keep this fallback for older pages.
     if (document.querySelector('link[rel="manifest"]')) return;
     const link = document.createElement("link");
     link.rel = "manifest";
@@ -18,7 +16,7 @@
   function registerSW() {
     if (!("serviceWorker" in navigator)) return;
 
-    const swUrl = new URL("saree_sw.js?v=20261001", base).href;
+    const swUrl = new URL("saree_sw.js?v=push-20260930", base).href;
     window.sareePwaRegistrationPromise = new Promise(resolve => {
       const register = async () => {
         try {
@@ -44,12 +42,6 @@
       (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   }
 
-  function isSafari() {
-    const ua = navigator.userAgent;
-    return /safari/i.test(ua) &&
-      !/crios|fxios|edgios|opios|mercury/i.test(ua);
-  }
-
   function isStandalone() {
     return window.matchMedia("(display-mode: standalone)").matches ||
       window.navigator.standalone === true;
@@ -64,6 +56,7 @@
     btn.id = "sareePwaInstallButton";
     btn.type = "button";
     btn.className = "btn primary";
+    btn.textContent = "📱 تحميل التطبيق";
     btn.title = "تثبيت تطبيق سعرلي سوريا";
     btn.style.marginInlineStart = "8px";
     btn.addEventListener("click", installApp);
@@ -71,14 +64,13 @@
     const account = document.getElementById("topAccountBtn");
     if (account) account.parentNode.insertBefore(btn, account);
     else top.appendChild(btn);
-    updateButton();
   }
 
   function updateButton() {
     const btn = document.getElementById("sareePwaInstallButton");
     if (!btn) return;
     btn.style.display = isStandalone() ? "none" : "inline-block";
-    btn.textContent = isIOS() ? "📱 تثبيت على الآيفون" : "📱 تحميل التطبيق";
+    btn.textContent = "📱 تحميل التطبيق";
   }
 
   async function openNativeInstall() {
@@ -100,41 +92,30 @@
   }
 
   function showIOSInstructions() {
-    const browserHint = isSafari()
-      ? "أنت في Safari بالفعل."
-      : "على الآيفون افتح هذا الرابط في Safari ثم أكمل الخطوات.";
-
-    alert(
-      "تثبيت سعرلي سوريا على الآيفون:\n\n" +
-      browserHint + "\n\n" +
-      "1) اضغط زر المشاركة ⬆️\n" +
-      "2) اختر «إضافة إلى الشاشة الرئيسية»\n" +
-      "3) اضغط «إضافة»\n\n" +
-      "بعدها سيظهر سعرلي سوريا كأيقونة على الشاشة الرئيسية ويفتح كتطبيق."
-    );
+    alert("افتح هذا الموقع في Safari، ثم اضغط مشاركة ⬆️ واختر «إضافة إلى الشاشة الرئيسية» لتثبيت تطبيق سعرلي سوريا.");
   }
 
   function installApp() {
     if (isStandalone()) return;
 
-    // iOS/iPadOS لا يوفّر beforeinstallprompt، لذلك التثبيت يتم من قائمة المشاركة.
-    if (isIOS()) {
-      showIOSInstructions();
-      return;
-    }
-
-    // على Android/Chromium نستخدم نافذة التثبيت الرسمية.
-    if (deferredPrompt) {
-      openNativeInstall();
-      return;
-    }
-
-    // التأكيد فقط عندما تكون هناك نافذة تثبيت رسمية محتملة.
+    // التأكيد الذي طلبه المستخدم: نعم = متابعة التثبيت، لا = إلغاء.
     const ok = window.confirm(
       "هل تريد تثبيت تطبيق «سعرلي سوريا» على جهازك؟\n\nاضغط «موافق» للتثبيت أو «إلغاء» للرجوع."
     );
     if (!ok) return;
 
+    if (isIOS()) {
+      showIOSInstructions();
+      return;
+    }
+
+    // نافذة التثبيت الرسمية من Chrome/Chromium.
+    if (deferredPrompt) {
+      openNativeInstall();
+      return;
+    }
+
+    // لا نعرض رسالة «افتح قائمة المتصفح». ننتظر وصول حدث التثبيت الرسمي.
     installRequested = true;
     const started = Date.now();
     const waitForPrompt = setInterval(() => {
@@ -147,6 +128,7 @@
       if (Date.now() - started >= 15000) {
         clearInterval(waitForPrompt);
         installRequested = false;
+        // Chrome لم يوفّر نافذة التثبيت الرسمية لهذه الجلسة؛ لا نفتح رسالة قديمة.
       }
     }, 250);
   }
@@ -157,6 +139,7 @@
     createButton();
     updateButton();
 
+    // إذا ضغط المستخدم «موافق» قبل وصول الحدث، نفتح التثبيت فوراً.
     if (installRequested) {
       installRequested = false;
       openNativeInstall();
@@ -167,8 +150,6 @@
     deferredPrompt = null;
     updateButton();
   });
-
-  window.addEventListener("pageshow", updateButton);
 
   function init() {
     addManifest();
