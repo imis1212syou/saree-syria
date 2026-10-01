@@ -220,7 +220,7 @@
       const maps=companyMapsUrl(company);
       const canOrder=companyWhatsappOrdersEnabled(company);
       $('companyDetailBody').innerHTML=`
-        ${image}<div class="card"><div class="row" style="justify-content:space-between;align-items:center"><div><span class="company-chip">🏢 شركة</span><div class="name">${esc(company.name)} ${company.verified?'✓':''}</div></div><div class="actions">${canSettings?`<button type="button" class="btn secondary" id="companyEditBtn">✏️ تعديل بيانات الشركة</button>`:''}${company.whatsapp_url?`<a class="btn primary" target="_blank" rel="noopener" href="${attr(company.whatsapp_url)}">💬 واتساب</a>`:''}</div></div>${company.established_year?`<div class="muted">📅 سنة التأسيس: ${esc(company.established_year)}</div>`:''}${company.address?`<div class="muted">📍 ${esc(company.address)}</div>`:''}${company.phone?`<div class="muted">📞 ${esc(company.phone)}</div>`:''}${maps?`<div class="actions"><button type="button" class="btn secondary" id="companyDirectionsBtn">📍 موقع الشركة على Google Maps</button></div>`:''}${canOrder?`<div class="notice">🛒 الطلب عبر واتساب مفعّل للشركة. لا توجد أجرة توصيل.</div>`:''}${canSettings?`<div class="notice" style="margin-top:8px">إرسال سلة الطلب عبر واتساب: ${company.whatsapp_orders_enabled?'مفعّل':'موقوف'}</div>`:''}<div class="company-qr-card"><div><b>QR خاص بالشركة</b><div class="muted">امسح الرمز لفتح صفحة الشركة مباشرة.</div>${canSettings?`<div class="notice" style="margin-top:8px">👁️ إجمالي زيارات الموقع: <b id="companySiteTotalVisitCount">—</b></div><div class="notice" style="margin-top:8px">📱 زوار QR: <b id="companyQrVisitCount">—</b></div>`:''}<div class="actions"><button class="btn secondary" type="button" onclick="window.printCompanyQR('${attr(company.id)}')">طباعة QR</button></div></div><div id="companyQrBox" class="company-qr-box"></div></div></div>
+        ${image}<div class="card"><div class="row" style="justify-content:space-between;align-items:center"><div><span class="company-chip">🏢 شركة</span><div class="name">${esc(company.name)} ${company.verified?'✓':''}</div></div><div class="actions">${canSettings?`<button type="button" class="btn secondary" id="companyEditBtn">✏️ تعديل بيانات الشركة</button>`:''}${company.whatsapp_url?`<a class="btn primary" target="_blank" rel="noopener" href="${attr(company.whatsapp_url)}">💬 واتساب</a>`:''}</div></div>${company.established_year?`<div class="muted">📅 سنة التأسيس: ${esc(company.established_year)}</div>`:''}${company.address?`<div class="muted">📍 ${esc(company.address)}</div>`:''}${company.phone?`<div class="muted">📞 ${esc(company.phone)}</div>`:''}${maps?`<div class="actions"><button type="button" class="btn secondary" id="companyDirectionsBtn">📍 موقع الشركة على Google Maps</button></div>`:''}${canOrder?`<div class="notice">🛒 الطلب عبر واتساب مفعّل للشركة. لا توجد أجرة توصيل.</div>`:''}${canSettings?`<div class="notice" style="margin-top:8px">إرسال سلة الطلب عبر واتساب: ${company.whatsapp_orders_enabled?'مفعّل':'موقوف'}</div>`:''}<div class="company-qr-card"><div><b>QR خاص بالشركة</b><div class="muted">امسح الرمز لفتح صفحة الشركة مباشرة.</div>${canSettings?`<div class="notice" style="margin-top:8px">👁️ إجمالي زوار الشركة: <b id="companySiteTotalVisitCount">—</b></div><div class="notice" style="margin-top:8px">📱 زوار QR: <b id="companyQrVisitCount">—</b></div>`:''}<div class="actions"><button class="btn secondary" type="button" onclick="window.printCompanyQR('${attr(company.id)}')">طباعة QR</button></div></div><div id="companyQrBox" class="company-qr-box"></div></div></div>
         ${canOrder?`<div id="companyCartBox" class="company-cart"></div>`:''}
         <div class="company-toolbar"><div class="company-barcode"><input id="companyProductSearch" inputmode="search" autocomplete="off" placeholder="ابحث عن اسم أو باركود..."><button class="btn secondary" type="button" id="companyBarcodeCamera">📷</button><button class="btn secondary" type="button" id="companyBarcodeSearchBtn">بحث</button></div><div class="two"><select id="companyProductCategory"><option value="">كل التصنيفات</option>${companyCategories.map(c=>`<option value="${attr(c.name)}">${esc(c.name)}</option>`).join('')}</select><select id="companyProductPriceFilter"><option value="all">كل المواد</option><option value="with">مواد بسعر</option><option value="without">مواد بدون سعر</option></select></div><p id="companyProductMsg" class="muted"></p></div>
         <h2 style="margin-top:15px">منتجات الشركة (${companyProducts.length})</h2><div id="companyProductsGrid" class="company-grid"></div>
@@ -242,17 +242,19 @@
       $('companyDirectionsBtn')?.addEventListener('click',()=>window.open(maps,'_blank','noopener'));
       $('companyEditBtn')?.addEventListener('click',()=>window.openCompanyEdit?.(id));
       if(qrMode && typeof window.recordSareeQrVisit==='function') window.recordSareeQrVisit('company',id).catch(()=>{});
-      if(canSettings && typeof window.getSareeSiteVisitCount==='function') window.getSareeSiteVisitCount().then(n=>{if($('companySiteTotalVisitCount'))$('companySiteTotalVisitCount').textContent=n==null?'—':Number(n).toLocaleString('ar-SY')});
+      if(canSettings){
+        supabaseClient.rpc('company_owner_visitor_stats',{p_company_id:id}).then(r=>{
+          if($('companySiteTotalVisitCount')){
+            const n=Number(r?.data?.total_visits||0);
+            $('companySiteTotalVisitCount').textContent=(!r?.error && Number.isFinite(n))?n.toLocaleString('ar-SY'):'—';
+          }
+        }).catch(()=>{});
+      }
       if(canSettings && typeof window.getSareeQrVisitCount==='function') window.getSareeQrVisitCount('company',id).then(n=>{if($('companyQrVisitCount'))$('companyQrVisitCount').textContent=n==null?'—':Number(n).toLocaleString('ar-SY')});
       render();
       try{
-        const visitCompanyId=String(id);
-        if(window.__sareeTrackedCompanyVisitId!==visitCompanyId){
-          window.__sareeTrackedCompanyVisitId=visitCompanyId;
-          let visitId=localStorage.getItem('saree_visitor_id');
-          if(!visitId){visitId=(crypto.randomUUID?crypto.randomUUID():('v_'+Date.now()+'_'+Math.random().toString(36).slice(2)));localStorage.setItem('saree_visitor_id',visitId);}
-          await supabaseClient.rpc('record_company_visit',{p_company_id:id,p_visitor_id:visitId});
-        }
+        const visitId=(crypto.randomUUID?crypto.randomUUID():('visit_'+Date.now()+'_'+Math.random().toString(36).slice(2)));
+        await supabaseClient.rpc('record_company_visit',{p_company_id:id,p_visitor_id:visitId});
       }catch(_){ }
     }catch(err){alert(err.message||'تعذر فتح الشركة')}
   };

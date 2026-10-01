@@ -58,18 +58,17 @@
     if(!id) return;
     document.getElementById('sareeProductModal')?.remove();
     try{
+      if(typeof window.openStore==='function'){
+        window.openStore(id);
+        return;
+      }
       const u=new URL(window.location.href);
       u.searchParams.delete('company');
       u.searchParams.delete('qr');
       u.searchParams.set('store',id);
       history.pushState({store:id},'',u.toString());
-    }catch(_){}
-    try{
       if(typeof window.show==='function') window.show('storeDetail');
-      else document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
-      if(typeof window.renderStoreDetail==='function'){
-        Promise.resolve(window.renderStoreDetail(id)).catch(err=>console.error('open store from product:',err));
-      }
+      if(typeof window.renderStoreDetail==='function') Promise.resolve(window.renderStoreDetail(id)).catch(err=>console.error('open store from product:',err));
     }catch(err){
       console.error('open store from product:',err);
     }

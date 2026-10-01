@@ -324,7 +324,7 @@
         ${st.opening_hours ? `<p class="muted">🕐 ساعات الدوام: ${esc(st.opening_hours)}</p>` : ''}
         ${st.working_days ? `<p class="muted">📅 أيام العمل: ${esc(st.working_days)}</p>` : ''}
         ${maps ? `<button type="button" class="btn secondary" id="storeDirectionsBtn">موقع واتجاه المتجر</button>` : ''}
-        ${canManageStore(st.id) ? `<div class="actions"><button type="button" class="btn secondary" id="storeOwnerEditBtn">✏️ تعديل المتجر</button><span class="notice" style="margin-top:0">👁️ إجمالي زيارات الموقع: <b id="storeSiteTotalVisitCount">—</b></span><span class="notice" style="margin-top:0">📱 زوار QR: <b id="storeQrVisitCount">—</b></span></div>` : ''}
+        ${canManageStore(st.id) ? `<div class="actions"><button type="button" class="btn secondary" id="storeOwnerEditBtn">✏️ تعديل المتجر</button><span class="notice" style="margin-top:0">👁️ إجمالي زوار المتجر: <b id="storeSiteTotalVisitCount">—</b></span><span class="notice" style="margin-top:0">📱 زوار QR: <b id="storeQrVisitCount">—</b></span></div>` : ''}
       </div>
       <div class="card">
         <h3>بحث بالباركود داخل هذا المتجر فقط</h3>
@@ -345,7 +345,25 @@
     $('storeCompanyBtn')?.addEventListener('click',()=>company && window.openCompanyById ? window.openCompanyById(st.company_id) : window.openCompany?.(company));
     $('storeDirectionsBtn')?.addEventListener('click',()=>window.open(maps,'_blank','noopener'));
     $('storeOwnerEditBtn')?.addEventListener('click',()=>{ if(isAdmin()) window.openAdminStoreEdit?.(st.id); else window.openMerchantStoreEdit?.(st.id); });
-    if(canManageStore(st.id) && typeof window.getSareeSiteVisitCount==='function') window.getSareeSiteVisitCount().then(n=>{ if($('storeSiteTotalVisitCount')) $('storeSiteTotalVisitCount').textContent=n==null?'—':fmt(n); });
+    if(canManageStore(st.id)){
+      const loadStoreTotal=async()=>{
+        try{
+          let total=null;
+          if(isAdmin()){
+            const {data,error}=await supabaseClient.rpc('admin_store_visitor_counts');
+            if(!error && Array.isArray(data)){
+              const row=data.find(x=>String(x.store_id)===String(st.id));
+              if(row) total=Number(row.visitor_count||0);
+            }
+          }else{
+            const {data,error}=await supabaseClient.rpc('merchant_store_visitor_count',{p_store_id:st.id});
+            if(!error) total=Number(data||0);
+          }
+          if($('storeSiteTotalVisitCount')) $('storeSiteTotalVisitCount').textContent=(total!=null && Number.isFinite(total))?fmt(total):'—';
+        }catch(_){ }
+      };
+      loadStoreTotal();
+    }
     if(canManageStore(st.id) && typeof window.getSareeQrVisitCount==='function') window.getSareeQrVisitCount('store',st.id).then(n=>{ if($('storeQrVisitCount')) $('storeQrVisitCount').textContent=n==null?'—':fmt(n); });
     $('storeBarcodeSearchBtn')?.addEventListener('click',()=>window.searchStoreBarcode(st.id));
     $('storeBarcodeSearch')?.addEventListener('keydown',ev=>{ if(ev.key==='Enter') window.searchStoreBarcode(st.id); });
@@ -675,9 +693,6 @@
   window.recordStoreVisit = async function(storeId){
     if(!storeId || !window.supabaseClient) return false;
     try{
-      const id=String(storeId);
-      if(window.__sareeTrackedStoreVisitId===id) return false;
-      window.__sareeTrackedStoreVisitId=id;
       const {error}=await supabaseClient.rpc('record_store_visit',{p_store_id:storeId});
       if(error) throw error;
       return true;
