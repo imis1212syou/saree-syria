@@ -1,0 +1,110 @@
+/* سعرلي سوريا — طبقة بصرية فقط.
+   لا تغيّر أي وظيفة أو منطق أو بيانات؛ مهمتها توحيد الصور والأيقونات والواجهة بصرياً. */
+:root{
+  --saree-bg:#eef8fc;
+  --saree-surface:#ffffff;
+  --saree-surface-2:#f7fbfd;
+  --saree-border:#dbeaf2;
+  --saree-text:#173042;
+  --saree-muted:#66808e;
+  --saree-primary:#267db4;
+  --saree-primary-2:#27ad97;
+  --saree-primary-soft:#e7f5fb;
+  --saree-success:#1b9c78;
+  --saree-shadow:0 10px 30px rgba(36,92,117,.10);
+  --saree-shadow-lg:0 18px 50px rgba(36,92,117,.14);
+  --saree-radius:20px;
+}
+html{background:var(--saree-bg)}
+body{background:radial-gradient(circle at 50% -10%,#ffffff 0,#eef8fc 44%,#e8f4f9 100%) !important;color:var(--saree-text) !important;font-family:Tahoma,Arial,sans-serif !important;letter-spacing:.05px}
+.app{max-width:980px;padding:14px 14px 104px}
+.top{position:sticky;top:0;z-index:20;margin:0 -2px 14px;padding:10px 12px;border:1px solid rgba(255,255,255,.75);background:rgba(255,255,255,.78);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-radius:20px;box-shadow:0 8px 26px rgba(33,84,107,.07)}
+.logo{display:flex;align-items:center;gap:9px;font-size:24px;color:#1f658e !important;line-height:1.1}
+.logo:before{content:"";width:36px;height:36px;display:inline-block;flex:none;background:url("visual_assets/icons/brand.svg") center/contain no-repeat}
+.verse{color:#78929f !important}
+.status,.muted{color:var(--saree-muted) !important}
+.card,.hero,.stat{background:linear-gradient(180deg,#fff 0%,#fbfdff 100%) !important;border:1px solid var(--saree-border) !important;border-radius:var(--saree-radius) !important;box-shadow:var(--saree-shadow);color:var(--saree-text) !important}
+.hero{padding:18px;margin-bottom:14px;position:relative;overflow:hidden}
+.hero:before{content:"";position:absolute;inset:-90px auto auto -60px;width:220px;height:220px;background:radial-gradient(circle,rgba(39,173,151,.14),transparent 68%);pointer-events:none}
+h1{font-size:25px;color:#173042 !important;position:relative}
+h2{font-size:20px;color:#214962 !important}
+.btn{min-height:42px;border-radius:13px !important;padding:11px 15px !important;box-shadow:0 5px 15px rgba(33,84,107,.06);transition:transform .15s ease,box-shadow .15s ease,filter .15s ease}
+.btn:hover{filter:brightness(1.02);box-shadow:0 8px 20px rgba(33,84,107,.12)}
+.primary{background:linear-gradient(135deg,#2a8bd2,#24a98e) !important;color:#fff !important}
+.secondary{background:#edf6fb !important;color:#28536b !important;border:1px solid #d4e8f1 !important}
+.danger{background:#fff0f0 !important;color:#b0434b !important;border:1px solid #f0d0d3 !important}
+.notice{background:#eaf8f4 !important;color:#17785e !important;border:1px solid #caebe2}
+.pending{background:#fff6df !important;color:#966b11 !important}
+.dangerbox{background:#fff0f0 !important;color:#ae4249 !important}
+.pill{background:#e7f5fb !important;color:#1f6f9d !important;border:1px solid #d0e9f3}
+.companyBadge{background:#edf3ff !important;color:#54709d !important;border-color:#dde8fa !important}
+.price{color:#1c9675 !important}
+.old{color:#8a9aa3 !important}
+.meta{color:#728b98 !important}
+.grid{gap:12px}
+.stat{padding:15px 16px;position:relative;overflow:hidden;font-size:14px;color:#55717f !important}
+.stat b{display:inline-block;margin-inline-end:5px;font-size:23px;color:#1c628e !important}
+.searchbar{background:rgba(238,248,252,.93) !important;border-bottom:1px solid #dbeaf2;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+input,select{background:#fff !important;color:#1e3a49 !important;border:1px solid #d4e6ee !important;border-radius:13px !important;box-shadow:inset 0 1px 0 rgba(255,255,255,.8);outline:none}
+input:focus,select:focus{border-color:#7bb9d4 !important;box-shadow:0 0 0 4px rgba(42,139,210,.10) !important}
+input::placeholder{color:#8ea3ad}
+label{color:#55717f}
+.nav{background:rgba(255,255,255,.92) !important;border-top:1px solid #d8e9f1 !important;box-shadow:0 -10px 30px rgba(36,92,117,.10);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
+.navin{max-width:980px;padding:5px 7px}
+.nav button{position:relative;color:#78919e !important;padding:8px 4px 9px !important;font-size:10.5px !important;font-weight:700;line-height:1.15}
+.nav button:before{content:"";display:block;width:23px;height:23px;margin:0 auto 4px;background-color:currentColor;background-repeat:no-repeat;background-position:center;background-size:contain;opacity:.85}
+.nav button:nth-child(1):before{mask:url("visual_assets/icons/home.svg") center/contain no-repeat;-webkit-mask:url("visual_assets/icons/home.svg") center/contain no-repeat;background-image:none}
+.nav button:nth-child(2):before{mask:url("visual_assets/icons/basket.svg") center/contain no-repeat;-webkit-mask:url("visual_assets/icons/basket.svg") center/contain no-repeat;background-image:none}
+.nav button:nth-child(3):before{mask:url("visual_assets/icons/heart.svg") center/contain no-repeat;-webkit-mask:url("visual_assets/icons/heart.svg") center/contain no-repeat;background-image:none}
+.nav button:nth-child(4):before{mask:url("visual_assets/icons/company.svg") center/contain no-repeat;-webkit-mask:url("visual_assets/icons/company.svg") center/contain no-repeat;background-image:none}
+.nav button:nth-child(5):before{mask:url("visual_assets/icons/store.svg") center/contain no-repeat;-webkit-mask:url("visual_assets/icons/store.svg") center/contain no-repeat;background-image:none}
+.nav button:nth-child(6):before{mask:url("visual_assets/icons/categories.svg") center/contain no-repeat;-webkit-mask:url("visual_assets/icons/categories.svg") center/contain no-repeat;background-image:none}
+.nav button.active{background:#e8f6fb !important;color:#1e759f !important;border-radius:15px !important;box-shadow:inset 0 2px 0 #39a6bf !important}
+.nav button.active:before{opacity:1}
+.pageCloseBtn button{min-height:42px;border-radius:13px !important}
+.priceRow{background:#fff !important;border:1px solid #deebf1 !important;border-radius:14px !important;box-shadow:0 5px 16px rgba(36,92,117,.06)}
+.img{background:#f7fbfd !important;border:1px solid #e4eff4;border-radius:15px !important;object-fit:contain !important}
+.storeLogo,.storeDetailLogo,.adImage{object-fit:cover !important}
+.storeLogo{height:150px !important}.storeDetailLogo{height:220px !important}
+.storeLogoPlaceholder{height:150px;border-radius:15px;background:linear-gradient(135deg,#eaf7fb,#effaf7) !important;border:1px dashed #b9d9e6 !important;color:#2f7b93 !important;font-weight:800;display:flex;align-items:center;justify-content:center;position:relative}
+.storeLogoPlaceholder:before{content:"";width:38px;height:38px;margin-inline-end:8px;background:linear-gradient(135deg,#2a8bd2,#24a98e);mask:url("visual_assets/icons/store.svg") center/contain no-repeat;-webkit-mask:url("visual_assets/icons/store.svg") center/contain no-repeat}
+.adCard{background:#fff !important;border:1px solid #dceaf1 !important;border-radius:17px !important;box-shadow:var(--saree-shadow)}
+.adImage{border-radius:13px !important}
+.adLabel{background:#edf6fb !important;color:#4c7182 !important}
+.qrbox{border:1px solid #dceaf1;box-shadow:0 5px 15px rgba(36,92,117,.06)}
+.company-card,.storeCard,.company-modal-inner,.company-detail,.company-toolbar{background:#fff !important}
+.saree-medium-card{background:#fff !important;border:1px solid var(--saree-border) !important;border-radius:18px !important;box-shadow:var(--saree-shadow);overflow:hidden}
+.saree-medium-card .img{background:#f7fbfd !important}
+.saree-category-card{background:linear-gradient(180deg,#fff,#f9fdff) !important;border:1px solid #dcecf2 !important;box-shadow:var(--saree-shadow)}
+.saree-category-card:hover{transform:translateY(-2px);box-shadow:0 14px 32px rgba(36,92,117,.12)}
+.saree-modal{background:rgba(18,48,64,.42) !important;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+.saree-modal-inner{background:#fff !important;color:var(--saree-text) !important;border:1px solid #dcecf2 !important;border-radius:22px !important;box-shadow:var(--saree-shadow-lg) !important}
+.saree-store-cart{background:#f7fbfd !important;border-color:#dcecf2 !important}
+.saree-qty button{background:#fff !important;color:#2b647f !important;border-color:#d6e8ef !important}
+.saree-cart-total{color:#1c9675 !important}
+.rememberRow{color:#587381 !important}
+.rememberRow input{accent-color:#2a8bd2 !important}
+.saree-ocs-modal{background:rgba(18,48,64,.42) !important;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+.saree-ocs-box{background:#fff !important;color:var(--saree-text) !important;border:1px solid #dcecf2 !important;box-shadow:var(--saree-shadow-lg) !important}
+.saree-ocs-box input,.saree-ocs-box textarea,.saree-ocs-box select{background:#fff !important;color:#1e3a49 !important;border-color:#d4e6ee !important}
+.saree-ocs-primary{background:linear-gradient(135deg,#2a8bd2,#24a98e) !important}
+.saree-ocs-secondary{background:#edf6fb !important;color:#28536b !important}
+.saree-ocs-danger{background:#fff0f0 !important;color:#b0434b !important}
+.saree-ocs-admin-row{background:#f9fcfe !important;border-color:#deebf1 !important}
+.saree-ocs-sponsor{background:#fff !important;border-color:#dcecf2 !important;box-shadow:0 8px 24px rgba(36,92,117,.08)}
+.barcodeSearch button:first-of-type,#storeBarcodeCamera{min-width:44px !important;width:44px !important;padding:0 !important;font-size:0 !important}
+.barcodeSearch button:first-of-type:before,#storeBarcodeCamera:before{content:"";display:block;width:21px;height:21px;margin:auto;background:#2b7da7;mask:url("visual_assets/icons/barcode.svg") center/contain no-repeat;-webkit-mask:url("visual_assets/icons/barcode.svg") center/contain no-repeat}
+.barcodeBox .actions .btn{display:inline-flex;align-items:center;gap:8px}
+.barcodeBox .actions .btn:before{content:"";display:inline-block;width:19px;height:19px;background:currentColor;mask:url("visual_assets/icons/barcode.svg") center/contain no-repeat;-webkit-mask:url("visual_assets/icons/barcode.svg") center/contain no-repeat;opacity:.95}
+#admin>.btn:first-child{display:inline-flex;align-items:center;gap:8px}
+#admin>.btn:first-child:before{content:"";display:inline-block;width:19px;height:19px;background:currentColor;mask:url("visual_assets/icons/megaphone.svg") center/contain no-repeat;-webkit-mask:url("visual_assets/icons/megaphone.svg") center/contain no-repeat}
+@media(max-width:650px){
+  .app{padding-left:10px;padding-right:10px}
+  .top{border-radius:18px}
+  .logo{font-size:22px}
+  .logo:before{width:33px;height:33px}
+  .card,.hero,.stat{border-radius:17px !important}
+  .nav button{font-size:9.5px !important}
+  .nav button:before{width:21px;height:21px}
+}
+@media(prefers-reduced-motion:reduce){.btn,.nav button{transition:none!important}.saree-category-card{transition:none!important}}
