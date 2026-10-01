@@ -20,7 +20,7 @@ body{background:radial-gradient(circle at 50% -10%,#ffffff 0,#eef8fc 44%,#e8f4f9
 .app{max-width:980px;padding:14px 14px 104px}
 .top{position:sticky;top:0;z-index:20;margin:0 -2px 14px;padding:10px 12px;border:1px solid rgba(255,255,255,.75);background:rgba(255,255,255,.78);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-radius:20px;box-shadow:0 8px 26px rgba(33,84,107,.07)}
 .logo{display:flex;align-items:center;gap:9px;font-size:24px;color:#1f658e !important;line-height:1.1}
-.logo:before{content:"";width:36px;height:36px;display:inline-block;flex:none;background:url("visual_assets/icons/brand.svg") center/contain no-repeat}
+.logo:before{content:"";width:36px;height:36px;display:inline-block;flex:none;background:url("brand.svg") center/contain no-repeat}
 .verse{color:#78929f !important}
 .status,.muted{color:var(--saree-muted) !important}
 .card,.hero,.stat{background:linear-gradient(180deg,#fff 0%,#fbfdff 100%) !important;border:1px solid var(--saree-border) !important;border-radius:var(--saree-radius) !important;box-shadow:var(--saree-shadow);color:var(--saree-text) !important}
@@ -53,12 +53,12 @@ label{color:#55717f}
 .navin{max-width:980px;padding:5px 7px}
 .nav button{position:relative;color:#78919e !important;padding:8px 4px 9px !important;font-size:10.5px !important;font-weight:700;line-height:1.15}
 .nav button:before{content:"";display:block;width:23px;height:23px;margin:0 auto 4px;background-color:currentColor;background-repeat:no-repeat;background-position:center;background-size:contain;opacity:.85}
-.nav button:nth-child(1):before{mask:url("visual_assets/icons/home.svg") center/contain no-repeat;-webkit-mask:url("visual_assets/icons/home.svg") center/contain no-repeat;background-image:none}
-.nav button:nth-child(2):before{mask:url("visual_assets/icons/basket.svg") center/contain no-repeat;-webkit-mask:url("visual_assets/icons/basket.svg") center/contain no-repeat;background-image:none}
-.nav button:nth-child(3):before{mask:url("visual_assets/icons/heart.svg") center/contain no-repeat;-webkit-mask:url("visual_assets/icons/heart.svg") center/contain no-repeat;background-image:none}
-.nav button:nth-child(4):before{mask:url("visual_assets/icons/company.svg") center/contain no-repeat;-webkit-mask:url("visual_assets/icons/company.svg") center/contain no-repeat;background-image:none}
-.nav button:nth-child(5):before{mask:url("visual_assets/icons/store.svg") center/contain no-repeat;-webkit-mask:url("visual_assets/icons/store.svg") center/contain no-repeat;background-image:none}
-.nav button:nth-child(6):before{mask:url("visual_assets/icons/categories.svg") center/contain no-repeat;-webkit-mask:url("visual_assets/icons/categories.svg") center/contain no-repeat;background-image:none}
+.nav button:nth-child(1):before{content:"";display:block;width:23px;height:23px;margin:0 auto 4px;background-image:url("home.svg");background-color:transparent;background-repeat:no-repeat;background-position:center;background-size:contain;mask:none;-webkit-mask:none;opacity:.9}
+.nav button:nth-child(2):before{content:"";display:block;width:23px;height:23px;margin:0 auto 4px;background-image:url("basket.svg");background-color:transparent;background-repeat:no-repeat;background-position:center;background-size:contain;mask:none;-webkit-mask:none;opacity:.9}
+.nav button:nth-child(3):before{content:"";display:block;width:23px;height:23px;margin:0 auto 4px;background-image:url("heart.svg");background-color:transparent;background-repeat:no-repeat;background-position:center;background-size:contain;mask:none;-webkit-mask:none;opacity:.9}
+.nav button:nth-child(4):before{content:"";display:block;width:23px;height:23px;margin:0 auto 4px;background-image:url("company.svg");background-color:transparent;background-repeat:no-repeat;background-position:center;background-size:contain;mask:none;-webkit-mask:none;opacity:.9}
+.nav button:nth-child(5):before{content:"";display:block;width:23px;height:23px;margin:0 auto 4px;background-image:url("store.svg");background-color:transparent;background-repeat:no-repeat;background-position:center;background-size:contain;mask:none;-webkit-mask:none;opacity:.9}
+.nav button:nth-child(6):before{content:"";display:block;width:23px;height:23px;margin:0 auto 4px;background-image:url("categories.svg");background-color:transparent;background-repeat:no-repeat;background-position:center;background-size:contain;mask:none;-webkit-mask:none;opacity:.9}
 .nav button.active{background:#e8f6fb !important;color:#1e759f !important;border-radius:15px !important;box-shadow:inset 0 2px 0 #39a6bf !important}
 .nav button.active:before{opacity:1}
 .pageCloseBtn button{min-height:42px;border-radius:13px !important}
@@ -67,7 +67,7 @@ label{color:#55717f}
 .storeLogo,.storeDetailLogo,.adImage{object-fit:cover !important}
 .storeLogo{height:150px !important}.storeDetailLogo{height:220px !important}
 .storeLogoPlaceholder{height:150px;border-radius:15px;background:linear-gradient(135deg,#eaf7fb,#effaf7) !important;border:1px dashed #b9d9e6 !important;color:#2f7b93 !important;font-weight:800;display:flex;align-items:center;justify-content:center;position:relative}
-.storeLogoPlaceholder:before{content:"";width:38px;height:38px;margin-inline-end:8px;background:linear-gradient(135deg,#2a8bd2,#24a98e);mask:url("visual_assets/icons/store.svg") center/contain no-repeat;-webkit-mask:url("visual_assets/icons/store.svg") center/contain no-repeat}
+.storeLogoPlaceholder:before{content:"";width:38px;height:38px;margin-inline-end:8px;background:url("store.svg") center/contain no-repeat}
 .adCard{background:#fff !important;border:1px solid #dceaf1 !important;border-radius:17px !important;box-shadow:var(--saree-shadow)}
 .adImage{border-radius:13px !important}
 .adLabel{background:#edf6fb !important;color:#4c7182 !important}
@@ -93,11 +93,11 @@ label{color:#55717f}
 .saree-ocs-admin-row{background:#f9fcfe !important;border-color:#deebf1 !important}
 .saree-ocs-sponsor{background:#fff !important;border-color:#dcecf2 !important;box-shadow:0 8px 24px rgba(36,92,117,.08)}
 .barcodeSearch button:first-of-type,#storeBarcodeCamera{min-width:44px !important;width:44px !important;padding:0 !important;font-size:0 !important}
-.barcodeSearch button:first-of-type:before,#storeBarcodeCamera:before{content:"";display:block;width:21px;height:21px;margin:auto;background:#2b7da7;mask:url("visual_assets/icons/barcode.svg") center/contain no-repeat;-webkit-mask:url("visual_assets/icons/barcode.svg") center/contain no-repeat}
+.barcodeSearch button:first-of-type:before,#storeBarcodeCamera:before{content:"";display:block;width:21px;height:21px;margin:auto;background:url("barcode.svg") center/contain no-repeat}
 .barcodeBox .actions .btn{display:inline-flex;align-items:center;gap:8px}
-.barcodeBox .actions .btn:before{content:"";display:inline-block;width:19px;height:19px;background:currentColor;mask:url("visual_assets/icons/barcode.svg") center/contain no-repeat;-webkit-mask:url("visual_assets/icons/barcode.svg") center/contain no-repeat;opacity:.95}
+.barcodeBox .actions .btn:before{content:"";display:inline-block;width:19px;height:19px;background:url("barcode.svg") center/contain no-repeat;opacity:.95}
 #admin>.btn:first-child{display:inline-flex;align-items:center;gap:8px}
-#admin>.btn:first-child:before{content:"";display:inline-block;width:19px;height:19px;background:currentColor;mask:url("visual_assets/icons/megaphone.svg") center/contain no-repeat;-webkit-mask:url("visual_assets/icons/megaphone.svg") center/contain no-repeat}
+#admin>.btn:first-child:before{content:"";display:inline-block;width:19px;height:19px;background:url("megaphone.svg") center/contain no-repeat}
 @media(max-width:650px){
   .app{padding-left:10px;padding-right:10px}
   .top{border-radius:18px}
