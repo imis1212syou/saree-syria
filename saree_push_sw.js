@@ -8,6 +8,7 @@ self.addEventListener("push", event => {
   try { d = event.data ? event.data.json() : {}; } catch (_) {}
 
   const title = d.title || "سعرلي سوريا";
+  const adId = d.ad_id || d.adId || null;
   const options = {
     body: d.body || "",
     icon: d.icon || "./saree-icon-192.png",
@@ -18,8 +19,8 @@ self.addEventListener("push", event => {
     vibrate: [180, 90, 180],
     tag: d.tag || "saree-announcement",
     renotify: true,
-    data: { url: d.url || null },
-    actions: d.url ? [{ action: "open", title: "فتح الإعلان" }] : []
+    data: { url: d.url || null, ad_id: adId },
+    actions: (d.url || adId) ? [{ action: "open", title: "فتح الإعلان" }] : []
   };
 
   event.waitUntil(self.registration.showNotification(title, options));
@@ -29,25 +30,21 @@ self.addEventListener("notificationclick", event => {
   event.notification.close();
 
   event.waitUntil((async () => {
-    const scope = self.registration.scope;
-    const rawUrl = event.notification?.data?.url;
-    let target = scope;
+    const scope = new URL(self.registration.scope);
+    const data = event.notification?.data || {};
+    let adId = data.ad_id || data.adId || null;
 
-    try {
-      if (rawUrl) {
-        const u = new URL(rawUrl, scope);
-        const scopeUrl = new URL(scope);
-
-        if (u.origin === scopeUrl.origin &&
-            (u.pathname === "/" || u.pathname === "")) {
-          target = scope;
-        } else {
-          target = u.href;
-        }
-      }
-    } catch (_) {
-      target = scope;
+    // دعم الإشعارات القديمة التي خزنت الرابط فقط.
+    if (!adId && data.url) {
+      try {
+        const oldUrl = new URL(data.url, scope.href);
+        adId = oldUrl.searchParams.get("ad_id") || oldUrl.searchParams.get("adId");
+      } catch (_) {}
     }
+
+    // لا نفتح data.url القديم؛ الهدف دائمًا هو صفحة الإعلان الموجودة داخل الموقع.
+    const target = new URL("ad-view.html", scope.href);
+    if (adId) target.searchParams.set("ad_id", adId);
 
     const list = await clients.matchAll({
       type: "window",
@@ -56,11 +53,11 @@ self.addEventListener("notificationclick", event => {
 
     for (const c of list) {
       if ("focus" in c) {
-        try { await c.navigate(target); } catch (_) {}
+        try { await c.navigate(target.href); } catch (_) {}
         return c.focus();
       }
     }
 
-    return clients.openWindow(target);
+    return clients.openWindow(target.href);
   })());
 });

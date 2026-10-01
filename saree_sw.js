@@ -62,8 +62,19 @@ self.addEventListener("notificationclick", event => {
   event.notification.close();
   event.waitUntil((async () => {
     const scope = new URL(self.registration.scope);
-    const adId = event.notification?.data?.ad_id;
-    const target = new URL("./ad-view.html", scope.href);
+    const data = event.notification?.data || {};
+    let adId = data.ad_id || data.adId || null;
+
+    // إذا كانت نسخة الإرسال القديمة لم تحفظ ad_id، استخرجه من الرابط القديم
+    // ثم استخدم صفحة الإعلان المحلية بدل فتح رابط GitHub قديم يسبب 404.
+    if (!adId && data.url) {
+      try {
+        const oldUrl = new URL(data.url, scope.href);
+        adId = oldUrl.searchParams.get("ad_id") || oldUrl.searchParams.get("adId");
+      } catch (_) {}
+    }
+
+    const target = new URL("ad-view.html", scope.href);
     if (adId) target.searchParams.set("ad_id", adId);
 
     const windows = await clients.matchAll({type:"window", includeUncontrolled:true});
