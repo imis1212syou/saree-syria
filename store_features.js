@@ -19,6 +19,27 @@
   const storeImage = st => st?.image_url || st?.logo_url || '';
   const storeCompany = st => st?.companies?.name || st?.company_name || st?.company || '';
   const storeWhatsapp = st => st?.whatsapp_url || st?.whatsapp || '';
+
+  async function loadStoreMaterialCompanyOptions(selectedId){
+    const box = $('merchantCompanyBox');
+    if(!box) return;
+    let list = Array.isArray(window.companies) ? window.companies : [];
+    if(!list.length){
+      try{
+        const {data,error}=await supabaseClient.from('companies').select('id,name').eq('active',true).order('name');
+        if(!error) list=data||[];
+      }catch(_){}
+    }
+    box.innerHTML = `
+      <label class="muted">الشركة المرتبطة بالمادة (اختياري)</label>
+      <select id="merchantCompanySelect">
+        <option value="">بدون شركة</option>
+        ${list.map(c=>`<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')}
+      </select>
+    `;
+    if($('merchantCompanySelect')) $('merchantCompanySelect').value = selectedId || '';
+  }
+
   const mapsUrl = st => {
     if(st?.latitude != null && st?.longitude != null){
       return 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(st.latitude + ',' + st.longitude);
@@ -47,6 +68,19 @@
   window.getSareeQrVisitCount = async function(entityType,entityId){
     if(!entityType || !entityId || !window.supabaseClient) return null;
     try{const {data,error}=await supabaseClient.rpc('qr_owner_visit_count',{p_entity_type:String(entityType),p_entity_id:String(entityId)});if(error)throw error;const n=Number(data||0);return Number.isFinite(n)?n:null;}catch(err){console.warn('QR visit count:',err);return null;}
+  };
+
+  window.getSareeSiteVisitCount = async function(){
+    if(!window.supabaseClient) return null;
+    try{
+      const {data,error}=await supabaseClient.rpc('owner_site_visit_count');
+      if(error) throw error;
+      const n=Number(data||0);
+      return Number.isFinite(n)?n:null;
+    }catch(err){
+      console.warn('site visit count:',err);
+      return null;
+    }
   };
 
   window.__sareeLocation = window.__sareeLocation || {lat:null,lng:null,requested:false,ready:false};
@@ -290,7 +324,7 @@
         ${st.opening_hours ? `<p class="muted">🕐 ساعات الدوام: ${esc(st.opening_hours)}</p>` : ''}
         ${st.working_days ? `<p class="muted">📅 أيام العمل: ${esc(st.working_days)}</p>` : ''}
         ${maps ? `<button type="button" class="btn secondary" id="storeDirectionsBtn">موقع واتجاه المتجر</button>` : ''}
-        ${canManageStore(st.id) ? `<div class="actions"><button type="button" class="btn secondary" id="storeOwnerEditBtn">✏️ تعديل المتجر</button><span class="notice" style="margin-top:0">📱 زوار QR: <b id="storeQrVisitCount">—</b></span></div>` : ''}
+        ${canManageStore(st.id) ? `<div class="actions"><button type="button" class="btn secondary" id="storeOwnerEditBtn">✏️ تعديل المتجر</button><span class="notice" style="margin-top:0">👁️ إجمالي زيارات الموقع: <b id="storeSiteTotalVisitCount">—</b></span><span class="notice" style="margin-top:0">📱 زوار QR: <b id="storeQrVisitCount">—</b></span></div>` : ''}
       </div>
       <div class="card">
         <h3>بحث بالباركود داخل هذا المتجر فقط</h3>
@@ -311,6 +345,7 @@
     $('storeCompanyBtn')?.addEventListener('click',()=>company && window.openCompanyById ? window.openCompanyById(st.company_id) : window.openCompany?.(company));
     $('storeDirectionsBtn')?.addEventListener('click',()=>window.open(maps,'_blank','noopener'));
     $('storeOwnerEditBtn')?.addEventListener('click',()=>{ if(isAdmin()) window.openAdminStoreEdit?.(st.id); else window.openMerchantStoreEdit?.(st.id); });
+    if(canManageStore(st.id) && typeof window.getSareeSiteVisitCount==='function') window.getSareeSiteVisitCount().then(n=>{ if($('storeSiteTotalVisitCount')) $('storeSiteTotalVisitCount').textContent=n==null?'—':fmt(n); });
     if(canManageStore(st.id) && typeof window.getSareeQrVisitCount==='function') window.getSareeQrVisitCount('store',st.id).then(n=>{ if($('storeQrVisitCount')) $('storeQrVisitCount').textContent=n==null?'—':fmt(n); });
     $('storeBarcodeSearchBtn')?.addEventListener('click',()=>window.searchStoreBarcode(st.id));
     $('storeBarcodeSearch')?.addEventListener('keydown',ev=>{ if(ev.key==='Enter') window.searchStoreBarcode(st.id); });
@@ -381,18 +416,20 @@
     ['pn','brand','unit','cat','pr','barcode','addMsg','barcodeMsg'].forEach(id=>{ if($(id)) $(id).value=''; if($(id)) $(id).textContent=''; });
     if($('pimg')) $('pimg').value='';
     if($('existingProduct')) $('existingProduct').value='';
+    if($('merchantCompanySelect')) $('merchantCompanySelect').value='';
     if($('addHeading')) $('addHeading').textContent='إضافة مادة أو سعر';
     if($('addSubmitBtn')) $('addSubmitBtn').textContent='إرسال للمراجعة';
     ['pn','brand','unit','cat'].forEach(id=>{ if($(id)) $(id).disabled=false; });
   }
 
-  window.showAdd = function(){
+  window.showAdd = async function(){
     if(!profileData) return alert('هذه الميزة للحسابات المصرح لها فقط.');
     if(isAdmin()){
       window.__editingMaterial = null;
       window.show('add');
       const options = '<option value="">اختر المتجر</option>' + (stores||[]).map(st=>`<option value="${esc(st.id)}">${esc(st.name)}${st.city?' — '+esc(st.city):''}</option>`).join('');
       $('merchantStoreBox').innerHTML = `<label class="muted">المتجر المستهدف</label><select id="merchantStoreSelect">${options}</select>`;
+      await loadStoreMaterialCompanyOptions('');
       $('addHeading').textContent='إضافة مادة أو سعر';
       $('addSubmitBtn').textContent='إضافة ونشر';
       return;
@@ -404,6 +441,7 @@
     window.__editingMaterial = null;
     window.show('add');
     $('merchantStoreBox').innerHTML=`<div class="notice">المتجر المرتبط: <b>${esc(st?.name||'غير ظاهر')}</b></div>`;
+    await loadStoreMaterialCompanyOptions('');
     $('addHeading').textContent='إضافة مادة أو سعر';
     $('addSubmitBtn').textContent='إضافة ونشر';
   };
@@ -426,6 +464,7 @@
       $('barcode').value=normBarcode(p.barcode||data.barcode||'');
       $('pr').value=Number(data.price_new ?? data.price ?? 0);
       $('merchantStoreBox').innerHTML = `<div class="notice">تعديل مادة من متجر: <b>${esc((stores||[]).find(s=>String(s.id)===String(storeId))?.name||storeId)}</b>${p.image_url?'<br>الصورة الحالية محفوظة ما لم تختر صورة جديدة.':''}</div>`;
+      await loadStoreMaterialCompanyOptions(p.company_id||'');
       $('addHeading').textContent='تعديل المادة أو السعر';
       $('addSubmitBtn').textContent='حفظ التعديلات';
       $('addMsg').textContent='';
@@ -461,6 +500,7 @@
     const unit=$('unit').value.trim();
     const category=$('cat').value.trim()||'عام';
     const barcode=normBarcode($('barcode').value);
+    const companyId=$('merchantCompanySelect')?.value||null;
     const v=Number($('pr').value);
     const file=$('pimg').files?.[0] || null;
     if(!Number.isFinite(v)||v<0) return alert('اكتب السعر بشكل صحيح.');
@@ -477,7 +517,7 @@
         if(barcode && await storeBarcodeExists(storeId,barcode,row.product_id)) return alert('هذا الباركود مستخدم لمادة أخرى داخل هذا المتجر.');
         let imageUrl=current.image_url||null;
         if(file) imageUrl=await uploadImage(file,'materials');
-        const productValues={name:n||current.name||'مادة',brand:brand||null,unit:unit||null,category,image_url:imageUrl,barcode:barcode||null};
+        const productValues={name:n||current.name||'مادة',brand:brand||null,unit:unit||null,category,image_url:imageUrl,barcode:barcode||null,company_id:companyId||null};
         const sharedWithOtherStore=await productUsedByOtherStores(row.product_id,storeId);
         if(role()==='store' || sharedWithOtherStore){
           const user=await ensureCurrentUser();
@@ -517,7 +557,7 @@
       if(isAdmin()){
         if(!productId){
           if(barcode && await storeBarcodeExists(storeId,barcode,null)) return alert('هذا الباركود مستخدم بالفعل داخل هذا المتجر.');
-          const {data:p,error}=await supabaseClient.from('products').insert({name:n,brand:brand||null,unit:unit||null,category,barcode:barcode||null,image_url:imageUrl,active:true,created_by:profileData.id}).select().single();
+          const {data:p,error}=await supabaseClient.from('products').insert({name:n,brand:brand||null,unit:unit||null,category,barcode:barcode||null,image_url:imageUrl,company_id:companyId||null,active:true,created_by:profileData.id}).select().single();
           if(error) throw error;
           productId=p.id;
         }else{
@@ -530,11 +570,12 @@
             || String(unit||'')!==String(baseProduct.unit||'')
             || String(category||'عام')!==String(baseProduct.category||'عام')
             || requestedBarcode!==normBarcode(baseProduct.barcode||'')
+            || String(companyId||'')!==String(baseProduct.company_id||'')
             || Boolean(file);
           if(requestedBarcode && requestedBarcode!==normBarcode(baseProduct.barcode||'') && await storeBarcodeExists(storeId,requestedBarcode,productId)) return alert('هذا الباركود مستخدم لمادة أخرى داخل هذا المتجر.');
           const sharedWithOtherStore=await productUsedByOtherStores(productId,storeId);
           if(sharedWithOtherStore || dataChanged){
-            const {data:clone,error:cloneError}=await supabaseClient.from('products').insert({name:n||baseProduct.name||'مادة',brand:brand||null,unit:unit||null,category,barcode:requestedBarcode||null,image_url:requestedImage,active:true,created_by:profileData.id}).select().single();
+            const {data:clone,error:cloneError}=await supabaseClient.from('products').insert({name:n||baseProduct.name||'مادة',brand:brand||null,unit:unit||null,category,barcode:requestedBarcode||null,image_url:requestedImage,company_id:companyId||null,active:true,created_by:profileData.id}).select().single();
             if(cloneError) throw cloneError;
             productId=clone.id;
           }else if(imageUrl){
@@ -566,7 +607,7 @@
         if(!finalProductId){
           if(barcode && await storeBarcodeExists(storeId,barcode,null)) return alert('هذا الباركود مستخدم بالفعل داخل هذا المتجر.');
           const {data:p,error}=await supabaseClient.from('products').insert({
-            name:n,brand:brand||null,unit:unit||null,category,barcode:barcode||null,image_url:imageUrl,active:true,created_by:user.id
+            name:n,brand:brand||null,unit:unit||null,category,barcode:barcode||null,image_url:imageUrl,company_id:companyId||null,active:true,created_by:user.id
           }).select().single();
           if(error) throw error;
           finalProductId=p.id;

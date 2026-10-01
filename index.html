@@ -129,6 +129,9 @@
     <!-- المتجر -->
     <div id="merchantStoreBox"></div>
 
+    <!-- الشركة المرتبطة بالمادة - اختيارية -->
+    <div id="merchantCompanyBox"></div>
+
     <!-- ========================= -->
     <!-- صورة المادة - اختيارية -->
     <!-- ========================= -->
@@ -549,10 +552,10 @@ async function loadPublicData(){
       supabaseClient.from('products').select('*').eq('active',true).order('name'),
       supabaseClient.from('stores').select('*').eq('active',true).order('name'),
       supabaseClient.from('price_listings').select('*,stores(id,name,city,area,address,phone,image_url,verified,company_id,companies(id,name,verified,active))').eq('approved',true).order('price_new'),
-      supabaseClient.from('companies').select('id').eq('active',true)
+      supabaseClient.from('companies').select('id,name,active,verified').eq('active',true)
     ]);
     if(p.error||s.error||l.error) throw(p.error||s.error||l.error);
-    products=p.data||[];stores=s.data||[];prices=l.data||[];
+    products=p.data||[];stores=s.data||[];prices=l.data||[];companies=c.data||[];
     $('pc').textContent=products.length;$('sc').textContent=stores.length;$('cc').textContent=(c.data||[]).length;
     if(c.error) console.warn('loadPublicData companies:',c.error);
     $('approvedCount').textContent=prices.length;$('basketCount').textContent=basket.length;

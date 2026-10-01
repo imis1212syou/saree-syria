@@ -1,8 +1,11 @@
 /* سعرلي سوريا — barcode_scanner.js
+   نسخة مبنية مباشرة على ماسح الباركود القديم الذي كان يعمل.
    - كاميرا خلفية
    - إدخال باركود يدوي
    - تعبئة المادة تلقائياً عند العثور عليها
-   - البحث داخل متجر محدد
+   - البحث داخل متجر محدد أو شركة محددة
+   - عزل المادة والباركود حسب المتجر/الشركة
+   - إضافة مادة الشركة بالكاميرا
    - بدون توليد أو تنزيل باركود
 */
 
@@ -91,7 +94,6 @@
     scannerStoreId = storeId || null;
     scannerCompanyId = null;
     scanLocked = false;
-
     openScanner();
   };
 
@@ -100,7 +102,6 @@
     scannerStoreId = storeId;
     scannerCompanyId = null;
     scanLocked = false;
-
     openScanner();
   };
 
@@ -109,7 +110,6 @@
     scannerCompanyId = companyId;
     scannerStoreId = null;
     scanLocked = false;
-
     openScanner();
   };
 
@@ -118,7 +118,6 @@
     scannerCompanyId = companyId;
     scannerStoreId = null;
     scanLocked = false;
-
     openScanner();
   };
 
@@ -375,77 +374,35 @@ const searchButton =
   }
 async function handleBarcode(barcode) {
 
-    const clean =
-      cleanBarcode(barcode);
+    const clean = cleanBarcode(barcode);
+    if (!clean) return;
 
-    if (!clean) {
-      return;
-    }
-
-    const mode =
-      scannerMode;
-
-    const storeId =
-      scannerStoreId;
-
-    const companyId =
-      scannerCompanyId;
+    const mode = scannerMode;
+    const storeId = scannerStoreId;
+    const companyId = scannerCompanyId;
 
     await window.closeBarcodeScanner();
 
     if (mode === 'add') {
-
-      const input =
-        el('barcode');
-
+      const input = el('barcode');
       if (input) {
-
-        input.value =
-          clean;
-
-        input.dispatchEvent(
-          new Event(
-            'input',
-            { bubbles:true }
-          )
-        );
-
-        input.dispatchEvent(
-          new Event(
-            'change',
-            { bubbles:true }
-          )
-        );
+        input.value = clean;
+        input.dispatchEvent(new Event('input', { bubbles:true }));
+        input.dispatchEvent(new Event('change', { bubbles:true }));
       }
-
-      const msg =
-        el('barcodeMsg');
-
-      if (msg) {
-        msg.textContent =
-          'تم قراءة الباركود: ' + clean;
-      }
-
+      const msg = el('barcodeMsg');
+      if (msg) msg.textContent = 'تم قراءة الباركود: ' + clean;
       await fillProductFromBarcode(clean, storeId);
-
       return;
     }
 
     if (mode === 'store') {
-
-      await showStoreBarcodeResult(
-        clean,
-        storeId
-      );
-
+      await showStoreBarcodeResult(clean, storeId);
       return;
     }
 
     if (mode === 'company') {
-      await showCompanyBarcodeResult(
-        clean,
-        companyId
-      );
+      await showCompanyBarcodeResult(clean, companyId);
       return;
     }
 
@@ -453,8 +410,8 @@ async function handleBarcode(barcode) {
       const input = el('cep_barcode') || el('admin_cep_barcode');
       if (input) {
         input.value = clean;
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-        input.dispatchEvent(new Event('change', { bubbles: true }));
+        input.dispatchEvent(new Event('input', { bubbles:true }));
+        input.dispatchEvent(new Event('change', { bubbles:true }));
       }
       const msg = el('cepBarcodeMsg');
       if (msg) msg.textContent = 'تم قراءة الباركود: ' + clean;
@@ -464,133 +421,68 @@ async function handleBarcode(barcode) {
   }
 
   async function fillProductFromBarcode(barcode, storeId) {
-
+    const code = cleanBarcode(barcode);
     try {
-
-      let data = null;
-      let error = null;
-
       const scopedStoreId = storeId ||
         (typeof profileData !== 'undefined' && profileData?.store_id) ||
-        el('merchantStoreSelect')?.value || null;
+        el('merchantStoreSelect')?.value ||
+        new URLSearchParams(location.search).get('store') || null;
 
-      if (scopedStoreId) {
-        const rows = await supabaseClient
-          .from('price_listings')
-          .select('product_id,products(*)')
-          .eq('store_id', scopedStoreId)
-          .eq('approved', true);
-        error = rows.error;
-        if (!error) {
-          const match = (rows.data || []).find(row =>
-            String(row?.products?.barcode || '').replace(/\D/g, '') === barcode
-          );
-          data = match?.products || null;
-        }
-      } else {
-        const result = await supabaseClient
-          .from('products')
-          .select('*')
-          .eq('barcode', barcode)
-          .limit(1)
-          .maybeSingle();
-        data = result.data;
-        error = result.error;
-      }
-
-      if (error) {
-        console.warn(error);
+      if (!scopedStoreId) {
+        const msg = el('barcodeMsg');
+        if (msg) msg.textContent = 'تم قراءة الباركود. اختر المتجر ثم احفظ المادة.';
         return;
       }
+
+      const { data: listings, error } = await supabaseClient
+        .from('price_listings')
+        .select('id,store_id,product_id,approved,updated_at,products(*)')
+        .eq('store_id', scopedStoreId)
+        .eq('approved', true)
+        .order('updated_at', { ascending:false });
+
+      if (error) throw error;
+
+      const listing = (Array.isArray(listings) ? listings : []).find(row =>
+        cleanBarcode(row?.products?.barcode || row?.barcode || '') === code
+      );
+      const data = listing?.products || null;
 
       if (!data) {
         const existing = el('existingProduct');
         if (existing) {
           existing.value = '';
-          existing.dispatchEvent(new Event('change', { bubbles: true }));
+          existing.dispatchEvent(new Event('change', { bubbles:true }));
         }
         const msg = el('barcodeMsg');
-        if (msg) msg.textContent =
-          'لم نجد مادة بهذا الباركود داخل هذا المتجر. يمكنك إضافة مادة جديدة.';
+        if (msg) msg.textContent = 'لم نجد مادة بهذا الباركود داخل هذا المتجر. يمكنك إضافة مادة جديدة.';
         return;
       }
 
-      if (scopedStoreId && data.id) {
-        const existing = el('existingProduct');
-        if (existing) {
-          const option = [...existing.options].find(o => String(o.value) === String(data.id));
-          if (option) existing.value = data.id;
-          existing.dispatchEvent(new Event('change', { bubbles: true }));
+      const existing = el('existingProduct');
+      if (existing) {
+        let option = [...existing.options].find(o => String(o.value) === String(data.id));
+        if (!option) {
+          option = document.createElement('option');
+          option.value = data.id;
+          option.textContent = 'المادة الممسوحة: ' + (data.name || 'مادة');
+          existing.appendChild(option);
         }
+        existing.value = data.id;
+        existing.dispatchEvent(new Event('change', { bubbles:true }));
       }
 
-      if (el('pn')) {
-        el('pn').value =
-          data.name || '';
-      }
+      ['pn','brand','unit','cat'].forEach(id => {
+        if (el(id)) el(id).value = data[id] || '';
+      });
+      if (el('merchantCompanySelect')) el('merchantCompanySelect').value = data.company_id || '';
 
-      if (el('brand')) {
-        el('brand').value =
-          data.brand || '';
-      }
-
-      if (el('unit')) {
-        el('unit').value =
-          data.unit || '';
-      }
-
-      if (el('cat')) {
-        el('cat').value =
-          data.category || '';
-      }
-
-      const msg =
-        el('barcodeMsg');
-
-      if (msg) {
-        msg.textContent =
-          'تم العثور على المادة وتعبئة بياناتها تلقائياً.';
-      }
-
+      const msg = el('barcodeMsg');
+      if (msg) msg.textContent = 'تم العثور على المادة داخل هذا المتجر وتعبئة بياناتها.';
     } catch (error) {
-
-      console.error(
-        'Barcode product lookup:',
-        error
-      );
-    }
-  }
-
-  async function showCompanyBarcodeResult(
-    barcode,
-    companyId
-  ) {
-    if (!companyId) {
-      showResult('الشركة غير محددة', 'لم يتم تحديد الشركة المطلوب البحث داخلها.');
-      return;
-    }
-    try {
-      const { data, error } = await supabaseClient
-        .from('company_products')
-        .select('*')
-        .eq('company_id', companyId)
-        .eq('active', true)
-        .eq('barcode', barcode)
-        .limit(1)
-        .maybeSingle();
-      if (error) throw error;
-      if (!data) {
-        showResult('لم نجد المادة', 'لا توجد مادة بهذا الباركود داخل هذه الشركة.');
-        return;
-      }
-      if (typeof window.openCompanyProduct === 'function') {
-        window.openCompanyProduct(data.id);
-        return;
-      }
-      showResult('تم العثور على المادة', 'تم العثور على المادة، لكن تعذر فتح تفاصيلها.');
-    } catch (error) {
-      console.error('Company barcode lookup:', error);
-      showResult('تعذر البحث', error?.message || 'حدث خطأ أثناء البحث داخل الشركة.');
+      console.error('Barcode product lookup:', error);
+      const msg = el('barcodeMsg');
+      if (msg) msg.textContent = 'تم قراءة الباركود، لكن تعذر جلب بيانات المادة من المتجر.';
     }
   }
 
@@ -691,6 +583,39 @@ async function handleBarcode(barcode) {
         'تعذر البحث',
         'حدث خطأ أثناء البحث عن المادة.'
       );
+    }
+  }
+
+  async function showCompanyBarcodeResult(barcode, companyId) {
+    if (!companyId) {
+      showResult('الشركة غير محددة', 'لم يتم تحديد الشركة المطلوب البحث داخلها.');
+      return;
+    }
+
+    try {
+      const { data, error } = await supabaseClient
+        .from('company_products')
+        .select('*')
+        .eq('company_id', companyId)
+        .eq('active', true)
+        .eq('barcode', barcode)
+        .limit(1)
+        .maybeSingle();
+
+      if (error) throw error;
+      if (!data) {
+        showResult('لم نجد المادة', 'لا توجد مادة بهذا الباركود داخل هذه الشركة.');
+        return;
+      }
+
+      if (typeof window.openCompanyProduct === 'function') {
+        window.openCompanyProduct(data.id);
+        return;
+      }
+      showResult('تم العثور على المادة', 'تم العثور على المادة، لكن تعذر فتح تفاصيلها.');
+    } catch (error) {
+      console.error('Company barcode lookup:', error);
+      showResult('تعذر البحث', error?.message || 'حدث خطأ أثناء البحث داخل الشركة.');
     }
   }
 
@@ -944,9 +869,6 @@ async function handleBarcode(barcode) {
         scanner = null;
       }
 
-      scannerMode = null;
-      scannerStoreId = null;
-      scannerCompanyId = null;
       scanLocked = false;
 
       const modal =
