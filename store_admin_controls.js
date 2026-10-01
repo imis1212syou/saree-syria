@@ -43,6 +43,7 @@
         <select id="sa_company"><option value="">بدون شركة</option></select>
         <input id="sa_image" type="file" accept="image/*">
       </div>
+      <label class="rememberRow"><input id="sa_whatsapp_orders_enabled" type="checkbox" ${st.whatsapp_orders_enabled?'checked':''}> تفعيل إرسال سلة الطلب عبر واتساب لهذا المتجر</label>
       ${ownerMode ? '<div class="notice">التعديلات على متجرك تُنشر مباشرة ولا تحتاج موافقة المدير.</div>' : `<label class="muted"><input id="sa_verified" type="checkbox" ${st.verified?'checked':''}> المتجر موثّق</label><label class="muted"><input id="sa_active" type="checkbox" ${st.active!==false?'checked':''}> المتجر نشط</label>`}
       <p id="sa_msg" class="muted"></p>
       <div class="actions"><button type="button" class="btn primary" id="sa_save">حفظ التعديلات</button><button type="button" class="btn secondary" onclick="closeAdminEditor()">إغلاق</button></div>`);
@@ -72,7 +73,7 @@
     const file=$('sa_image')?.files?.[0];
     if(file){try{image_url=await window.uploadImage(file,'stores')}catch(e){return alert('فشل رفع الصورة: '+e.message)}}
     const companyId=$('sa_company')?.value||null;
-    const payload={name,city:$('sa_city').value.trim()||null,area:$('sa_area').value.trim()||null,address:$('sa_address').value.trim()||null,phone:$('sa_phone').value.trim()||null,whatsapp_url:$('sa_whatsapp').value.trim()||null,opening_hours:$('sa_hours').value.trim()||null,working_days:$('sa_days').value.trim()||null,image_url};
+    const payload={name,city:$('sa_city').value.trim()||null,area:$('sa_area').value.trim()||null,address:$('sa_address').value.trim()||null,phone:$('sa_phone').value.trim()||null,whatsapp_url:$('sa_whatsapp').value.trim()||null,opening_hours:$('sa_hours').value.trim()||null,working_days:$('sa_days').value.trim()||null,image_url,whatsapp_orders_enabled:!!$('sa_whatsapp_orders_enabled')?.checked};
     if(ownerMode){
       payload.verified=true;
       payload.active=true;
@@ -110,27 +111,40 @@
 
   window.openAdminCompanyCreate=async function(){
     if(!onlyAdmin())return;
-    overlay(`<h2>إضافة شركة</h2><div class="two"><input id="ca_name" placeholder="اسم الشركة"><input id="ca_phone" placeholder="الهاتف"><input id="ca_address" placeholder="العنوان"><input id="ca_whatsapp" placeholder="رابط واتساب"><input id="ca_image" type="file" accept="image/*"></div><label class="muted"><input id="ca_verified" type="checkbox"> الشركة موثّقة</label><p id="ca_msg" class="muted"></p><div class="actions"><button type="button" class="btn primary" onclick="saveAdminCompanyCreate()">حفظ الشركة</button><button type="button" class="btn secondary" onclick="closeAdminEditor()">إغلاق</button></div>`);
+    overlay(`<h2>إضافة شركة</h2><div class="two"><input id="ca_name" placeholder="اسم الشركة"><input id="ca_phone" placeholder="الهاتف"><input id="ca_address" placeholder="العنوان"><input id="ca_whatsapp" placeholder="رابط/رقم واتساب"><input id="ca_established_year" inputmode="numeric" maxlength="4" placeholder="سنة التأسيس"><input id="ca_latitude" type="number" step="any" placeholder="خط العرض Latitude"><input id="ca_longitude" type="number" step="any" placeholder="خط الطول Longitude"><input id="ca_image" type="file" accept="image/*"></div><label class="rememberRow"><input id="ca_whatsapp_orders_enabled" type="checkbox"> تفعيل إرسال سلة الطلب عبر واتساب للشركة</label><label class="muted"><input id="ca_verified" type="checkbox"> الشركة موثّقة</label><p id="ca_msg" class="muted"></p><div class="actions"><button type="button" class="btn primary" onclick="saveAdminCompanyCreate()">حفظ الشركة</button><button type="button" class="btn secondary" onclick="closeAdminEditor()">إغلاق</button></div>`);
   };
 
   window.saveAdminCompanyCreate=async function(){
     if(!onlyAdmin())return; const name=$('ca_name')?.value.trim();if(!name)return alert('اسم الشركة مطلوب.');
     let image_url=null;const file=$('ca_image')?.files?.[0];if(file){try{image_url=await window.uploadImage(file,'companies')}catch(e){return alert('فشل رفع الصورة: '+e.message)}}
-    const {error}=await supabaseClient.rpc('admin_add_company',{p_name:name,p_phone:$('ca_phone').value.trim()||null,p_address:$('ca_address').value.trim()||null,p_whatsapp_url:$('ca_whatsapp').value.trim()||null,p_image_url:image_url,p_verified:!!$('ca_verified').checked});
-    if(error)return alert(error.message);closeAdminEditor();alert('تمت إضافة الشركة بنجاح.');await refreshEverything();
+    const {data:createdId,error}=await supabaseClient.rpc('admin_add_company',{p_name:name,p_phone:$('ca_phone').value.trim()||null,p_address:$('ca_address').value.trim()||null,p_whatsapp_url:$('ca_whatsapp').value.trim()||null,p_image_url:image_url,p_verified:!!$('ca_verified').checked});
+    if(error)return alert(error.message);
+    const createdCompanyId=Array.isArray(createdId)?(createdId[0]?.id||createdId[0]):(createdId?.id||createdId);
+    if(createdCompanyId){
+      const yr=String($('ca_established_year')?.value||'').trim();
+      const patch={established_year:/^\d{4}$/.test(yr)?Number(yr):null,latitude:$('ca_latitude')?.value===''?null:Number($('ca_latitude').value),longitude:$('ca_longitude')?.value===''?null:Number($('ca_longitude').value),whatsapp_orders_enabled:!!$('ca_whatsapp_orders_enabled')?.checked};
+      const r=await supabaseClient.from('companies').update(patch).eq('id',createdCompanyId);
+      if(r.error)return alert('تم إنشاء الشركة، لكن تعذر حفظ بيانات الموقع/التأسيس/واتساب: '+r.error.message);
+    }
+    closeAdminEditor();alert('تمت إضافة الشركة بنجاح.');await refreshEverything();
   };
 
   async function getCompany(id){const {data,error}=await supabaseClient.from('companies').select('*').eq('id',id).maybeSingle();if(error)throw error;return data}
   window.openAdminCompanyEdit=async function(id){
     if(!onlyAdmin())return;let c;try{c=await getCompany(id)}catch(e){return alert(e.message)}if(!c)return alert('الشركة غير موجودة.');
-    overlay(`<h2>تعديل الشركة</h2><div class="two"><input id="ce_name" value="${esc(c.name)}" placeholder="اسم الشركة"><input id="ce_phone" value="${esc(c.phone)}" placeholder="الهاتف"><input id="ce_address" value="${esc(c.address)}" placeholder="العنوان"><input id="ce_whatsapp" value="${esc(c.whatsapp_url)}" placeholder="رابط واتساب"><input id="ce_image" type="file" accept="image/*"></div><label class="muted"><input id="ce_verified" type="checkbox" ${c.verified?'checked':''}> الشركة موثّقة</label><label class="muted"><input id="ce_active" type="checkbox" ${c.active!==false?'checked':''}> الشركة نشطة</label><p id="ce_msg" class="muted"></p><div class="actions"><button type="button" class="btn primary" onclick="saveAdminCompanyEdit('${esc(id)}')">حفظ التعديلات</button><button type="button" class="btn secondary" onclick="closeAdminEditor()">إغلاق</button></div>`);
+    overlay(`<h2>تعديل الشركة</h2><div class="two"><input id="ce_name" value="${esc(c.name)}" placeholder="اسم الشركة"><input id="ce_phone" value="${esc(c.phone)}" placeholder="الهاتف"><input id="ce_address" value="${esc(c.address)}" placeholder="العنوان"><input id="ce_whatsapp" value="${esc(c.whatsapp_url)}" placeholder="رابط/رقم واتساب"><input id="ce_established_year" inputmode="numeric" maxlength="4" value="${esc(c.established_year||'')}" placeholder="سنة التأسيس"><input id="ce_latitude" type="number" step="any" value="${esc(c.latitude??'')}" placeholder="خط العرض Latitude"><input id="ce_longitude" type="number" step="any" value="${esc(c.longitude??'')}" placeholder="خط الطول Longitude"><input id="ce_image" type="file" accept="image/*"></div><label class="rememberRow"><input id="ce_whatsapp_orders_enabled" type="checkbox" ${c.whatsapp_orders_enabled?'checked':''}> تفعيل إرسال سلة الطلب عبر واتساب للشركة</label><label class="muted"><input id="ce_verified" type="checkbox" ${c.verified?'checked':''}> الشركة موثّقة</label><label class="muted"><input id="ce_active" type="checkbox" ${c.active!==false?'checked':''}> الشركة نشطة</label><p id="ce_msg" class="muted"></p><div class="actions"><button type="button" class="btn primary" onclick="saveAdminCompanyEdit('${esc(id)}')">حفظ التعديلات</button><button type="button" class="btn secondary" onclick="closeAdminEditor()">إغلاق</button></div>`);
   };
 
   window.saveAdminCompanyEdit=async function(id){
     if(!onlyAdmin())return;let image_url=null;const current=await getCompany(id).catch(()=>null);if(!current)return;
     image_url=current.image_url||null;const file=$('ce_image')?.files?.[0];if(file){try{image_url=await window.uploadImage(file,'companies')}catch(e){return alert(e.message)}}
     const {error}=await supabaseClient.rpc('admin_update_company',{p_id:id,p_name:$('ce_name').value.trim(),p_phone:$('ce_phone').value.trim()||null,p_address:$('ce_address').value.trim()||null,p_whatsapp_url:$('ce_whatsapp').value.trim()||null,p_image_url:image_url,p_verified:!!$('ce_verified').checked,p_active:!!$('ce_active').checked});
-    if(error)return alert(error.message);closeAdminEditor();alert('تم تعديل الشركة بنجاح.');await refreshEverything();
+    if(error)return alert(error.message);
+    const yr=String($('ce_established_year')?.value||'').trim();
+    const patch={established_year:/^\d{4}$/.test(yr)?Number(yr):null,latitude:$('ce_latitude')?.value===''?null:Number($('ce_latitude').value),longitude:$('ce_longitude')?.value===''?null:Number($('ce_longitude').value),whatsapp_orders_enabled:!!$('ce_whatsapp_orders_enabled')?.checked};
+    const r=await supabaseClient.from('companies').update(patch).eq('id',id);
+    if(r.error)return alert('تم تعديل الشركة، لكن تعذر حفظ بيانات الموقع/التأسيس/واتساب: '+r.error.message);
+    closeAdminEditor();alert('تم تعديل الشركة بنجاح.');await refreshEverything();
   };
 
   window.toggleAdminCompanyVerification=async function(id){

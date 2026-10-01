@@ -548,7 +548,7 @@ async function loadPublicData(){
     const [p,s,l,c]=await Promise.all([
       supabaseClient.from('products').select('*').eq('active',true).order('name'),
       supabaseClient.from('stores').select('*').eq('active',true).order('name'),
-      supabaseClient.from('price_listings').select('*,stores(id,name,city,area,address,phone,image_url,verified)').eq('approved',true).order('price_new'),
+      supabaseClient.from('price_listings').select('*,stores(id,name,city,area,address,phone,image_url,verified,company_id,companies(id,name,verified,active))').eq('approved',true).order('price_new'),
       supabaseClient.from('companies').select('id').eq('active',true)
     ]);
     if(p.error||s.error||l.error) throw(p.error||s.error||l.error);
