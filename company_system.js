@@ -944,8 +944,9 @@
     const rowId=linked?.id || linked?.company_user_id || companyUserId;
     const userId=linked?.user_id || companyUserId;
     if(!confirm('فك ربط حساب الشركة وإعادته لمستخدم عادي؟'))return;
-    const {error}=await supabaseClient.rpc('admin_unlink_company_user',{p_company_user_id:rowId});
+    const {data:unlinkRow,error}=await supabaseClient.from('company_users').update({active:false}).eq('id',rowId).select('id').maybeSingle();
     if(error)return alert(error.message);
+    if(!unlinkRow)return alert('تعذر العثور على ربط الشركة المطلوب.');
     const pr=await supabaseClient.from('profiles').update({role:'user',company_id:null,store_id:null,can_edit_prices:false}).eq('id',userId);
     if(pr.error) return alert('تم فك الربط من الشركة لكن تعذر تحديث دور الحساب: '+pr.error.message);
     alert('تم فك الربط ✅');

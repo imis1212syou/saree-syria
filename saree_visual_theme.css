@@ -21,7 +21,7 @@ body{background:radial-gradient(circle at 50% -10%,#ffffff 0,#eef8fc 44%,#e8f4f9
 .top{position:sticky;top:0;z-index:20;margin:0 -2px 14px;padding:10px 12px;border:1px solid rgba(255,255,255,.75);background:rgba(255,255,255,.78);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-radius:20px;box-shadow:0 8px 26px rgba(33,84,107,.07)}
 .logo{display:flex;align-items:center;gap:9px;font-size:24px;color:#1f658e !important;line-height:1.1}
 .logo:before{content:"";width:36px;height:36px;display:inline-block;flex:none;background:url("brand.svg") center/contain no-repeat}
-.verse{color:#78929f !important}
+.verse{color:#78929f !important;display:inline-block;transform:scaleX(1.04);transform-origin:center}
 .status,.muted{color:var(--saree-muted) !important}
 .card,.hero,.stat{background:linear-gradient(180deg,#fff 0%,#fbfdff 100%) !important;border:1px solid var(--saree-border) !important;border-radius:var(--saree-radius) !important;box-shadow:var(--saree-shadow);color:var(--saree-text) !important}
 .hero{padding:18px;margin-bottom:14px;position:relative;overflow:hidden}
