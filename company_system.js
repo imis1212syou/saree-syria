@@ -476,8 +476,10 @@
     companyProductEditor();
   };
 
-  function companyProductEditor(existing){
+  function companyProductEditor(existing, forcedContext){
     const p=existing||{};
+    const editContext=forcedContext||window.companyContext||null;
+    const editCompanyId=editContext?.company_id||p.company_id||currentCompany?.id||null;
     const modal=document.createElement('div');
     modal.id='companyEditorModal';
     modal.className='company-modal';
@@ -514,16 +516,17 @@
         const price=$('cep_price').value===''?null:Number($('cep_price').value);
         if(price!==null && (!Number.isFinite(price)||price<0)) return alert('السعر غير صالح.');
         const barcode=norm($('cep_barcode').value);
-        if(barcode){let q=supabaseClient.from('company_products').select('id').eq('company_id',window.companyContext.company_id).eq('barcode',barcode).limit(1);if(existing)q=q.neq('id',existing.id);const dup=await q.maybeSingle();if(dup.error)throw dup.error;if(dup.data)return alert('هذا الباركود مستخدم لمادة أخرى داخل هذه الشركة.');}
+        if(!editCompanyId) return alert('تعذر تحديد الشركة المرتبطة بهذه المادة.');
+        if(barcode){let q=supabaseClient.from('company_products').select('id').eq('company_id',editCompanyId).eq('barcode',barcode).limit(1);if(existing)q=q.neq('id',existing.id);const dup=await q.maybeSingle();if(dup.error)throw dup.error;if(dup.data)return alert('هذا الباركود مستخدم لمادة أخرى داخل هذه الشركة.');}
         let r;
         if(existing){
           r=await supabaseClient.rpc('company_update_product',{p_id:existing.id,p_name:name,p_brand:$('cep_brand').value.trim()||null,p_unit:$('cep_unit').value.trim()||null,p_category:$('cep_category').value.trim()||null,p_category_id:null,p_barcode:barcode||null,p_description:$('cep_desc').value.trim()||null,p_image_url:image,p_price_new:price,p_active:true});
         }else{
-          r=await supabaseClient.rpc('company_add_product',{p_company_id:window.companyContext.company_id,p_name:name,p_brand:$('cep_brand').value.trim()||null,p_unit:$('cep_unit').value.trim()||null,p_category:$('cep_category').value.trim()||null,p_category_id:null,p_barcode:barcode||null,p_description:$('cep_desc').value.trim()||null,p_image_url:image,p_price_new:price,p_active:true});
+          r=await supabaseClient.rpc('company_add_product',{p_company_id:editCompanyId,p_name:name,p_brand:$('cep_brand').value.trim()||null,p_unit:$('cep_unit').value.trim()||null,p_category:$('cep_category').value.trim()||null,p_category_id:null,p_barcode:barcode||null,p_description:$('cep_desc').value.trim()||null,p_image_url:image,p_price_new:price,p_active:true});
         }
         if(r.error) throw r.error;
         modal.remove();
-        await loadCompanyDashboardData(window.companyContext);
+        if(editContext) await loadCompanyDashboardData(editContext);
         if(!existing && window.companyContext?.can_manage_products){companyProductEditor();return;}
         if(currentCompany) await window.openCompanyById(currentCompany.id);
       }catch(err){
@@ -539,7 +542,7 @@
     if(!ctx || !companyCanEditProducts(companyId,ctx)) return alert('ليس لديك صلاحية تعديل مواد هذه الشركة.');
     const {data,error}=await supabaseClient.from('company_products').select('*').eq('id',id).eq('company_id',companyId).maybeSingle();
     if(error) return alert(error.message);
-    if(data){currentCompany=currentCompany&&String(currentCompany.id)===String(companyId)?currentCompany:(await supabaseClient.from('companies').select('*').eq('id',companyId).maybeSingle()).data;window.__companyEditContext=ctx;companyProductEditor(data);}
+    if(data){currentCompany=currentCompany&&String(currentCompany.id)===String(companyId)?currentCompany:(await supabaseClient.from('companies').select('*').eq('id',companyId).maybeSingle()).data;window.__companyEditContext=ctx;companyProductEditor(data,ctx);}
   };
   window.companyDeleteProduct=async function(id){
     const ctx=window.companyContext;
