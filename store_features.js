@@ -764,7 +764,7 @@
     const storeId=checked?.value||null;
     try{
       if(storeId){
-        const occupied=await supabaseClient.from('profiles').select('id,name').eq('role','store').eq('store_id',storeId).neq('id',merchantId).limit(1).maybeSingle();
+        const occupied=await supabaseClient.from('profiles').select('id,name').eq('store_id',storeId).neq('id',merchantId).limit(1).maybeSingle();
         if(occupied.error) throw occupied.error;
         if(occupied.data) return alert('هذا المتجر مرتبط مسبقاً بحساب تاجر آخر. كل متجر يمكن ربطه بحساب تاجر واحد فقط.');
         // ربط التاجر بمتجره يعني تفعيل متجره وصلاحياته فوراً؛ لا توجد موافقة إضافية أو صلاحية منفصلة.
@@ -1102,8 +1102,10 @@
 
   window.clearMerchantLink = async function(id){
     if(!isAdmin()) return;
-    const {error}=await supabaseClient.from('profiles').update({role:'store',store_id:null,can_edit_prices:false}).eq('id',id);
+    const {data,error}=await supabaseClient.from('profiles').update({role:'store',store_id:null,can_edit_prices:false}).eq('id',id).select('id,store_id').maybeSingle();
     if(error) return alert(error.message);
+    if(!data) return alert('تعذر العثور على حساب التاجر.');
+    if(data.store_id) return alert('تعذر فك ربط المتجر من الحساب.');
     await window.renderAdmin();
   };
 

@@ -640,12 +640,23 @@
     const companyId=$(`${prefix}_company`)?.value;
     if(!companyId)return alert('اختر الشركة أولاً.');
     const host=$(`${prefix}_body`);const val=k=>!!host?.querySelector(`input[data-perm="${k}"]`)?.checked;
-    const existing=companyUsers.find(x=>String(x.user_id)===String(uid));
     const payload={user_id:uid,company_id:companyId,active:true,can_manage_products:val('manage'),can_manage_categories:val('cat'),can_edit_prices:val('edit'),can_delete_products:val('delete'),can_manage_settings:val('settings'),can_view_orders:val('orders'),can_view_stats:val('stats'),updated_at:new Date().toISOString()};
     try{
+      const existingRes=await supabaseClient.from('company_users').select('id,company_id,active,updated_at').eq('user_id',uid).order('updated_at',{ascending:false}).limit(1).maybeSingle();
+      if(existingRes.error)throw existingRes.error;
+      const existing=existingRes.data||null;
       const availability=await ensureCompanyAccountAvailability(uid,companyId,existing?.id);
       if(availability)return alert(availability);
-      const save=existing?.id?await supabaseClient.from('company_users').update(payload).eq('id',existing.id).select('id').maybeSingle():await supabaseClient.from('company_users').insert(payload).select('id').single();
+      let save;
+      if(existing?.id){
+        save=await supabaseClient.from('company_users').update(payload).eq('id',existing.id).select('id').maybeSingle();
+      }else{
+        const reusable=await supabaseClient.from('company_users').select('id').eq('company_id',companyId).eq('active',false).order('updated_at',{ascending:false}).limit(1).maybeSingle();
+        if(reusable.error)throw reusable.error;
+        save=reusable.data?.id
+          ? await supabaseClient.from('company_users').update(payload).eq('id',reusable.data.id).select('id').maybeSingle()
+          : await supabaseClient.from('company_users').insert(payload).select('id').single();
+      }
       if(save.error)throw save.error;
       const pr=await supabaseClient.from('profiles').update({role:'company',company_id:companyId,store_id:null,verified:true}).eq('id',uid);
       if(pr.error)throw pr.error;
@@ -765,7 +776,7 @@
         }
 
         const uid = selectedUser.id;
-        const existingForUser=await supabaseClient.from('company_users').select('id,company_id').eq('user_id',uid).eq('active',true).limit(1).maybeSingle();
+        const existingForUser=await supabaseClient.from('company_users').select('id,company_id,active,updated_at').eq('user_id',uid).order('updated_at',{ascending:false}).limit(1).maybeSingle();
         if(existingForUser.error)throw existingForUser.error;
         const availability=await ensureCompanyAccountAvailability(uid,companyId,existingForUser.data?.id);
         if(availability)throw new Error(availability);
@@ -782,13 +793,16 @@
           can_view_stats:!!$('direct_stats').checked,
           updated_at:new Date().toISOString()
         };
-        const cu=await supabaseClient.from('company_users').select('id').eq('user_id',uid).limit(1).maybeSingle();
-        if(cu.error)throw cu.error;
+        const cu=existingForUser.data;
         let save;
-        if(cu.data?.id){
-          save=await supabaseClient.from('company_users').update(payload).eq('id',cu.data.id).select('id').maybeSingle();
+        if(cu?.id){
+          save=await supabaseClient.from('company_users').update(payload).eq('id',cu.id).select('id').maybeSingle();
         }else{
-          save=await supabaseClient.from('company_users').insert(payload).select('id').single();
+          const reusable=await supabaseClient.from('company_users').select('id').eq('company_id',companyId).eq('active',false).order('updated_at',{ascending:false}).limit(1).maybeSingle();
+          if(reusable.error)throw reusable.error;
+          save=reusable.data?.id
+            ? await supabaseClient.from('company_users').update(payload).eq('id',reusable.data.id).select('id').maybeSingle()
+            : await supabaseClient.from('company_users').insert(payload).select('id').single();
         }
         if(save.error)throw save.error;
         const profileUpdate=await supabaseClient.from('profiles').update({role:'company',company_id:companyId,store_id:null,verified:true}).eq('id',uid);
@@ -944,11 +958,12 @@
     const rowId=linked?.id || linked?.company_user_id || companyUserId;
     const userId=linked?.user_id || companyUserId;
     if(!confirm('فك ربط حساب الشركة وإعادته لمستخدم عادي؟'))return;
-    const {data:unlinkRow,error}=await supabaseClient.from('company_users').update({active:false}).eq('id',rowId).select('id').maybeSingle();
-    if(error)return alert(error.message);
-    if(!unlinkRow)return alert('تعذر العثور على ربط الشركة المطلوب.');
-    const pr=await supabaseClient.from('profiles').update({role:'user',company_id:null,store_id:null,can_edit_prices:false}).eq('id',userId);
+    const cu=await supabaseClient.from('company_users').update({active:false,updated_at:new Date().toISOString()}).eq('id',rowId).select('id').maybeSingle();
+    if(cu.error)return alert(cu.error.message);
+    if(!cu.data)return alert('تعذر العثور على ارتباط الشركة.');
+    const pr=await supabaseClient.from('profiles').update({role:'user',company_id:null,store_id:null,can_edit_prices:false}).eq('id',userId).select('id').maybeSingle();
     if(pr.error) return alert('تم فك الربط من الشركة لكن تعذر تحديث دور الحساب: '+pr.error.message);
+    if(!pr.data) return alert('تم فك الربط من الشركة لكن لم يتم العثور على حساب المستخدم.');
     alert('تم فك الربط ✅');
     await renderAdminCompanyBox();
   };
