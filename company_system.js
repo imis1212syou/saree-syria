@@ -573,7 +573,7 @@
 
   async function getCompanyAccountsForAdmin(){
     const [profilesRes,linkedRes]=await Promise.all([
-      supabaseClient.from('profiles').select('id,name,role,company_id,store_id,verified').order('created_at',{ascending:false}),
+      supabaseClient.from('profiles').select('id,name,role,company_id,store_id,phone,verified').order('created_at',{ascending:false}),
       supabaseClient.rpc('admin_list_company_users_v2')
     ]);
     if(profilesRes.error)throw profilesRes.error;
@@ -613,8 +613,9 @@
       const email=esc(u.email||'بدون بريد');
       const status=linked?.active===false?'موقوف':(selected?'مرتبط بشركة':'غير مرتبط');
       return `<div class="company-account-row">
-        <div class="accordionHead" data-company-toggle="${prefix}_body"><div><b>${label}</b><div class="muted">${email} • ${status}</div></div><span>▾</span></div>
+        <div class="accordionHead" data-company-toggle="${prefix}_body"><div><b>${label}</b></div><span>▾</span></div>
         <div id="${prefix}_body" class="accordionBody hidden">
+          <div class="muted">البريد الإلكتروني: ${email} ${u.phone?'• 📞 '+esc(u.phone):'• بدون رقم هاتف'} • الحالة: ${status}</div>
           <select id="${prefix}_company"><option value="">اختر الشركة</option>${companies.filter(c=>c.active!==false).map(c=>`<option value="${attr(c.id)}" ${String(c.id)===selected?'selected':''}>${esc(c.name)}</option>`).join('')}</select>
           ${permissionInputs(linked||u,prefix)}
           <div class="actions"><button type="button" class="btn primary" onclick="window.adminSaveCompanyAccount('${attr(uid)}')">ربط وحفظ الحساب</button>${selected?`<button type="button" class="btn danger" onclick="window.adminUnlinkCompany('${attr(uid)}')">فك الربط</button>`:''}</div>
@@ -647,7 +648,7 @@
       if(availability)return alert(availability);
       const save=existing?.id?await supabaseClient.from('company_users').update(payload).eq('id',existing.id).select('id').maybeSingle():await supabaseClient.from('company_users').insert(payload).select('id').single();
       if(save.error)throw save.error;
-      const pr=await supabaseClient.from('profiles').update({role:'user',company_id:companyId,store_id:null,verified:true}).eq('id',uid);
+      const pr=await supabaseClient.from('profiles').update({role:'company',company_id:companyId,store_id:null,verified:true}).eq('id',uid);
       if(pr.error)throw pr.error;
       alert('تم ربط حساب الشركة وحفظ الصلاحيات ✅');await renderAdminCompanyBox();
     }catch(err){alert('تعذر ربط حساب الشركة: '+(err.message||err));}
@@ -695,13 +696,19 @@
     const linkedHtml=linked.length?linked.map(u=>{
       const uid=String(u.user_id||'');
       const prefix='acct_'+uid.replace(/[^A-Za-z0-9_]/g,'');
+      const account=allCompanyAccounts.find(x=>String(x.id||x.user_id||'')===uid);
+      const accountName=account?.name||u.name||u.requested_name||u.email||u.user_id;
+      const accountPhone=u.phone||account?.phone;
+      const accountEmail=u.email||account?.email;
       return `<div class="company-account-row">
-        <div><b>${esc(u.email||u.user_id)}</b> <span class="pill">${esc(u.company_name||'شركة')}</span></div>
-        <div class="muted">الحالة: ${u.active?'مفعّل':'متوقف'}</div>
-        ${permissionInputs(u,prefix)}
-        <div class="actions">
-          <button class="btn primary" onclick="window.adminSaveCompanyPermissions('${attr(uid)}')">حفظ الصلاحيات</button>
-          <button class="btn danger" onclick="window.adminUnlinkCompany('${attr(uid)}')">فك الربط</button>
+        <div class="accordionHead" data-company-toggle="${prefix}_linked_body"><div><b>${esc(accountName)}</b></div><span>▾</span></div>
+        <div id="${prefix}_linked_body" class="accordionBody hidden">
+          <div class="muted">البريد الإلكتروني: ${esc(accountEmail||'بدون بريد')} ${accountPhone?'• 📞 '+esc(accountPhone):'• بدون رقم هاتف'} • الحالة: ${u.active?'مفعّل':'متوقف'}</div>
+          ${permissionInputs(u,prefix)}
+          <div class="actions">
+            <button class="btn primary" onclick="window.adminSaveCompanyPermissions('${attr(uid)}')">حفظ الصلاحيات</button>
+            <button class="btn danger" onclick="window.adminUnlinkCompany('${attr(uid)}')">فك الربط</button>
+          </div>
         </div>
       </div>`;
     }).join(''):'<div class="muted">لا توجد حسابات شركات مرتبطة حالياً.</div>';
@@ -791,7 +798,7 @@
           save=await supabaseClient.from('company_users').insert(payload).select('id').single();
         }
         if(save.error)throw save.error;
-        const profileUpdate=await supabaseClient.from('profiles').update({role:'user',company_id:companyId,store_id:null,verified:true}).eq('id',uid);
+        const profileUpdate=await supabaseClient.from('profiles').update({role:'company',company_id:companyId,store_id:null,verified:true}).eq('id',uid);
         if(profileUpdate.error)throw profileUpdate.error;
         msg.textContent='تم ربط الحساب بالشركة وتفعيل الصلاحيات المحددة ✅';
         await renderAdminCompanyBox();
