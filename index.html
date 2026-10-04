@@ -14,7 +14,7 @@
 
 .adSlot{margin:0 0 14px}.adCard{position:relative;display:flex;gap:12px;align-items:center;background:#12191d;border:1px solid #303b40;border-radius:16px;padding:10px;overflow:hidden}.adImage{width:130px;height:82px;object-fit:cover;border-radius:11px;flex:none}.adContent{min-width:0;flex:1}.adBody{margin-top:4px}.adButton{display:inline-block;text-decoration:none;margin-top:8px}.adLabel{position:absolute;top:7px;left:7px;font-size:9px;padding:3px 6px;border-radius:999px;background:#263137;color:#aeb8bd}.rememberRow{display:flex;align-items:center;gap:10px;margin:12px 0;color:#aeb8bd;cursor:pointer}.rememberRow input{width:20px;height:20px;accent-color:#35d07f}
 .storeLogo{height:150px;object-fit:cover}.storeDetailLogo{height:220px;object-fit:cover}.storeLogoPlaceholder{height:150px;border-radius:12px;background:#0d1418;border:1px dashed #303b40;display:flex;align-items:center;justify-content:center;color:#6f7c82}.companyButton{border:0;cursor:pointer}.companyButton:hover{filter:brightness(1.1)}.merchantStoreOption{display:flex;gap:8px;align-items:center;margin-top:10px}.merchantStoreOption input{width:20px;height:20px;margin:0}.storeProductCard .materialImage{height:170px;object-fit:contain;background:#0d1418}
-.sareeEmailNotice{position:fixed;top:14px;left:50%;transform:translateX(-50%);width:min(92vw,520px);z-index:1000;background:#12191d;border:1px solid #35d07f;border-radius:14px;padding:12px 14px;box-shadow:0 10px 30px rgba(0,0,0,.35)}.sareeEmailNotice .noticeText{margin:0}.sareeEmailNotice .noticeClose{margin-top:8px;padding:8px 12px;font-size:12px}
+.sareeEmailNotice{position:fixed;top:14px;left:50%;transform:translateX(-50%);width:min(92vw,520px);z-index:1000;background:#12191d;border:1px solid #35d07f;border-radius:14px;padding:12px 14px;box-shadow:0 10px 30px rgba(0,0,0,.35)}.sareeEmailNotice .noticeText{margin:0;color:#f1f4f5!important}.sareeEmailNotice .noticeClose{margin-top:8px;padding:8px 12px;font-size:12px}
 </style>
 <link rel="stylesheet" href="saree_visual_theme.css?v=icons-fix-20261001">
 </head>
@@ -176,7 +176,7 @@
 <section id="resetPassword" class="page"><div class="hero"><h1>إعادة تعيين كلمة المرور</h1><p class="muted">أدخل كلمة المرور الجديدة لحسابك.</p></div><div class="card">
 <input id="resetPass" type="password" placeholder="كلمة المرور الجديدة">
 <input id="resetPass2" type="password" placeholder="تأكيد كلمة المرور الجديدة">
-<div class="actions"><button class="btn primary" onclick="updatePassword()">حفظ كلمة المرور</button><button class="btn secondary" onclick="show('login')">العودة لتسجيل الدخول</button></div><p id="resetMsg" class="muted"></p></div></section>
+<div class="actions"><button class="btn primary" onclick="updatePassword()">حفظ كلمة المرور</button><button class="btn secondary" onclick="cancelPasswordRecovery()">العودة لتسجيل الدخول</button></div><p id="resetMsg" class="muted"></p></div></section>
 
 <section id="signup" class="page"><div class="hero"><h1>إنشاء حساب</h1><p class="muted">كل بريد إلكتروني يمكنه امتلاك حساب واحد فقط. حساب التاجر يبدأ بدون متجر، وعند ربطه بمتجر من المدير يحصل فوراً على كامل صلاحيات متجره والنشر المباشر دون طلبات موافقة.</p></div><div class="card">
 <input id="signupName" placeholder="الاسم"><input id="signupEmail" type="email" placeholder="البريد الإلكتروني"><input id="signupPass" type="password" placeholder="كلمة المرور"><input id="signupPass2" type="password" placeholder="تأكيد كلمة المرور">
@@ -341,7 +341,7 @@ function openNav(id){
   if(id==='categories' && !products.some(p=>p.category)) $('cats').innerHTML='<div class="card"><div class="name">التصنيفات</div><div class="price">0</div><div class="muted">عدد التصنيفات: صفر</div></div>';
 }
 async function goRole(){if(await sareeCheckAdmin()){show('admin');await renderAdmin();return;}if(profileData?.role==='store')show('merchant');else if(profileData?.role==='company')window.openCompanyDashboard?.();else show('login')}
-function enterVisitor(){const n=$('visitorName').value.trim();if(!n)return alert('اكتب اسمك أولاً');localStorage.setItem('visitor_name',n);profileData=null;sareeAdminStatus=null;window.__SAREE_ADMIN_STATUS__=false;renderTopAccount();renderRoleActions();$('status').textContent=n+' • زائر';show('home');refreshAll()}
+function enterVisitor(){const n=$('visitorName').value.trim();if(!n)return alert('اكتب اسمك أولاً');removeEmailConfirmationNotice();clearPasswordRecoveryState();localStorage.setItem('visitor_name',n);profileData=null;sareeAdminStatus=null;window.__SAREE_ADMIN_STATUS__=false;renderTopAccount();renderRoleActions();$('status').textContent=n+' • زائر';show('home');refreshAll()}
 function currentName(){return localStorage.getItem('visitor_name')||'زائر'}
 function visitorId(){
  let id=localStorage.getItem('saree_visitor_id');
@@ -362,6 +362,7 @@ async function recordVisitor(){
 function confirmLogout(){if(confirm('هل أنت متأكد أنك تريد تسجيل الخروج؟')) logout();}
 function enterVisitorFromLogin(){
  const n=localStorage.getItem('visitor_name')||'زائر';
+ removeEmailConfirmationNotice();clearPasswordRecoveryState();
  localStorage.setItem('visitor_name',n);profileData=null;sareeAdminStatus=null;window.__SAREE_ADMIN_STATUS__=false;
  $('status').textContent=n+' • زائر';renderTopAccount();renderRoleActions();show('home');
  refreshAll().catch(console.warn);
@@ -457,6 +458,7 @@ async function signup(){
 
 async function login(){
 
+ removeEmailConfirmationNotice();clearPasswordRecoveryState();
  const em=$('email').value.trim().toLowerCase(),pw=$('pass').value;
  const remember=!!$('rememberLogin')?.checked;
  if(!em||!pw){$('msg').textContent='اكتب البريد وكلمة المرور';return}
@@ -483,16 +485,36 @@ async function showEmailConfirmationNoticeOnce(user){
   if(!(await loadEmailConfirmationNoticeSetting())) return;
   const uid=String(user?.id||'').trim();
   if(!uid)return;
+  try{
+    const {data:{user:currentUser}}=await supabaseClient.auth.getUser();
+    if(!currentUser || String(currentUser.id||'').trim()!==uid) return;
+  }catch(_){return}
   const key='saree_email_confirmation_notice_seen_'+uid;
   try{if(localStorage.getItem(key)==='1')return;localStorage.setItem(key,'1')}catch(_){return}
-  const oldNotice=$('sareeEmailConfirmationNotice');
-  if(oldNotice)oldNotice.remove();
+  removeEmailConfirmationNotice();
   const notice=document.createElement('div');
   notice.id='sareeEmailConfirmationNotice';
   notice.className='sareeEmailNotice';
-  notice.innerHTML='<p class="noticeText"><b>لحظة:</b> للاستفادة من جميع الميزات، يرجى تأكيد بريدك الإلكتروني. إذا لم تشاهد رسالة التأكيد في الوارد، تفقد الرسائل غير المرغوب فيها (Spam).</p><button type="button" class="btn secondary noticeClose">إغلاق</button>';
+  notice.innerHTML='<p class="noticeText"><b>لحظة:</b> للاستفادة من جميع الميزات، يرجى تأكيد بريدك الإلكتروني. إذا لم تشاهد رسالة التأكيد في الوارد، فتفقد مجلد الرسائل غير المرغوب فيها في بريدك الإلكتروني.</p><button type="button" class="btn secondary noticeClose">إغلاق</button>';
   document.body.appendChild(notice);
   notice.querySelector('.noticeClose')?.addEventListener('click',()=>notice.remove());
+}
+function removeEmailConfirmationNotice(){
+  const notice=$('sareeEmailConfirmationNotice');
+  if(notice) notice.remove();
+}
+function clearPasswordRecoveryState(){
+  try{
+    history.replaceState({},'',window.location.origin+window.location.pathname);
+  }catch(_){}
+  try{sessionStorage.removeItem(SAREE_VIEW_KEY)}catch(_){}
+}
+function cancelPasswordRecovery(){
+  clearPasswordRecoveryState();
+  $('resetPass').value='';
+  $('resetPass2').value='';
+  $('resetMsg').textContent='';
+  show('login');
 }
 function isPasswordRecoveryRoute(){
   try{
@@ -515,10 +537,10 @@ async function updatePassword(){
   const {error}=await supabaseClient.auth.updateUser({password:p1});
   if(error){$('resetMsg').textContent='تعذر تغيير كلمة المرور: '+error.message;return}
   $('resetMsg').textContent='تم تغيير كلمة المرور بنجاح.';
-  try{history.replaceState({},'',window.location.origin+window.location.pathname)}catch(_){}
-  setTimeout(async()=>{try{await supabaseClient.auth.signOut()}catch(_){}show('login');$('msg').textContent='تم تغيير كلمة المرور بنجاح. يمكنك تسجيل الدخول الآن.'},700);
+  clearPasswordRecoveryState();
+  setTimeout(async()=>{try{await supabaseClient.auth.signOut()}catch(_){}clearPasswordRecoveryState();show('login');$('msg').textContent='تم تغيير كلمة المرور بنجاح. يمكنك تسجيل الدخول الآن.'},700);
 }
-async function logout(){localStorage.removeItem('saree_remember_login');sessionStorage.removeItem('saree_explicit_login');try{await supabaseClient.auth.signOut()}catch(e){console.warn(e)}profileData=null;window.companyContext=null;sareeAdminStatus=null;window.__SAREE_ADMIN_STATUS__=false;renderTopAccount();renderRoleActions();$('status').textContent=currentName()+' • زائر';show('home');await refreshAll()}
+async function logout(){removeEmailConfirmationNotice();clearPasswordRecoveryState();localStorage.removeItem('saree_remember_login');sessionStorage.removeItem('saree_explicit_login');try{await supabaseClient.auth.signOut()}catch(e){console.warn(e)}profileData=null;window.companyContext=null;sareeAdminStatus=null;window.__SAREE_ADMIN_STATUS__=false;renderTopAccount();renderRoleActions();$('status').textContent=currentName()+' • زائر';show('home');await refreshAll()}
 async function loadProfile(){
   try{
     const {data:{user},error:authError}=await supabaseClient.auth.getUser();
@@ -1088,6 +1110,8 @@ async function saveRoleOnly(id){
 }
 supabaseClient.auth.onAuthStateChange((event)=>{
   if(event==='SIGNED_OUT'){
+    removeEmailConfirmationNotice();
+    clearPasswordRecoveryState();
     profileData=null;renderTopAccount();renderRoleActions();$('status').textContent=currentName()+' • زائر';
     show('home');
   }
