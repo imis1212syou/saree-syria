@@ -14,7 +14,7 @@
 
 .adSlot{margin:0 0 14px}.adCard{position:relative;display:flex;gap:12px;align-items:center;background:#12191d;border:1px solid #303b40;border-radius:16px;padding:10px;overflow:hidden}.adImage{width:130px;height:82px;object-fit:cover;border-radius:11px;flex:none}.adContent{min-width:0;flex:1}.adBody{margin-top:4px}.adButton{display:inline-block;text-decoration:none;margin-top:8px}.adLabel{position:absolute;top:7px;left:7px;font-size:9px;padding:3px 6px;border-radius:999px;background:#263137;color:#aeb8bd}.rememberRow{display:flex;align-items:center;gap:10px;margin:12px 0;color:#aeb8bd;cursor:pointer}.rememberRow input{width:20px;height:20px;accent-color:#35d07f}
 .storeLogo{height:150px;object-fit:cover}.storeDetailLogo{height:220px;object-fit:cover}.storeLogoPlaceholder{height:150px;border-radius:12px;background:#0d1418;border:1px dashed #303b40;display:flex;align-items:center;justify-content:center;color:#6f7c82}.companyButton{border:0;cursor:pointer}.companyButton:hover{filter:brightness(1.1)}.merchantStoreOption{display:flex;gap:8px;align-items:center;margin-top:10px}.merchantStoreOption input{width:20px;height:20px;margin:0}.storeProductCard .materialImage{height:170px;object-fit:contain;background:#0d1418}
-.sareeEmailNotice{position:fixed;top:14px;left:50%;transform:translateX(-50%);width:min(92vw,520px);z-index:1000;background:#12191d;border:1px solid #35d07f;border-radius:14px;padding:12px 14px;box-shadow:0 10px 30px rgba(0,0,0,.35)}.sareeEmailNotice .noticeText{margin:0;color:#f1f4f5!important}.sareeEmailNotice .noticeClose{margin-top:8px;padding:8px 12px;font-size:12px}
+.sareeEmailNotice{position:fixed;top:14px;left:50%;transform:translateX(-50%);width:min(92vw,520px);z-index:1000;background:#12191d;border:1px solid #35d07f;border-radius:14px;padding:12px 14px;box-shadow:0 10px 30px rgba(0,0,0,.35)}.sareeEmailNotice .noticeText{margin:0;color:#f1f4f5!important}.sareeEmailNotice .noticeClose{margin-top:8px;padding:8px 12px;font-size:12px}.forgotPasswordOverlay{position:fixed;inset:0;z-index:1200;background:rgba(0,0,0,.62);display:flex;align-items:center;justify-content:center;padding:16px}.forgotPasswordBox{width:min(92vw,430px);background:#12191d;border:1px solid #303b40;border-radius:18px;padding:16px;box-shadow:0 16px 50px rgba(0,0,0,.45)}.forgotPasswordBox h2{margin:0 0 8px}.forgotPasswordBox .actions{justify-content:flex-start}.forgotPasswordBox input{margin-top:12px}
 </style>
 <link rel="stylesheet" href="saree_visual_theme.css?v=icons-fix-20261001">
 </head>
@@ -172,6 +172,15 @@
 <input id="email" type="email" placeholder="البريد الإلكتروني"><input id="pass" type="password" placeholder="كلمة المرور">
 <label class="rememberRow"><input id="rememberLogin" type="checkbox"> حفظ تسجيل الدخول على هذا الجهاز (التاجر / المدير)</label>
 <div class="actions"><button class="btn primary" onclick="login()">تسجيل الدخول</button><button class="btn secondary" onclick="forgotPassword()">نسيت كلمة السر؟</button><button class="btn secondary" onclick="show('signup')">إنشاء حساب</button><button class="btn secondary" onclick="enterVisitorFromLogin()">الدخول كزائر</button></div><p id="msg" class="muted"></p></div></section>
+<div id="forgotPasswordModal" class="forgotPasswordOverlay hidden" role="dialog" aria-modal="true" aria-labelledby="forgotPasswordTitle">
+<div class="forgotPasswordBox">
+<h2 id="forgotPasswordTitle">نسيت كلمة المرور؟</h2>
+<p class="muted">أدخل بريدك الإلكتروني لنرسل لك رابط إعادة تعيين كلمة المرور.</p>
+<input id="forgotPasswordEmail" type="email" autocomplete="email" placeholder="البريد الإلكتروني">
+<div class="actions"><button type="button" class="btn secondary" onclick="closeForgotPassword()">إلغاء</button><button type="button" class="btn primary" onclick="sendPasswordReset()">إرسال رابط الاستعادة</button></div>
+<p id="forgotPasswordMsg" class="muted"></p>
+</div>
+</div>
 
 <section id="resetPassword" class="page"><div class="hero"><h1>إعادة تعيين كلمة المرور</h1><p class="muted">أدخل كلمة المرور الجديدة لحسابك.</p></div><div class="card">
 <input id="resetPass" type="password" placeholder="كلمة المرور الجديدة">
@@ -476,12 +485,9 @@ async function login(){
  await refreshAll();
  if(!profileData){setTimeout(()=>loadProfile().catch(console.warn),300);}
 }
-async function forgotPassword(){
- const em=$('email').value.trim().toLowerCase();if(!em)return alert('اكتب البريد الإلكتروني أولاً');
- const {error}=await supabaseClient.auth.resetPasswordForEmail(em,{redirectTo:location.origin+location.pathname});
- alert(error?'خطأ: '+error.message:'تم إرسال رابط إعادة تعيين كلمة السر إذا كان الحساب موجوداً.');
-}
-async function showEmailConfirmationNoticeOnce(user){
+function forgotPassword(){  const mainEmail=$('email')?.value.trim().toLowerCase()||'';  const modal=$('forgotPasswordModal');  const field=$('forgotPasswordEmail');  if(field){field.value=mainEmail;setTimeout(()=>field.focus(),0);}  $('forgotPasswordMsg').textContent='';  modal?.classList.remove('hidden'); }
+function closeForgotPassword(){  $('forgotPasswordModal')?.classList.add('hidden');  $('forgotPasswordMsg').textContent=''; }
+async function sendPasswordReset(){  const field=$('forgotPasswordEmail');  const em=field?.value.trim().toLowerCase()||'';  const msg=$('forgotPasswordMsg');  if(!em){msg.textContent='اكتب بريدك الإلكتروني.';field?.focus();return}  if(field && !field.checkValidity()){msg.textContent='اكتب بريدك الإلكتروني بشكل صحيح.';field.focus();return}  msg.textContent='جاري إرسال رابط الاستعادة...';  const {error}=await supabaseClient.auth.resetPasswordForEmail(em,{redirectTo:location.origin+location.pathname});  if(error){msg.textContent='تعذر إرسال رابط الاستعادة: '+error.message;return}  msg.textContent='تم إرسال رابط إعادة تعيين كلمة السر إذا كان الحساب موجوداً.';}async function showEmailConfirmationNoticeOnce(user){
   if(!(await loadEmailConfirmationNoticeSetting())) return;
   const uid=String(user?.id||'').trim();
   if(!uid)return;
