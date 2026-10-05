@@ -5,6 +5,24 @@
   let deferredPrompt = null;
   let installRequested = false;
 
+  async function recordAppDownload() {
+    try {
+      if (sessionStorage.getItem('saree_app_download_logged') === '1') return;
+      if (!window.supabaseClient?.rpc) return;
+      let visitorId = null;
+      try {
+        visitorId = localStorage.getItem('saree_app_download_visitor');
+        if (!visitorId) {
+          visitorId = crypto.randomUUID ? crypto.randomUUID() : ('visitor_' + Date.now() + '_' + Math.random().toString(36).slice(2));
+          localStorage.setItem('saree_app_download_visitor', visitorId);
+        }
+      } catch (_) {}
+      const platform = /android/i.test(navigator.userAgent) ? 'android' : /iphone|ipad|ipod/i.test(navigator.userAgent) ? 'ios' : /windows/i.test(navigator.userAgent) ? 'windows' : /mac/i.test(navigator.userAgent) ? 'macos' : /linux/i.test(navigator.userAgent) ? 'linux' : 'other';
+      const { error } = await window.supabaseClient.rpc('record_app_download', { p_visitor_id: visitorId, p_platform: platform, p_user_agent: navigator.userAgent.slice(0, 500) });
+      if (!error) sessionStorage.setItem('saree_app_download_logged', '1');
+    } catch (e) { console.warn('app download log:', e); }
+  }
+
   function addManifest() {
     if (document.querySelector('link[rel="manifest"]')) return;
     const link = document.createElement("link");
@@ -83,28 +101,12 @@
       promptEvent.prompt();
       const result = await promptEvent.userChoice;
       updateButton();
+      if (result && result.outcome === "accepted") await recordAppDownload();
       return result && result.outcome === "accepted";
     } catch (e) {
       console.warn("PWA install prompt:", e);
       updateButton();
       return false;
-    }
-  }
-
-  async function logAppDownloadAttempt() {
-    try {
-      if (!window.supabaseClient || typeof window.supabaseClient.rpc !== "function") return;
-      let visitorId = null;
-      try { visitorId = localStorage.getItem("saree_visitor_id"); } catch (_) {}
-      const platform = navigator.userAgentData?.platform || navigator.platform || "";
-      const { error } = await window.supabaseClient.rpc("record_app_download", {
-        p_visitor_id: visitorId || null,
-        p_platform: platform || null,
-        p_user_agent: navigator.userAgent || null
-      });
-      if (error) console.warn("app download log:", error);
-    } catch (err) {
-      console.warn("app download log:", err);
     }
   }
 
@@ -120,9 +122,6 @@
       "هل تريد تثبيت تطبيق «سعرلي سوريا» على جهازك؟\n\nاضغط «موافق» للتثبيت أو «إلغاء» للرجوع."
     );
     if (!ok) return;
-
-    // تسجيل طلب التحميل للمدير، بدون تغيير سلوك التثبيت الحالي.
-    logAppDownloadAttempt();
 
     if (isIOS()) {
       showIOSInstructions();

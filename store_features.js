@@ -481,7 +481,7 @@
       $('cat').value=p.category||'عام';
       $('barcode').value=normBarcode(p.barcode||data.barcode||'');
       $('pr').value=Number(data.price_new ?? data.price ?? 0);
-      $('merchantStoreBox').innerHTML = `<div class="notice">تعديل مادة من متجر: <b>${esc((stores||[]).find(s=>String(s.id)===String(storeId))?.name||storeId)}</b>${p.image_url?'<br>الصورة الحالية محفوظة ما لم تختر صورة جديدة.':''}</div>` + (p.image_url ? '<label class="rememberRow"><input id="deleteMaterialImage" type="checkbox"> حذف صورة المادة الحالية</label>' : '');
+      $('merchantStoreBox').innerHTML = `<div class="notice">تعديل مادة من متجر: <b>${esc((stores||[]).find(s=>String(s.id)===String(storeId))?.name||storeId)}</b>${p.image_url?`<br>الصورة الحالية محفوظة ما لم تختر صورة جديدة.<label class="rememberRow" style="margin-top:8px"><input id="removeMaterialImage" type="checkbox"> حذف صورة المادة</label>`:''}</div>`;
       await loadStoreMaterialCompanyOptions(p.company_id||'');
       $('addHeading').textContent='تعديل المادة أو السعر';
       $('addSubmitBtn').textContent='حفظ التعديلات';
@@ -534,7 +534,8 @@
         const current=row.products||{};
         if(barcode && await storeBarcodeExists(storeId,barcode,row.product_id)) return alert('هذا الباركود مستخدم لمادة أخرى داخل هذا المتجر.');
         let imageUrl=current.image_url||null;
-        if($('deleteMaterialImage')?.checked) imageUrl=null;
+        const removeImage=!!$('removeMaterialImage')?.checked;
+        if(removeImage){await window.sareeDeleteImage?.(imageUrl);imageUrl=null;}
         else if(file) imageUrl=await uploadImage(file,'materials');
         const productValues={name:n||current.name||'مادة',brand:brand||null,unit:unit||null,category,image_url:imageUrl,barcode:barcode||null,company_id:companyId||null};
         const sharedWithOtherStore=await productUsedByOtherStores(row.product_id,storeId);
@@ -590,7 +591,6 @@
             || String(category||'عام')!==String(baseProduct.category||'عام')
             || requestedBarcode!==normBarcode(baseProduct.barcode||'')
             || String(companyId||'')!==String(baseProduct.company_id||'')
-            || String(requestedImage||'')!==String(baseProduct.image_url||'')
             || Boolean(file);
           if(requestedBarcode && requestedBarcode!==normBarcode(baseProduct.barcode||'') && await storeBarcodeExists(storeId,requestedBarcode,productId)) return alert('هذا الباركود مستخدم لمادة أخرى داخل هذا المتجر.');
           const sharedWithOtherStore=await productUsedByOtherStores(productId,storeId);
@@ -616,8 +616,7 @@
         alert('تمت إضافة المادة والسعر للمتجر بنجاح ✅');
         resetMaterialForm();
         await window.refreshAll?.();
-        await window.renderAdmin?.();
-        await window.showAdd?.();
+        await showAdd();
         return;
       }
 

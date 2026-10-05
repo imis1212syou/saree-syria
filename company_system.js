@@ -324,7 +324,7 @@
     if(!c)return alert('الشركة غير موجودة.');
     const old=$('companyPublicEditModal');if(old)old.remove();
     const m=document.createElement('div');m.id='companyPublicEditModal';m.className='company-modal';
-    m.innerHTML=`<div class="company-modal-inner"><div class="row" style="justify-content:space-between;align-items:center"><h2>تعديل بيانات الشركة</h2><button class="btn secondary" id="cpe_close">×</button></div><div class="two"><input id="cpe_name" value="${attr(c.name||'')}" placeholder="اسم الشركة"><input id="cpe_phone" value="${attr(c.phone||'')}" placeholder="الهاتف"><input id="cpe_address" value="${attr(c.address||'')}" placeholder="العنوان"><input id="cpe_whatsapp" value="${attr(c.whatsapp_url||'')}" placeholder="رابط/رقم واتساب"><input id="cpe_established_year" inputmode="numeric" maxlength="4" value="${attr(c.established_year||'')}" placeholder="سنة التأسيس"><input id="cpe_latitude" type="number" step="any" value="${attr(c.latitude??'')}" placeholder="خط العرض Latitude"><input id="cpe_longitude" type="number" step="any" value="${attr(c.longitude??'')}" placeholder="خط الطول Longitude"><input id="cpe_image" type="file" accept="image/*"></div><label class="rememberRow"><input id="cpe_whatsapp_orders_enabled" type="checkbox" ${c.whatsapp_orders_enabled?'checked':''}> تفعيل إرسال سلة الطلب عبر واتساب للشركة</label><div class="actions"><button type="button" class="btn secondary" id="cpe_locate">📍 استخدام موقعي الحالي</button><button type="button" class="btn primary" id="cpe_save">حفظ التعديلات</button></div><p id="cpe_msg" class="muted"></p></div>`;
+    m.innerHTML=`<div class="company-modal-inner"><div class="row" style="justify-content:space-between;align-items:center"><h2>تعديل بيانات الشركة</h2><button class="btn secondary" id="cpe_close">×</button></div><div class="two"><input id="cpe_name" value="${attr(c.name||'')}" placeholder="اسم الشركة"><input id="cpe_phone" value="${attr(c.phone||'')}" placeholder="الهاتف"><input id="cpe_address" value="${attr(c.address||'')}" placeholder="العنوان"><input id="cpe_whatsapp" value="${attr(c.whatsapp_url||'')}" placeholder="رابط/رقم واتساب"><input id="cpe_established_year" inputmode="numeric" maxlength="4" value="${attr(c.established_year||'')}" placeholder="سنة التأسيس"><input id="cpe_latitude" type="number" step="any" value="${attr(c.latitude??'')}" placeholder="خط العرض Latitude"><input id="cpe_longitude" type="number" step="any" value="${attr(c.longitude??'')}" placeholder="خط الطول Longitude"><input id="cpe_image" type="file" accept="image/*">${c.image_url ? '<label class="rememberRow"><input id="cpe_remove_image" type="checkbox"> حذف صورة الشركة</label>' : ''}</div><label class="rememberRow"><input id="cpe_whatsapp_orders_enabled" type="checkbox" ${c.whatsapp_orders_enabled?'checked':''}> تفعيل إرسال سلة الطلب عبر واتساب للشركة</label><div class="actions"><button type="button" class="btn secondary" id="cpe_locate">📍 استخدام موقعي الحالي</button><button type="button" class="btn primary" id="cpe_save">حفظ التعديلات</button></div><p id="cpe_msg" class="muted"></p></div>`;
     document.body.appendChild(m);
     $('cpe_close').onclick=()=>m.remove();
     $('cpe_locate').onclick=()=>{
@@ -335,7 +335,7 @@
     $('cpe_save').onclick=async()=>{
       try{
         const name=$('cpe_name').value.trim();if(!name)return alert('اسم الشركة مطلوب.');
-        let image_url=c.image_url||null;const f=$('cpe_image').files?.[0];if(f&&window.uploadImage)image_url=await window.uploadImage(f,'companies');
+        let image_url=c.image_url||null;const removeImage=!!$('cpe_remove_image')?.checked;const f=$('cpe_image').files?.[0];if(removeImage){await window.sareeDeleteImage?.(image_url);image_url=null;}else if(f&&window.uploadImage)image_url=await window.uploadImage(f,'companies');
         const yr=String($('cpe_established_year').value||'').trim();const lat=$('cpe_latitude').value.trim(),lng=$('cpe_longitude').value.trim();
         const patch={name,phone:$('cpe_phone').value.trim()||null,address:$('cpe_address').value.trim()||null,whatsapp_url:$('cpe_whatsapp').value.trim()||null,established_year:/^\d{4}$/.test(yr)?Number(yr):null,latitude:lat===''?null:Number(lat),longitude:lng===''?null:Number(lng),whatsapp_orders_enabled:$('cpe_whatsapp_orders_enabled').checked,image_url};
         const {error}=await supabaseClient.from('companies').update(patch).eq('id',id);if(error)throw error;
@@ -495,7 +495,7 @@
         <input id="cep_category" value="${attr(p.category||'')}" placeholder="التصنيف">
         <div class="company-barcode" style="grid-column:1/-1"><input id="cep_barcode" value="${attr(p.barcode||'')}" placeholder="الباركود"><button type="button" class="btn secondary" id="cep_barcode_camera">📷</button></div>
         <input id="cep_price" value="${p.price_new==null?'':attr(p.price_new)}" type="number" min="0" step="0.01" placeholder="السعر — اختياري">
-        <input id="cep_image" type="file" accept="image/*">
+        <input id="cep_image" type="file" accept="image/*">${existing && p.image_url ? '<label class="rememberRow"><input id="cep_remove_image" type="checkbox"> حذف صورة المادة</label>' : ''}
         <textarea id="cep_desc" style="width:100%;min-height:95px;grid-column:1/-1;background:#0d1418;color:#fff;border:1px solid #303b40;border-radius:10px;padding:12px" placeholder="وصف المادة (اختياري)">${esc(p.description||'')}</textarea>
       </div>
       <p id="cepBarcodeMsg" class="muted"></p><p class="muted">ترك السعر فارغاً مسموح، وسيظهر المنتج بدون سعر.</p>
@@ -511,8 +511,10 @@
         const name=$('cep_name').value.trim();
         if(!name) return alert('اسم المادة مطلوب.');
         let image=p.image_url||null;
+        const removeImage=!!$('cep_remove_image')?.checked;
         const f=$('cep_image').files?.[0];
-        if(f&&window.uploadImage) image=await window.uploadImage(f,'company-products');
+        if(removeImage){await window.sareeDeleteImage?.(image);image=null;}
+        else if(f&&window.uploadImage) image=await window.uploadImage(f,'company-products');
         const price=$('cep_price').value===''?null:Number($('cep_price').value);
         if(price!==null && (!Number.isFinite(price)||price<0)) return alert('السعر غير صالح.');
         const barcode=norm($('cep_barcode').value);
@@ -875,7 +877,7 @@
     const p=existing||{};
     modal.innerHTML=`<div class="company-modal-inner">
       <div class="row" style="justify-content:space-between;align-items:center"><h2 style="margin:0">${existing?'تعديل مادة':'إضافة مادة'} — ${esc(company.name||'شركة')}</h2><button type="button" class="btn secondary" id="adminCepClose">×</button></div>
-      <div class="two" style="margin-top:12px"><input id="admin_cep_name" value="${attr(p.name||'')}" placeholder="اسم المادة"><input id="admin_cep_brand" value="${attr(p.brand||'')}" placeholder="العلامة التجارية (اختياري)"><input id="admin_cep_unit" value="${attr(p.unit||'')}" placeholder="الوزن / الحجم"><input id="admin_cep_category" value="${attr(p.category||'')}" placeholder="التصنيف"><div class="company-barcode"><input id="admin_cep_barcode" value="${attr(p.barcode||'')}" placeholder="الباركود"><button type="button" class="btn secondary" id="admin_cep_barcode_camera">📷</button></div><input id="admin_cep_price" value="${p.price_new==null?'':attr(p.price_new)}" type="number" min="0" step="0.01" placeholder="السعر — اختياري"><input id="admin_cep_image" type="file" accept="image/*"></div>
+      <div class="two" style="margin-top:12px"><input id="admin_cep_name" value="${attr(p.name||'')}" placeholder="اسم المادة"><input id="admin_cep_brand" value="${attr(p.brand||'')}" placeholder="العلامة التجارية (اختياري)"><input id="admin_cep_unit" value="${attr(p.unit||'')}" placeholder="الوزن / الحجم"><input id="admin_cep_category" value="${attr(p.category||'')}" placeholder="التصنيف"><div class="company-barcode"><input id="admin_cep_barcode" value="${attr(p.barcode||'')}" placeholder="الباركود"><button type="button" class="btn secondary" id="admin_cep_barcode_camera">📷</button></div><input id="admin_cep_price" value="${p.price_new==null?'':attr(p.price_new)}" type="number" min="0" step="0.01" placeholder="السعر — اختياري"><input id="admin_cep_image" type="file" accept="image/*">${existing && p.image_url ? '<label class="rememberRow"><input id="admin_cep_remove_image" type="checkbox"> حذف صورة المادة</label>' : ''}</div>
       <textarea id="admin_cep_desc" style="width:100%;min-height:95px;margin-top:10px;background:#0d1418;color:#fff;border:1px solid #303b40;border-radius:10px;padding:12px" placeholder="وصف المادة (اختياري)">${esc(p.description||'')}</textarea>
       <label class="muted" style="display:block;margin-top:10px"><input id="admin_cep_active" type="checkbox" ${p.active!==false?'checked':''}> المادة نشطة</label>
       <p id="admin_cep_msg" class="muted"></p><div class="actions"><button type="button" class="btn primary" id="admin_cep_save">حفظ</button><button type="button" class="btn secondary" id="admin_cep_cancel">إلغاء</button></div>
@@ -887,7 +889,7 @@
       try{
         const name=$('admin_cep_name').value.trim();if(!name)throw new Error('اسم المادة مطلوب.');
         const rawPrice=$('admin_cep_price').value.trim();const price=rawPrice===''?null:Number(rawPrice);if(price!==null&&(!Number.isFinite(price)||price<0))throw new Error('السعر غير صالح.');
-        let imageUrl=p.image_url||null;const f=$('admin_cep_image').files?.[0];if(f&&window.uploadImage)imageUrl=await window.uploadImage(f,'company-products');
+        let imageUrl=p.image_url||null;const removeImage=!!$('admin_cep_remove_image')?.checked;const f=$('admin_cep_image').files?.[0];if(removeImage){await window.sareeDeleteImage?.(imageUrl);imageUrl=null;}else if(f&&window.uploadImage)imageUrl=await window.uploadImage(f,'company-products');
         const barcode=norm($('admin_cep_barcode').value);if(barcode){let dup=supabaseClient.from('company_products').select('id').eq('company_id',companyId).eq('barcode',barcode).limit(1);if(existing)dup=dup.neq('id',existing.id);const q=await dup.maybeSingle();if(q.error)throw q.error;if(q.data)throw new Error('هذا الباركود مستخدم لمادة أخرى داخل هذه الشركة.');}
         const payload={name,brand:$('admin_cep_brand').value.trim()||null,unit:$('admin_cep_unit').value.trim()||null,category:$('admin_cep_category').value.trim()||null,category_id:null,barcode:barcode||null,description:$('admin_cep_desc').value.trim()||null,image_url:imageUrl,price_new:price,active:!!$('admin_cep_active').checked};
         let r;
