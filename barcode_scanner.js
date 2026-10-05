@@ -97,6 +97,14 @@
     openScanner();
   };
 
+  window.openBarcodeScannerForAdditional = function (storeId) {
+    scannerMode = 'additional';
+    scannerStoreId = storeId || null;
+    scannerCompanyId = null;
+    scanLocked = false;
+    openScanner();
+  };
+
   window.openBarcodeScannerForStore = function (storeId) {
     scannerMode = 'store';
     scannerStoreId = storeId;
@@ -140,6 +148,8 @@
       direction:rtl;
       box-sizing:border-box;
     `;
+
+    const allowManualInput = scannerMode !== 'additional';
 
     modal.innerHTML = `
       <div style="
@@ -190,12 +200,12 @@
           ">
           جاري تشغيل الكاميرا...
         </p>
-   <div style="
+        ${allowManualInput ? `
+        <div style="
           display:flex;
           gap:8px;
           margin-top:10px;
         ">
-
           <input
             id="barcodeManualModal"
             type="text"
@@ -207,15 +217,13 @@
               min-width:0;
               box-sizing:border-box;
             ">
-
           <button
             type="button"
             class="btn primary"
             id="barcodeManualSearchBtn">
             بحث
           </button>
-
-        </div>
+        </div>` : ''}
 
         <button
           type="button"
@@ -368,7 +376,7 @@ const searchButton =
       );
 
       setStatus(
-        'لم تفتح الكاميرا. اسمح بالوصول للكاميرا أو استخدم الإدخال اليدوي.'
+        'لم تفتح الكاميرا. اسمح بالوصول للكاميرا.'
       );
     });
   }
@@ -393,6 +401,14 @@ async function handleBarcode(barcode) {
       const msg = el('barcodeMsg');
       if (msg) msg.textContent = 'تم قراءة الباركود: ' + clean;
       await fillProductFromBarcode(clean, storeId);
+      return;
+    }
+
+    if (mode === 'additional') {
+      const added = typeof window.addScannedStoreAdditionalBarcode === 'function'
+        ? window.addScannedStoreAdditionalBarcode(clean)
+        : false;
+      if (!added) scanLocked = false;
       return;
     }
 

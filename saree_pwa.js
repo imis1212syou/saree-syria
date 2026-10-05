@@ -154,13 +154,11 @@
 
   async function logInstallEvent(){
     try{
-      const key='saree_pwa_install_logged_v1';
+      const key='saree_pwa_install_logged_v2';
       if(localStorage.getItem(key)) return;
       const client=window.supabaseClient;
       if(!client) return;
-      let userId=null;
-      try{userId=(await client.auth.getUser())?.data?.user?.id||null;}catch(_){ }
-      const {error}=await client.from('saree_pwa_installations').insert({visitor_id:currentVisitorId(),user_id:userId,user_agent:navigator.userAgent});
+      const {error}=await client.rpc('record_app_install');
       if(error) throw error;
       localStorage.setItem(key,new Date().toISOString());
     }catch(err){
@@ -174,14 +172,10 @@
     try{
       const client=window.supabaseClient;
       if(!client) return;
-      const [countRes,latestRes]=await Promise.all([
-        client.from('saree_pwa_installations').select('id',{count:'exact',head:true}),
-        client.from('saree_pwa_installations').select('installed_at,user_agent').order('installed_at',{ascending:false}).limit(20)
-      ]);
-      if(countRes.error) throw countRes.error;
-      if(latestRes.error) throw latestRes.error;
-      const total=Number(countRes.count||0);
-      panel.innerHTML=`<div class="card"><div class="name">${total}</div><div class="muted">إجمالي تحميلات/تثبيتات التطبيق</div><div style="margin-top:12px">${(latestRes.data||[]).length?(latestRes.data||[]).map(r=>`<div class="priceRow"><b>${r.installed_at?new Date(r.installed_at).toLocaleString('ar'):''}</b><div class="muted">${String(r.user_agent||'').slice(0,160)}</div></div>`).join(''):'<div class="muted">لا توجد تحميلات مسجلة بعد.</div>'}</div></div>`;
+      const {data,error}=await client.rpc('admin_app_install_count');
+      if(error) throw error;
+      const total=Number(data||0);
+      panel.innerHTML=`<div class="card"><div class="name">${total}</div><div class="muted">إجمالي تحميلات/تثبيتات التطبيق</div></div>`;
     }catch(err){
       console.warn('PWA admin stats:',err);
       panel.innerHTML='<div class="card muted">تعذر تحميل سجل تحميلات التطبيق حالياً.</div>';
@@ -193,12 +187,15 @@
     const adminPanel=document.getElementById('adminPanel');
     if(!adminPanel) return;
     let panel=document.getElementById('sareePwaInstallStats');
-    if(panel) return;
-    panel=document.createElement('div');
-    panel.id='sareePwaInstallStats';
-    adminPanel.appendChild(panel);
+    if(!panel){
+      panel=document.createElement('div');
+      panel.id='sareePwaInstallStats';
+      adminPanel.appendChild(panel);
+    }
     renderAdminInstallStats();
   }
+
+  window.ensureSareeAdminInstallPanel=ensureAdminInstallPanel;
 
   window.addEventListener("appinstalled", () => {
     deferredPrompt = null;
@@ -211,7 +208,7 @@
     if(!panel || panel.__sareePwaObserver) return;
     panel.__sareePwaObserver=true;
     const mo=new MutationObserver(()=>{
-      if(window.__SAREE_ADMIN_STATUS__===true) ensureAdminInstallPanel();
+      if(window.__SAREE_ADMIN_STATUS__===true && !document.getElementById('sareePwaInstallStats')) ensureAdminInstallPanel();
     });
     mo.observe(panel,{childList:true,subtree:true});
     if(window.__SAREE_ADMIN_STATUS__===true) ensureAdminInstallPanel();
