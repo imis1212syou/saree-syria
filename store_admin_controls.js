@@ -51,7 +51,7 @@
       <div class="actions"><button type="button" class="btn primary" id="sa_save">حفظ التعديلات</button><button type="button" class="btn secondary" onclick="closeAdminEditor()">إغلاق</button></div>`);
     loadCompanyOptions(st.company_id||'',companyName);
     $('sa_remove_image')?.addEventListener('click',()=>{removeImage=true;$('sa_image').value='';$('sa_remove_image').textContent='تم تحديد حذف الصورة';});
-    $('sa_save').onclick=()=>saveStore(id,ownerMode,removeImage);
+    $('sa_save').onclick=()=>saveStore(id,ownerMode);
   }
 
   window.openAdminStoreEdit=function(id){openStoreEditor(id,false)};
@@ -67,7 +67,7 @@
     }catch(e){console.warn('companies:',e)}
   }
 
-  async function saveStore(id,ownerMode=false,removeImage=false){
+  async function saveStore(id,ownerMode=false){
     const st=storeById(id); if(!st)return;
     if(ownerMode){if(!isMerchantOwner(id))return alert('يمكن للتاجر تعديل متجره المرتبط فقط.');}
     else if(!onlyAdmin())return;
@@ -137,9 +137,10 @@
   async function getCompany(id){const {data,error}=await supabaseClient.from('companies').select('*').eq('id',id).maybeSingle();if(error)throw error;return data}
   window.openAdminCompanyEdit=async function(id){
     if(!onlyAdmin())return;let c;try{c=await getCompany(id)}catch(e){return alert(e.message)}if(!c)return alert('الشركة غير موجودة.');
-    window.__sareeCompanyEditRemoveImage=false;
+    let removeImage=false;
     overlay(`<h2>تعديل الشركة</h2><div class="two"><input id="ce_name" value="${esc(c.name)}" placeholder="اسم الشركة"><input id="ce_phone" value="${esc(c.phone)}" placeholder="الهاتف"><input id="ce_address" value="${esc(c.address)}" placeholder="العنوان"><input id="ce_whatsapp" value="${esc(c.whatsapp_url)}" placeholder="رابط/رقم واتساب"><input id="ce_established_year" inputmode="numeric" maxlength="4" value="${esc(c.established_year||'')}" placeholder="سنة التأسيس"><input id="ce_latitude" type="number" step="any" value="${esc(c.latitude??'')}" placeholder="خط العرض Latitude"><input id="ce_longitude" type="number" step="any" value="${esc(c.longitude??'')}" placeholder="خط الطول Longitude"><input id="ce_image" type="file" accept="image/*">${c.image_url?'<button type="button" class="btn secondary" id="ce_remove_image" style="align-self:end">حذف الصورة</button>':''}</div><label class="rememberRow"><input id="ce_whatsapp_orders_enabled" type="checkbox" ${c.whatsapp_orders_enabled?'checked':''}> تفعيل إرسال سلة الطلب عبر واتساب للشركة</label><label class="muted"><input id="ce_verified" type="checkbox" ${c.verified?'checked':''}> الشركة موثّقة</label><label class="muted"><input id="ce_active" type="checkbox" ${c.active!==false?'checked':''}> الشركة نشطة</label><p id="ce_msg" class="muted"></p><div class="actions"><button type="button" class="btn primary" onclick="saveAdminCompanyEdit('${esc(id)}')">حفظ التعديلات</button><button type="button" class="btn secondary" onclick="closeAdminEditor()">إغلاق</button></div>`);
-    $('ce_remove_image')?.addEventListener('click',()=>{window.__sareeCompanyEditRemoveImage=true;$('ce_image').value='';$('ce_remove_image').textContent='تم تحديد حذف الصورة';});
+    $('ce_remove_image')?.addEventListener('click',()=>{removeImage=true;window.__sareeCompanyEditRemoveImage=true;$('ce_image').value='';$('ce_remove_image').textContent='تم تحديد حذف الصورة';});
+    window.__sareeCompanyEditRemoveImage=false;
   };
 
   window.saveAdminCompanyEdit=async function(id){
@@ -151,7 +152,6 @@
     const patch={established_year:/^\d{4}$/.test(yr)?Number(yr):null,latitude:$('ce_latitude')?.value===''?null:Number($('ce_latitude').value),longitude:$('ce_longitude')?.value===''?null:Number($('ce_longitude').value),whatsapp_orders_enabled:!!$('ce_whatsapp_orders_enabled')?.checked};
     const r=await supabaseClient.from('companies').update(patch).eq('id',id);
     if(r.error)return alert('تم تعديل الشركة، لكن تعذر حفظ بيانات الموقع/التأسيس/واتساب: '+r.error.message);
-    window.__sareeCompanyEditRemoveImage=false;
     closeAdminEditor();alert('تم تعديل الشركة بنجاح.');await refreshEverything();
   };
 
