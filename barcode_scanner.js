@@ -443,22 +443,9 @@ async function handleBarcode(barcode) {
 
       if (error) throw error;
 
-      let listing = (Array.isArray(listings) ? listings : []).find(row =>
+      const listing = (Array.isArray(listings) ? listings : []).find(row =>
         cleanBarcode(row?.products?.barcode || row?.barcode || '') === code
       );
-      if (!listing) {
-        const { data: linked, error: linkedError } = await supabaseClient
-          .from('store_product_barcodes')
-          .select('product_id')
-          .eq('store_id', scopedStoreId)
-          .eq('barcode', code)
-          .limit(1)
-          .maybeSingle();
-        if (linkedError) throw linkedError;
-        if (linked?.product_id) {
-          listing = (Array.isArray(listings) ? listings : []).find(row => String(row.product_id) === String(linked.product_id)) || null;
-        }
-      }
       const data = listing?.products || null;
 
       if (!data) {
@@ -541,25 +528,11 @@ async function handleBarcode(barcode) {
         throw priceError;
       }
 
-      let listing =
+      const listing =
         (Array.isArray(listings) ? listings : [])
           .find(function (row) {
             return cleanBarcode(row?.products?.barcode || row?.barcode || '') === barcode;
           });
-      if (!listing) {
-        const linked = await supabaseClient
-          .from('store_product_barcodes')
-          .select('product_id')
-          .eq('store_id', storeId)
-          .eq('barcode', barcode)
-          .limit(1)
-          .maybeSingle();
-        if (linked.error) throw linked.error;
-        if (linked.data?.product_id) {
-          listing = (Array.isArray(listings) ? listings : [])
-            .find(function (row) { return String(row.product_id) === String(linked.data.product_id); }) || null;
-        }
-      }
 
       const product = listing?.products || null;
 

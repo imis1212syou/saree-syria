@@ -146,13 +146,9 @@
     }
   });
 
-  window.addEventListener("appinstalled", async () => {
+  window.addEventListener("appinstalled", () => {
     deferredPrompt = null;
     updateButton();
-    try {
-      const client = window.supabaseClient;
-      if (client?.rpc) await client.rpc('record_app_install');
-    } catch (_) {}
   });
 
   function init() {
