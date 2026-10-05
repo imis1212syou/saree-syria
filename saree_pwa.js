@@ -91,6 +91,23 @@
     }
   }
 
+  async function logAppDownloadAttempt() {
+    try {
+      if (!window.supabaseClient || typeof window.supabaseClient.rpc !== "function") return;
+      let visitorId = null;
+      try { visitorId = localStorage.getItem("saree_visitor_id"); } catch (_) {}
+      const platform = navigator.userAgentData?.platform || navigator.platform || "";
+      const { error } = await window.supabaseClient.rpc("record_app_download", {
+        p_visitor_id: visitorId || null,
+        p_platform: platform || null,
+        p_user_agent: navigator.userAgent || null
+      });
+      if (error) console.warn("app download log:", error);
+    } catch (err) {
+      console.warn("app download log:", err);
+    }
+  }
+
   function showIOSInstructions() {
     alert("افتح هذا الموقع في Safari، ثم اضغط مشاركة ⬆️ واختر «إضافة إلى الشاشة الرئيسية» لتثبيت تطبيق سعرلي سوريا.");
   }
@@ -103,6 +120,9 @@
       "هل تريد تثبيت تطبيق «سعرلي سوريا» على جهازك؟\n\nاضغط «موافق» للتثبيت أو «إلغاء» للرجوع."
     );
     if (!ok) return;
+
+    // تسجيل طلب التحميل للمدير، بدون تغيير سلوك التثبيت الحالي.
+    logAppDownloadAttempt();
 
     if (isIOS()) {
       showIOSInstructions();
