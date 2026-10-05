@@ -434,23 +434,21 @@ async function handleBarcode(barcode) {
         return;
       }
 
-      const { data: listings, error } = await supabaseClient
-        .from('price_listings')
-        .select('id,store_id,product_id,approved,updated_at,products(*)')
-        .eq('store_id', scopedStoreId)
-        .eq('approved', true)
-        .order('updated_at', { ascending:false });
-
-      if (error) throw error;
-
-      let listing = (Array.isArray(listings) ? listings : []).find(row =>
-        cleanBarcode(row?.products?.barcode || row?.barcode || '') === code
-      );
-      if(!listing){
-        const extra=await supabaseClient.from('store_product_barcodes').select('product_id').eq('store_id',scopedStoreId).eq('barcode',code).limit(1).maybeSingle();
-        if(extra.error) throw extra.error;
-        if(extra.data?.product_id) listing=(Array.isArray(listings)?listings:[]).find(row=>String(row.product_id)===String(extra.data.product_id));
+      let found={row:null,matchedBy:null};
+      if(typeof window.lookupStoreBarcode==='function'){
+        found=await window.lookupStoreBarcode(scopedStoreId,code);
+      }else{
+        const { data: listings, error } = await supabaseClient
+          .from('price_listings')
+          .select('id,store_id,product_id,approved,updated_at,products(*)')
+          .eq('store_id', scopedStoreId)
+          .eq('approved', true)
+          .order('updated_at', { ascending:false });
+        if (error) throw error;
+        const listing = (Array.isArray(listings) ? listings : []).find(row => cleanBarcode(row?.products?.barcode || row?.barcode || '') === code);
+        found={row:listing||null,matchedBy:listing?'primary':null};
       }
+      const listing=found.row;
       const data = listing?.products || null;
 
       if (!data) {
@@ -481,9 +479,15 @@ async function handleBarcode(barcode) {
         if (el(id)) el(id).value = data[id] || '';
       });
       if (el('merchantCompanySelect')) el('merchantCompanySelect').value = data.company_id || '';
+      if (found.matchedBy === 'alias' && typeof window.setScannedStoreBarcodeForForm === 'function') {
+        if (el('barcode')) el('barcode').value = cleanBarcode(data.barcode || '');
+        await window.setScannedStoreBarcodeForForm(scopedStoreId,code,data.id);
+      }
 
       const msg = el('barcodeMsg');
-      if (msg) msg.textContent = 'تم العثور على المادة داخل هذا المتجر وتعبئة بياناتها.';
+      if (msg) msg.textContent = found.matchedBy === 'alias'
+        ? 'تم العثور على المادة بالباركود الإضافي وتعبئة بياناتها.'
+        : 'تم العثور على المادة داخل هذا المتجر وتعبئة بياناتها.';
     } catch (error) {
       console.error('Barcode product lookup:', error);
       const msg = el('barcodeMsg');
@@ -513,37 +517,19 @@ async function handleBarcode(barcode) {
        * products العام؛ لأن نفس الباركود يمكن أن يكون له مادة
        * مستقلة في متجر آخر.
        */
-      const {
-        data: listings,
-        error: priceError
-      } =
-        await supabaseClient
+      let found={row:null,matchedBy:null};
+      if(typeof window.lookupStoreBarcode==='function') {
+        found=await window.lookupStoreBarcode(storeId,barcode);
+      } else {
+        const {data:listings,error:priceError}=await supabaseClient
           .from('price_listings')
-          .select(
-            'id,price_new,store_id,product_id,approved,updated_at,products(*)'
-          )
-          .eq('store_id', storeId)
-          .eq('approved', true)
-          .order(
-            'updated_at',
-            { ascending:false }
-          );
-
-      if (priceError) {
-        throw priceError;
+          .select('id,price_new,store_id,product_id,approved,updated_at,products(*)')
+          .eq('store_id',storeId).eq('approved',true).order('updated_at',{ascending:false});
+        if(priceError) throw priceError;
+        const listing=(Array.isArray(listings)?listings:[]).find(row=>cleanBarcode(row?.products?.barcode||row?.barcode||'')===barcode);
+        found={row:listing||null,matchedBy:listing?'primary':null};
       }
-
-      let listing =
-        (Array.isArray(listings) ? listings : [])
-          .find(function (row) {
-            return cleanBarcode(row?.products?.barcode || row?.barcode || '') === barcode;
-          });
-      if(!listing){
-        const extra=await supabaseClient.from('store_product_barcodes').select('product_id').eq('store_id',storeId).eq('barcode',barcode).limit(1).maybeSingle();
-        if(extra.error) throw extra.error;
-        if(extra.data?.product_id) listing=(Array.isArray(listings)?listings:[]).find(row=>String(row.product_id)===String(extra.data.product_id));
-      }
-
+      const listing=found.row;
       const product = listing?.products || null;
 
       if (!listing || !product) {

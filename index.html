@@ -112,14 +112,6 @@
         class="muted">
       </p>
 
-      <textarea
-        id="additionalBarcodes"
-        rows="3"
-        inputmode="numeric"
-        autocomplete="off"
-        placeholder="باركودات إضافية للمادة — كل باركود في سطر (اختياري)"
-        style="width:100%;margin-top:8px;box-sizing:border-box"></textarea>
-
     </div>
 
     <!-- التصنيف -->
@@ -334,13 +326,8 @@ function searchStoreBarcode(storeId, value){
  if(!q){msg.textContent='اكتب رقم الباركود أو امسحه بالكاميرا.';return;}
  const ps=prices.filter(x=>x.store_id===storeId); const matches=ps.filter(x=>{const p=products.find(y=>y.id===x.product_id);return storeBarcodeOf(p,x)===q;});
  const grid=$('storeProductsGrid'); if(!grid)return;
- if(matches.length){grid.innerHTML=renderStorePriceCards(matches,storeId);msg.textContent=`تم العثور على ${matches.length} مادة في هذا المتجر فقط.`;return;}
- supabaseClient.from('store_product_barcodes').select('product_id').eq('store_id',storeId).eq('barcode',q).limit(1).maybeSingle().then(({data,error})=>{
-   if(error) throw error;
-   const extraMatches=data?.product_id?ps.filter(x=>String(x.product_id)===String(data.product_id)):[];
-   grid.innerHTML=extraMatches.length?renderStorePriceCards(extraMatches,storeId):'<div class="card muted">لم يتم العثور على هذا الباركود داخل هذا المتجر.</div>';
-   msg.textContent=extraMatches.length?`تم العثور على المادة في هذا المتجر فقط.`:'لا توجد مادة بهذا الباركود في هذا المتجر.';
- }).catch(err=>{console.error(err);grid.innerHTML='<div class="card muted">تعذر البحث عن الباركود.</div>';msg.textContent='تعذر البحث عن الباركود الإضافي.';});
+ grid.innerHTML=matches.length?renderStorePriceCards(matches,storeId):'<div class="card muted">لم يتم العثور على هذا الباركود داخل هذا المتجر.</div>';
+ msg.textContent=matches.length?`تم العثور على ${matches.length} مادة في هذا المتجر فقط.`:'لا توجد مادة بهذا الباركود في هذا المتجر.';
 }
 async function scanBarcodeForStore(storeId){
   if(typeof window.openBarcodeScannerForStore==='function'){
@@ -1164,16 +1151,16 @@ supabaseClient.auth.onAuthStateChange((event)=>{
 // يحافظ التطبيق على الصفحة الحالية بعد تحديث الصفحة.
 </script>
 
-<script src="barcode_scanner.js?v=7"></script>
+<script src="barcode_scanner.js?v=20261006-store-barcode"></script>
 
 <script src="store_admin_controls.js?v=7"></script>
 <script src="ads.js?v=1"></script>
-  <script src="store_features.js"></script>
+  <script src="store_features.js?v=20261006-store-barcode"></script>
 
 
 <script src="saree_all_features.js"></script>
 
-<script src="saree_pwa.js"></script>
+<script src="saree_pwa.js?v=20261006-pwa-install-log"></script>
 
 
 <script src="saree_push_notifications.js"></script>

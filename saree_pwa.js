@@ -16,7 +16,7 @@
   function registerSW() {
     if (!("serviceWorker" in navigator)) return;
 
-    const swUrl = new URL("saree_sw.js?v=push-20260930", base).href;
+    const swUrl = new URL("saree_sw.js?v=20261006-pwa-install-log", base).href;
     window.sareePwaRegistrationPromise = new Promise(resolve => {
       const register = async () => {
         try {
@@ -83,6 +83,7 @@
       promptEvent.prompt();
       const result = await promptEvent.userChoice;
       updateButton();
+      if(result && result.outcome === "accepted") logInstallEvent();
       return result && result.outcome === "accepted";
     } catch (e) {
       console.warn("PWA install prompt:", e);
@@ -146,20 +147,83 @@
     }
   });
 
+
+  function currentVisitorId(){
+    try{return localStorage.getItem('saree_visitor_id')||localStorage.getItem('visitor_id')||null;}catch(_){return null;}
+  }
+
+  async function logInstallEvent(){
+    try{
+      const key='saree_pwa_install_logged_v1';
+      if(localStorage.getItem(key)) return;
+      const client=window.supabaseClient;
+      if(!client) return;
+      let userId=null;
+      try{userId=(await client.auth.getUser())?.data?.user?.id||null;}catch(_){ }
+      const {error}=await client.from('saree_pwa_installations').insert({visitor_id:currentVisitorId(),user_id:userId,user_agent:navigator.userAgent});
+      if(error) throw error;
+      localStorage.setItem(key,new Date().toISOString());
+    }catch(err){
+      console.warn('PWA install log:',err);
+    }
+  }
+
+  async function renderAdminInstallStats(){
+    const panel=document.getElementById('sareePwaInstallStats');
+    if(!panel || window.__SAREE_ADMIN_STATUS__!==true) return;
+    try{
+      const client=window.supabaseClient;
+      if(!client) return;
+      const [countRes,latestRes]=await Promise.all([
+        client.from('saree_pwa_installations').select('id',{count:'exact',head:true}),
+        client.from('saree_pwa_installations').select('installed_at,user_agent').order('installed_at',{ascending:false}).limit(20)
+      ]);
+      if(countRes.error) throw countRes.error;
+      if(latestRes.error) throw latestRes.error;
+      const total=Number(countRes.count||0);
+      panel.innerHTML=`<div class="card"><div class="name">${total}</div><div class="muted">إجمالي تحميلات/تثبيتات التطبيق</div><div style="margin-top:12px">${(latestRes.data||[]).length?(latestRes.data||[]).map(r=>`<div class="priceRow"><b>${r.installed_at?new Date(r.installed_at).toLocaleString('ar'):''}</b><div class="muted">${String(r.user_agent||'').slice(0,160)}</div></div>`).join(''):'<div class="muted">لا توجد تحميلات مسجلة بعد.</div>'}</div></div>`;
+    }catch(err){
+      console.warn('PWA admin stats:',err);
+      panel.innerHTML='<div class="card muted">تعذر تحميل سجل تحميلات التطبيق حالياً.</div>';
+    }
+  }
+
+  function ensureAdminInstallPanel(){
+    if(window.__SAREE_ADMIN_STATUS__!==true) return;
+    const adminPanel=document.getElementById('adminPanel');
+    if(!adminPanel) return;
+    let panel=document.getElementById('sareePwaInstallStats');
+    if(panel) return;
+    panel=document.createElement('div');
+    panel.id='sareePwaInstallStats';
+    adminPanel.appendChild(panel);
+    renderAdminInstallStats();
+  }
+
   window.addEventListener("appinstalled", () => {
     deferredPrompt = null;
     updateButton();
-    try {
-      const client = window.supabaseClient;
-      if (client?.rpc) client.rpc('record_app_install').catch(() => {});
-    } catch (_) {}
+    logInstallEvent();
   });
+
+  function observeAdminPanel(){
+    const panel=document.getElementById('adminPanel');
+    if(!panel || panel.__sareePwaObserver) return;
+    panel.__sareePwaObserver=true;
+    const mo=new MutationObserver(()=>{
+      if(window.__SAREE_ADMIN_STATUS__===true) ensureAdminInstallPanel();
+    });
+    mo.observe(panel,{childList:true,subtree:true});
+    if(window.__SAREE_ADMIN_STATUS__===true) ensureAdminInstallPanel();
+  }
 
   function init() {
     addManifest();
     registerSW();
     createButton();
     updateButton();
+    observeAdminPanel();
+    setTimeout(ensureAdminInstallPanel,600);
   }
 
   if (document.readyState === "loading") {
