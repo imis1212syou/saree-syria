@@ -22,244 +22,8 @@
     return document.getElementById(id);
   }
 
-  const MULTI_BARCODE_SEPARATOR = '|';
-  let pendingBarcodes = [];
-  let pendingBarcodeInputId = null;
-
   function cleanBarcode(value) {
     return String(value || '').replace(/\D/g, '');
-  }
-
-  function splitBarcodes(value) {
-    return String(value || '')
-      .split(/[|,;\n\r]+/)
-      .map(cleanBarcode)
-      .filter(Boolean);
-  }
-
-  function uniqueBarcodes(values) {
-    const out = [];
-    const seen = new Set();
-    for (const value of values || []) {
-      const code = cleanBarcode(value);
-      if (!code || seen.has(code)) continue;
-      seen.add(code);
-      out.push(code);
-    }
-    return out;
-  }
-
-  function joinBarcodes(values) {
-    return uniqueBarcodes(values).join(MULTI_BARCODE_SEPARATOR);
-  }
-
-  function barcodeMatches(storedValue, code) {
-    const wanted = cleanBarcode(code);
-    if (!wanted) return false;
-    const stored = String(storedValue || '').trim();
-    if (!stored) return false;
-    if (cleanBarcode(stored) === wanted && !/[|,;\n\r]/.test(stored)) return true;
-    return splitBarcodes(stored).includes(wanted);
-  }
-
-  function isAddScannerMode() {
-    return scannerMode === 'add' || scannerMode === 'companyAdd';
-  }
-
-  function getAddBarcodeInputId() {
-    return scannerMode === 'companyAdd'
-      ? (el('cep_barcode') ? 'cep_barcode' : 'admin_cep_barcode')
-      : 'barcode';
-  }
-
-  function getCurrentAddBarcodes() {
-    const id = getAddBarcodeInputId();
-    const input = el(id);
-    return uniqueBarcodes(input?.value || '');
-  }
-
-  function renderPendingBarcodes() {
-    const wrap = el('barcodeMultiWrap');
-    const list = el('barcodeMultiList');
-    const count = el('barcodeMultiCount');
-    if (!wrap || !list || !count) return;
-    if (!isAddScannerMode()) {
-      wrap.style.display = 'none';
-      return;
-    }
-    wrap.style.display = 'block';
-    count.textContent = String(pendingBarcodes.length);
-    list.innerHTML = pendingBarcodes.length
-      ? pendingBarcodes.map((code, index) => `
-          <span style="display:inline-flex;align-items:center;gap:6px;background:#172329;border:1px solid #2c3b42;border-radius:999px;padding:5px 9px;font-size:12px;margin:3px 0 3px 4px;">
-            ${escapeHtml(code)}
-            <button type="button" data-remove-barcode="${index}" style="border:0;background:transparent;color:#fff;cursor:pointer;padding:0 2px;font-size:14px;line-height:1;">×</button>
-          </span>
-        `).join('')
-      : '<span style="opacity:.65;font-size:12px;">لم تتم إضافة باركودات بعد.</span>';
-    list.querySelectorAll('[data-remove-barcode]').forEach(button => {
-      button.onclick = function () {
-        const index = Number(button.getAttribute('data-remove-barcode'));
-        if (!Number.isInteger(index)) return;
-        pendingBarcodes.splice(index, 1);
-        renderPendingBarcodes();
-      };
-    });
-  }
-
-  function commitPendingBarcodesToInput() {
-    if (!isAddScannerMode() || !pendingBarcodeInputId) return;
-    const input = el(pendingBarcodeInputId);
-    if (!input) return;
-    input.value = joinBarcodes(pendingBarcodes);
-  }
-
-  function clearPendingBarcodes() {
-    pendingBarcodes = [];
-    pendingBarcodeInputId = null;
-  }
-
-  async function barcodeAlreadyUsedInStore(storeId, code) {
-    if (!storeId || !code || !window.supabaseClient) return false;
-    try {
-      const { data, error } = await supabaseClient
-        .from('price_listings')
-        .select('product_id,products(barcode)')
-        .eq('store_id', storeId)
-        .eq('approved', true);
-      if (error) throw error;
-      const editingId = window.__editingMaterial?.productId || el('existingProduct')?.value || null;
-      return (Array.isArray(data) ? data : []).some(row => {
-        if (editingId && String(row?.product_id) === String(editingId)) return false;
-        return barcodeMatches(row?.products?.barcode || row?.barcode, code);
-      });
-    } catch (error) {
-      console.warn('Barcode duplicate check (store):', error);
-      return false;
-    }
-  }
-
-  async function barcodeAlreadyUsedInCompany(companyId, code) {
-    if (!companyId || !code || !window.supabaseClient) return false;
-    try {
-      const { data, error } = await supabaseClient
-        .from('company_products')
-        .select('id,barcode')
-        .eq('company_id', companyId)
-        .eq('active', true);
-      if (error) throw error;
-      const editingId = window.__sareeEditingCompanyProductId || null;
-      return (Array.isArray(data) ? data : []).some(row => {
-        if (editingId && String(row?.id) === String(editingId)) return false;
-        return barcodeMatches(row?.barcode, code);
-      });
-    } catch (error) {
-      console.warn('Barcode duplicate check (company):', error);
-      return false;
-    }
-  }
-
-  async function addPendingBarcode(code) {
-    const clean = cleanBarcode(code);
-    if (!clean) return false;
-    if (pendingBarcodes.includes(clean)) {
-      setStatus('هذا الباركود مضاف مسبقاً. اختر باركوداً آخر.');
-      scanLocked = false;
-      return false;
-    }
-
-    if (scannerMode === 'add') {
-      const storeId = scannerStoreId || (typeof profileData !== 'undefined' && profileData?.store_id) || el('merchantStoreSelect')?.value || new URLSearchParams(location.search).get('store') || null;
-      if (await barcodeAlreadyUsedInStore(storeId, clean)) {
-        setStatus('هذا الباركود مستخدم لمادة أخرى داخل هذا المتجر.');
-        scanLocked = false;
-        return false;
-      }
-    } else if (scannerMode === 'companyAdd') {
-      const companyId = scannerCompanyId || window.companyContext?.company_id || window.currentCompany?.id || null;
-      if (await barcodeAlreadyUsedInCompany(companyId, clean)) {
-        setStatus('هذا الباركود مستخدم لمادة أخرى داخل هذه الشركة.');
-        scanLocked = false;
-        return false;
-      }
-    }
-
-    pendingBarcodes.push(clean);
-    pendingBarcodes = uniqueBarcodes(pendingBarcodes);
-    renderPendingBarcodes();
-    setStatus(`تمت إضافة الباركود. عدد الباركودات: ${pendingBarcodes.length}`);
-    return true;
-  }
-
-  function withMultiBarcodeValue(fn, rawValue) {
-    const originalReplace = String.prototype.replace;
-    String.prototype.replace = function (searchValue, replaceValue) {
-      const source = String(this);
-      if (source === rawValue && searchValue instanceof RegExp && searchValue.global) {
-        return source;
-      }
-      return originalReplace.apply(this, arguments);
-    };
-    let result;
-    try {
-      result = fn();
-    } finally {
-      String.prototype.replace = originalReplace;
-    }
-    return result;
-  }
-
-  function isSuccessfulMultiSave(inputId, rawValue) {
-    const input = el(inputId);
-    return !input || input.value !== rawValue;
-  }
-
-  function installMultiSaveHooks() {
-    if (window.__sareeMultiBarcodeSaveHooksInstalled) return;
-    window.__sareeMultiBarcodeSaveHooksInstalled = true;
-
-    document.addEventListener('input', function (event) {
-      if (!pendingBarcodeInputId || document.getElementById('barcodeScannerModal')) return;
-      if (event.target?.id !== pendingBarcodeInputId) return;
-      pendingBarcodes = uniqueBarcodes(splitBarcodes(event.target.value));
-    });
-
-    document.addEventListener('click', function (event) {
-      const button = event.target?.closest?.('#addSubmitBtn, #saveCompanyProduct, #admin_cep_save');
-      if (!button || pendingBarcodes.length < 2) return;
-
-      const inputId = button.id === 'addSubmitBtn'
-        ? 'barcode'
-        : (button.id === 'saveCompanyProduct' ? 'cep_barcode' : 'admin_cep_barcode');
-      const rawValue = joinBarcodes(pendingBarcodes);
-      const input = el(inputId);
-      if (!input) return;
-
-      input.value = rawValue;
-      const handler = button.onclick;
-      if (typeof handler !== 'function' && button.id !== 'addSubmitBtn') return;
-
-      event.preventDefault();
-      event.stopImmediatePropagation();
-
-      try {
-        let promise;
-        if (button.id === 'addSubmitBtn') {
-          if (typeof window.submitPrice !== 'function') return;
-          promise = withMultiBarcodeValue(() => window.submitPrice(), rawValue);
-        } else {
-          promise = withMultiBarcodeValue(() => handler.call(button, event), rawValue);
-        }
-        Promise.resolve(promise).then(() => {
-          if (isSuccessfulMultiSave(inputId, rawValue)) {
-            clearPendingBarcodes();
-            renderPendingBarcodes();
-          }
-        });
-      } catch (error) {
-        console.error('Multi-barcode save:', error);
-      }
-    }, true);
   }
 
   function escapeHtml(value) {
@@ -358,13 +122,6 @@
   };
 
   function openScanner() {
-    if (isAddScannerMode()) {
-      pendingBarcodeInputId = getAddBarcodeInputId();
-      pendingBarcodes = getCurrentAddBarcodes();
-    } else {
-      clearPendingBarcodes();
-    }
-
     window.closeBarcodeScanner();
 
     const modal = document.createElement('div');
@@ -460,13 +217,6 @@
 
         </div>
 
-        <div id="barcodeMultiWrap" style="display:none;margin-top:12px;text-align:right">
-          <div style="font-weight:700;margin-bottom:7px">الباركودات المضافة (<span id="barcodeMultiCount">0</span>)</div>
-          <div id="barcodeMultiList" style="max-height:140px;overflow:auto;border:1px solid #26343a;border-radius:12px;padding:7px;background:#0b1418"></div>
-          <p style="font-size:12px;opacity:.72;margin:7px 0 0">يمكنك مسح أو إدخال أي عدد من الباركودات لنفس المادة.</p>
-          <button type="button" class="btn primary" id="barcodeFinishBtn" style="width:100%;margin-top:8px">تم — حفظ الباركودات</button>
-        </div>
-
         <button
           type="button"
           class="btn secondary"
@@ -490,13 +240,6 @@ const searchButton =
 
     const closeButton =
       el('barcodeCloseBtn');
-    const finishButton =
-      el('barcodeFinishBtn');
-
-    if (isAddScannerMode()) {
-      renderPendingBarcodes();
-      if (finishButton) finishButton.onclick = window.closeBarcodeScanner;
-    }
 
     if (searchButton) {
       searchButton.onclick = function () {
@@ -638,25 +381,20 @@ async function handleBarcode(barcode) {
     const storeId = scannerStoreId;
     const companyId = scannerCompanyId;
 
-    if (mode === 'add' || mode === 'companyAdd') {
-      const added = await addPendingBarcode(clean);
-      if (!added) return;
+    await window.closeBarcodeScanner();
 
-      if (mode === 'add' && pendingBarcodes.length === 1) {
-        await fillProductFromBarcode(clean, storeId);
-      } else if (mode === 'companyAdd') {
-        const input = el('cep_barcode') || el('admin_cep_barcode');
-        if (input) input.value = joinBarcodes(pendingBarcodes);
-        const msg = el('cepBarcodeMsg');
-        if (msg) msg.textContent = `تمت إضافة الباركود. العدد: ${pendingBarcodes.length}`;
-        const adminMsg = el('adminCepBarcodeMsg');
-        if (adminMsg) adminMsg.textContent = `تمت إضافة الباركود. العدد: ${pendingBarcodes.length}`;
+    if (mode === 'add') {
+      const input = el('barcode');
+      if (input) {
+        input.value = clean;
+        input.dispatchEvent(new Event('input', { bubbles:true }));
+        input.dispatchEvent(new Event('change', { bubbles:true }));
       }
-      scanLocked = false;
+      const msg = el('barcodeMsg');
+      if (msg) msg.textContent = 'تم قراءة الباركود: ' + clean;
+      await fillProductFromBarcode(clean, storeId);
       return;
     }
-
-    await window.closeBarcodeScanner();
 
     if (mode === 'store') {
       await showStoreBarcodeResult(clean, storeId);
@@ -666,6 +404,19 @@ async function handleBarcode(barcode) {
     if (mode === 'company') {
       await showCompanyBarcodeResult(clean, companyId);
       return;
+    }
+
+    if (mode === 'companyAdd') {
+      const input = el('cep_barcode') || el('admin_cep_barcode');
+      if (input) {
+        input.value = clean;
+        input.dispatchEvent(new Event('input', { bubbles:true }));
+        input.dispatchEvent(new Event('change', { bubbles:true }));
+      }
+      const msg = el('cepBarcodeMsg');
+      if (msg) msg.textContent = 'تم قراءة الباركود: ' + clean;
+      const adminMsg = el('adminCepBarcodeMsg');
+      if (adminMsg) adminMsg.textContent = 'تم قراءة الباركود: ' + clean;
     }
   }
 
@@ -692,9 +443,22 @@ async function handleBarcode(barcode) {
 
       if (error) throw error;
 
-      const listing = (Array.isArray(listings) ? listings : []).find(row =>
-        barcodeMatches(row?.products?.barcode || row?.barcode || '', code)
+      let listing = (Array.isArray(listings) ? listings : []).find(row =>
+        cleanBarcode(row?.products?.barcode || row?.barcode || '') === code
       );
+      if (!listing) {
+        const { data: linked, error: linkedError } = await supabaseClient
+          .from('store_product_barcodes')
+          .select('product_id')
+          .eq('store_id', scopedStoreId)
+          .eq('barcode', code)
+          .limit(1)
+          .maybeSingle();
+        if (linkedError) throw linkedError;
+        if (linked?.product_id) {
+          listing = (Array.isArray(listings) ? listings : []).find(row => String(row.product_id) === String(linked.product_id)) || null;
+        }
+      }
       const data = listing?.products || null;
 
       if (!data) {
@@ -777,11 +541,25 @@ async function handleBarcode(barcode) {
         throw priceError;
       }
 
-      const listing =
+      let listing =
         (Array.isArray(listings) ? listings : [])
           .find(function (row) {
-            return barcodeMatches(row?.products?.barcode || row?.barcode || '', barcode);
+            return cleanBarcode(row?.products?.barcode || row?.barcode || '') === barcode;
           });
+      if (!listing) {
+        const linked = await supabaseClient
+          .from('store_product_barcodes')
+          .select('product_id')
+          .eq('store_id', storeId)
+          .eq('barcode', barcode)
+          .limit(1)
+          .maybeSingle();
+        if (linked.error) throw linked.error;
+        if (linked.data?.product_id) {
+          listing = (Array.isArray(listings) ? listings : [])
+            .find(function (row) { return String(row.product_id) === String(linked.data.product_id); }) || null;
+        }
+      }
 
       const product = listing?.products || null;
 
@@ -842,15 +620,16 @@ async function handleBarcode(barcode) {
     }
 
     try {
-      const { data: rows, error } = await supabaseClient
+      const { data, error } = await supabaseClient
         .from('company_products')
         .select('*')
         .eq('company_id', companyId)
-        .eq('active', true);
+        .eq('active', true)
+        .eq('barcode', barcode)
+        .limit(1)
+        .maybeSingle();
 
       if (error) throw error;
-      const data = (Array.isArray(rows) ? rows : []).find(row => barcodeMatches(row?.barcode, barcode));
-
       if (!data) {
         showResult('لم نجد المادة', 'لا توجد مادة بهذا الباركود داخل هذه الشركة.');
         return;
@@ -865,10 +644,6 @@ async function handleBarcode(barcode) {
       console.error('Company barcode lookup:', error);
       showResult('تعذر البحث', error?.message || 'حدث خطأ أثناء البحث داخل الشركة.');
     }
-  }
-
-  function displayBarcodes(value) {
-    return splitBarcodes(value).join(' • ');
   }
 
   function showProductResult(
@@ -1010,7 +785,7 @@ async function handleBarcode(barcode) {
         <p style="opacity:.65">
           الباركود:
           ${escapeHtml(
-            displayBarcodes(product.barcode || '')
+            product.barcode || ''
           )}
         </p>
 
@@ -1104,8 +879,6 @@ async function handleBarcode(barcode) {
   window.closeBarcodeScanner =
     async function () {
 
-      commitPendingBarcodesToInput();
-
       if (scanner) {
 
         try {
@@ -1132,7 +905,5 @@ async function handleBarcode(barcode) {
         modal.remove();
       }
     };
-
-  installMultiSaveHooks();
 
 })();

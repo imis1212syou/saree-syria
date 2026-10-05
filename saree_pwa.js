@@ -5,24 +5,6 @@
   let deferredPrompt = null;
   let installRequested = false;
 
-  async function recordAppDownload() {
-    try {
-      if (sessionStorage.getItem('saree_app_download_logged') === '1') return;
-      if (!window.supabaseClient?.rpc) return;
-      let visitorId = null;
-      try {
-        visitorId = localStorage.getItem('saree_app_download_visitor');
-        if (!visitorId) {
-          visitorId = crypto.randomUUID ? crypto.randomUUID() : ('visitor_' + Date.now() + '_' + Math.random().toString(36).slice(2));
-          localStorage.setItem('saree_app_download_visitor', visitorId);
-        }
-      } catch (_) {}
-      const platform = /android/i.test(navigator.userAgent) ? 'android' : /iphone|ipad|ipod/i.test(navigator.userAgent) ? 'ios' : /windows/i.test(navigator.userAgent) ? 'windows' : /mac/i.test(navigator.userAgent) ? 'macos' : /linux/i.test(navigator.userAgent) ? 'linux' : 'other';
-      const { error } = await window.supabaseClient.rpc('record_app_download', { p_visitor_id: visitorId, p_platform: platform, p_user_agent: navigator.userAgent.slice(0, 500) });
-      if (!error) sessionStorage.setItem('saree_app_download_logged', '1');
-    } catch (e) { console.warn('app download log:', e); }
-  }
-
   function addManifest() {
     if (document.querySelector('link[rel="manifest"]')) return;
     const link = document.createElement("link");
@@ -101,7 +83,6 @@
       promptEvent.prompt();
       const result = await promptEvent.userChoice;
       updateButton();
-      if (result && result.outcome === "accepted") await recordAppDownload();
       return result && result.outcome === "accepted";
     } catch (e) {
       console.warn("PWA install prompt:", e);
@@ -165,9 +146,13 @@
     }
   });
 
-  window.addEventListener("appinstalled", () => {
+  window.addEventListener("appinstalled", async () => {
     deferredPrompt = null;
     updateButton();
+    try {
+      const client = window.supabaseClient;
+      if (client?.rpc) await client.rpc('record_app_install');
+    } catch (_) {}
   });
 
   function init() {
