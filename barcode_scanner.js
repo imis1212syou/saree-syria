@@ -4,7 +4,7 @@
    - إدخال باركود يدوي
    - تعبئة المادة تلقائياً عند العثور عليها
    - البحث داخل متجر محدد أو شركة محددة
-   - عزل المادة والباركود حسب المتجر/الشركة
+   - الباركود المركزي يعرّف المادة نفسها، وبيانات السعر تبقى خاصة بالمتجر
    - إضافة مادة الشركة بالكاميرا
    - بدون توليد أو تنزيل باركود
 */
@@ -91,7 +91,7 @@
 
   window.openBarcodeScannerForAdd = function (storeId) {
     scannerMode = 'add';
-    scannerStoreId = storeId || null;
+    scannerStoreId = storeId || (typeof profileData !== 'undefined' && profileData?.store_id) || el('merchantStoreSelect')?.value || null;
     scannerCompanyId = null;
     scanLocked = false;
     openScanner();
@@ -99,7 +99,7 @@
 
   window.openBarcodeScannerForAdditional = function (storeId) {
     scannerMode = 'additional';
-    scannerStoreId = storeId || null;
+    scannerStoreId = storeId || (typeof profileData !== 'undefined' && profileData?.store_id) || el('merchantStoreSelect')?.value || null;
     scannerCompanyId = null;
     scanLocked = false;
     openScanner();
@@ -443,71 +443,40 @@ async function handleBarcode(barcode) {
         (typeof profileData !== 'undefined' && profileData?.store_id) ||
         el('merchantStoreSelect')?.value ||
         new URLSearchParams(location.search).get('store') || null;
-
-      if (!scopedStoreId) {
-        const msg = el('barcodeMsg');
-        if (msg) msg.textContent = 'تم قراءة الباركود. اختر المتجر ثم احفظ المادة.';
-        return;
-      }
-
-      let found={row:null,matchedBy:null};
+      const existing = el('existingProduct');
+      let found={row:null,matchedBy:null,central:null};
       if(typeof window.lookupStoreBarcode==='function'){
         found=await window.lookupStoreBarcode(scopedStoreId,code);
       }else{
-        const { data: listings, error } = await supabaseClient
-          .from('price_listings')
-          .select('id,store_id,product_id,approved,updated_at,products(*)')
-          .eq('store_id', scopedStoreId)
-          .eq('approved', true)
-          .order('updated_at', { ascending:false });
-        if (error) throw error;
-        const listing = (Array.isArray(listings) ? listings : []).find(row => cleanBarcode(row?.products?.barcode || row?.barcode || '') === code);
-        found={row:listing||null,matchedBy:listing?'primary':null};
+        const {data,error}=await supabaseClient.rpc('saree_lookup_product_by_barcode',{p_barcode:code});
+        if(error) throw error;
+        found={row:data?.product_id?{product_id:data.product_id,products:data}:null,matchedBy:data?.is_primary?'primary':'alias',central:data};
       }
-      const listing=found.row;
-      const data = listing?.products || null;
-
-      if (!data) {
-        const existing = el('existingProduct');
-        if (existing) {
-          existing.value = '';
-          existing.dispatchEvent(new Event('change', { bubbles:true }));
-        }
-        const msg = el('barcodeMsg');
-        if (msg) msg.textContent = 'لم نجد مادة بهذا الباركود داخل هذا المتجر. يمكنك إضافة مادة جديدة.';
+      const data = found.central || found.row?.products || null;
+      if(!data?.id && !data?.product_id){
+        if(existing){existing.value='';existing.dispatchEvent(new Event('change',{bubbles:true}));}
+        const msg=el('barcodeMsg');
+        if(msg) msg.textContent='لم نجد مادة بهذا الباركود في المنصة. يمكنك إضافة مادة جديدة، وسيتم حفظ الباركود مركزيًا.';
         return;
       }
-
-      const existing = el('existingProduct');
-      if (existing) {
-        let option = [...existing.options].find(o => String(o.value) === String(data.id));
-        if (!option) {
-          option = document.createElement('option');
-          option.value = data.id;
-          option.textContent = 'المادة الممسوحة: ' + (data.name || 'مادة');
-          existing.appendChild(option);
-        }
-        existing.value = data.id;
-        existing.dispatchEvent(new Event('change', { bubbles:true }));
+      const productId=data.product_id||data.id;
+      if(existing){
+        let option=[...existing.options].find(o=>String(o.value)===String(productId));
+        if(!option){option=document.createElement('option');option.value=productId;option.textContent='المادة الممسوحة: '+(data.name||'مادة');existing.appendChild(option);}
+        existing.value=productId;
+        existing.dispatchEvent(new Event('change',{bubbles:true}));
       }
-
-      ['pn','brand','unit','cat'].forEach(id => {
-        if (el(id)) el(id).value = data[id] || '';
-      });
-      if (el('merchantCompanySelect')) el('merchantCompanySelect').value = data.company_id || '';
-      if (found.matchedBy === 'alias' && typeof window.setScannedStoreBarcodeForForm === 'function') {
-        if (el('barcode')) el('barcode').value = cleanBarcode(data.barcode || '');
-        await window.setScannedStoreBarcodeForForm(scopedStoreId,code,data.id);
-      }
-
-      const msg = el('barcodeMsg');
-      if (msg) msg.textContent = found.matchedBy === 'alias'
-        ? 'تم العثور على المادة بالباركود الإضافي وتعبئة بياناتها.'
-        : 'تم العثور على المادة داخل هذا المتجر وتعبئة بياناتها.';
-    } catch (error) {
-      console.error('Barcode product lookup:', error);
-      const msg = el('barcodeMsg');
-      if (msg) msg.textContent = 'تم قراءة الباركود، لكن تعذر جلب بيانات المادة من المتجر.';
+      ['pn','brand','unit','cat'].forEach(id=>{if(el(id)) el(id).value=data[id]||'';});
+      if(el('pimg') && data.image_url){try{el('pimg').dataset.centralImage=data.image_url;}catch(_){}}
+      if(el('merchantCompanySelect')) el('merchantCompanySelect').value=data.company_id||'';
+      if(el('barcode')) el('barcode').value=cleanBarcode(data.barcode||code);
+      if(found.matchedBy==='alias' && typeof window.setScannedStoreBarcodeForForm==='function') await window.setScannedStoreBarcodeForForm(scopedStoreId,code,productId);
+      const msg=el('barcodeMsg');
+      if(msg) msg.textContent='تم العثور على المادة مركزيًا وتعبئة بياناتها تلقائيًا. يمكنك إدخال سعر متجرك فقط.';
+    } catch(error) {
+      console.error('Barcode product lookup:',error);
+      const msg=el('barcodeMsg');
+      if(msg) msg.textContent='تمت قراءة الباركود، لكن تعذر جلب بيانات المادة المركزية.';
     }
   }
 
@@ -528,25 +497,26 @@ async function handleBarcode(barcode) {
 
     try {
 
-      /*
-       * البحث يجب أن يبدأ من أسعار المتجر المحدد، وليس من جدول
-       * products العام؛ لأن نفس الباركود يمكن أن يكون له مادة
-       * مستقلة في متجر آخر.
-       */
-      let found={row:null,matchedBy:null};
+      /* البحث العام عن الباركود مركزي، ثم نتأكد أن المادة مضافة لهذا المتجر قبل عرضها. */
+      let found={row:null,matchedBy:null,central:null};
       if(typeof window.lookupStoreBarcode==='function') {
         found=await window.lookupStoreBarcode(storeId,barcode);
       } else {
-        const {data:listings,error:priceError}=await supabaseClient
+        const {data,error}=await supabaseClient.rpc('saree_lookup_product_by_barcode',{p_barcode:barcode});
+        if(error) throw error;
+        found={row:data?.product_id?{product_id:data.product_id,products:data}:null,matchedBy:data?.is_primary?'primary':'alias',central:data};
+      }
+      const productId=found.central?.product_id || found.row?.product_id || null;
+      let listing=null;
+      if(productId){
+        const {data,error}=await supabaseClient
           .from('price_listings')
           .select('id,price_new,store_id,product_id,approved,updated_at,products(*)')
-          .eq('store_id',storeId).eq('approved',true).order('updated_at',{ascending:false});
-        if(priceError) throw priceError;
-        const listing=(Array.isArray(listings)?listings:[]).find(row=>cleanBarcode(row?.products?.barcode||row?.barcode||'')===barcode);
-        found={row:listing||null,matchedBy:listing?'primary':null};
+          .eq('store_id',storeId).eq('product_id',productId).eq('approved',true).maybeSingle();
+        if(error) throw error;
+        listing=data||null;
       }
-      const listing=found.row;
-      const product = listing?.products || null;
+      const product = listing?.products || found.central || null;
 
       if (!listing || !product) {
 

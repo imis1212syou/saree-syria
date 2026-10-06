@@ -1,6 +1,6 @@
 /* سعرلي سوريا — store_features.js
    النسخة النهائية الموحدة لميزات المتاجر والتجار والشركات والموقع والباركود.
-   لا توليد باركود ولا تنزيله. البحث بالباركود معزول حسب المتجر.
+   لا توليد باركود ولا تنزيله. الباركود مركزي والمادة مشتركة بين المتاجر.
 */
 (function(){
   'use strict';
@@ -20,7 +20,8 @@
   const storeCompany = st => st?.companies?.name || st?.company_name || st?.company || '';
   const storeWhatsapp = st => st?.whatsapp_url || st?.whatsapp || '';
 
-  const STORE_BARCODE_TABLE = 'store_product_barcodes';
+  const CENTRAL_BARCODE_TABLE = 'saree_product_barcodes';
+  const LEGACY_STORE_BARCODE_TABLE = 'store_product_barcodes';
   window.__sareeStoreAdditionalBarcodes = window.__sareeStoreAdditionalBarcodes || [];
 
   function activeStoreIdForMaterialForm(){
@@ -64,7 +65,7 @@
     host.appendChild(wrap);
     $('storeAdditionalBarcodeScanBtn')?.addEventListener('click',()=>{
       const storeId=activeStoreIdForMaterialForm();
-      if(!storeId) return alert('اختر المتجر أولاً.');
+      if(!storeId) return alert('لا يوجد متجر حالي مرتبط بهذا الحساب.');
       if(typeof window.openBarcodeScannerForAdditional!=='function') return alert('ماسح الباركود غير محمّل.');
       window.openBarcodeScannerForAdditional(storeId);
     });
@@ -94,11 +95,11 @@
   async function loadStoreAdditionalBarcodes(storeId,productId){
     window.__sareeStoreAdditionalBarcodes=[];
     ensureAdditionalBarcodeUI();
-    if(!storeId || !productId){renderAdditionalBarcodes();return;}
-    const {data,error}=await supabaseClient.from(STORE_BARCODE_TABLE)
-      .select('barcode').eq('store_id',storeId).eq('product_id',productId);
+    if(!productId){renderAdditionalBarcodes();return;}
+    const {data,error}=await supabaseClient.rpc('saree_get_product_barcodes',{p_product_id:String(productId)});
     if(error) throw error;
-    window.__sareeStoreAdditionalBarcodes=(data||[]).map(x=>normBarcode(x.barcode)).filter(Boolean);
+    const rows=Array.isArray(data)?data:[];
+    window.__sareeStoreAdditionalBarcodes=rows.filter(x=>!x?.is_primary).map(x=>normBarcode(x?.barcode)).filter(Boolean);
     const primary=normBarcode($('barcode')?.value);
     window.__sareeStoreAdditionalBarcodes=additionalBarcodes().filter(x=>x!==primary);
     renderAdditionalBarcodes();
@@ -107,22 +108,18 @@
   async function validateAdditionalBarcodes(storeId,productId){
     const desired=additionalBarcodes().filter(code=>code!==normBarcode($('barcode')?.value));
     if(!desired.length) return;
-    const rows=await loadApprovedStoreListings(storeId);
     for(const code of desired){
-      const conflict=rows.some(r=>String(r.product_id)!==String(productId||'') && rowBarcodeMatches(r,code));
-      if(conflict) throw new Error('هذا الباركود مستخدم لمادة أخرى داخل هذا المتجر: '+code);
+      const {data,error}=await supabaseClient.rpc('saree_lookup_product_by_barcode',{p_barcode:code});
+      if(error) throw error;
+      if(data?.product_id && String(data.product_id)!==String(productId||'')) throw new Error('هذا الباركود مستخدم لمادة أخرى في المنصة: '+code);
     }
-    const {error}=await supabaseClient.from(STORE_BARCODE_TABLE).select('barcode').limit(1);
-    if(error && !/empty|relation .*store_product_barcodes|schema cache|does not exist/i.test(String(error.message||''))) throw error;
-    if(error) throw new Error('يجب تنفيذ SUPABASE_REQUIRED_CHANGES.sql في Supabase لتفعيل الباركودات الإضافية.');
   }
 
   async function saveStoreAdditionalBarcodes(storeId,productId){
-    if(!storeId || !productId) return;
+    if(!productId) return;
     ensureAdditionalBarcodeUI();
     const desired=additionalBarcodes().filter(code=>code!==normBarcode($('barcode')?.value));
-    const {error}=await supabaseClient.rpc('store_set_product_barcodes',{
-      p_store_id:String(storeId),
+    const {error}=await supabaseClient.rpc('saree_set_product_barcodes',{
       p_product_id:String(productId),
       p_barcodes:desired
     });
@@ -140,12 +137,15 @@
 
   window.lookupStoreBarcode = async function(storeId,code){
     const target=normBarcode(code);
-    if(!storeId || !target) return {row:null,matchedBy:null};
-    const rows=await loadApprovedStoreListings(storeId);
-    const primary=rows.find(row=>normBarcode(row?.products?.barcode || row?.barcode || '')===target);
-    if(primary) return {row:primary,matchedBy:'primary'};
-    const alias=rows.find(row=>Array.isArray(row?.store_product_barcodes) && row.store_product_barcodes.some(x=>normBarcode(x?.barcode)===target));
-    return {row:alias||null,matchedBy:alias?'alias':null};
+    if(!target) return {row:null,matchedBy:null};
+    const {data,error}=await supabaseClient.rpc('saree_lookup_product_by_barcode',{p_barcode:target});
+    if(error) throw error;
+    if(!data?.product_id) return {row:null,matchedBy:null};
+    return {
+      row:{product_id:data.product_id, products:{id:data.product_id,name:data.name,brand:data.brand,unit:data.unit,category:data.category,image_url:data.image_url,description:data.description,company_id:data.company_id,barcode:data.barcode}},
+      matchedBy:data.is_primary?'primary':'alias',
+      central:data
+    };
   };
 
   window.setScannedStoreBarcodeForForm = async function(storeId,code,productId){
@@ -154,7 +154,6 @@
     ensureAdditionalBarcodeUI();
     const primary=normBarcode($('barcode')?.value);
     if(productId && primary!==target){
-      try{ await loadStoreAdditionalBarcodes(storeId,productId); }catch(err){ console.warn('load aliases after scan:',err); }
       if(!additionalBarcodes().includes(target)) window.__sareeStoreAdditionalBarcodes.push(target);
       renderAdditionalBarcodes();
       return;
@@ -201,11 +200,20 @@
       let id=localStorage.getItem('saree_visitor_id');
       if(!id){id=(crypto.randomUUID?crypto.randomUUID():('v_'+Date.now()+'_'+Math.random().toString(36).slice(2)));localStorage.setItem('saree_visitor_id',id);}
       return id;
-    }catch(_){ return 'v_'+Date.now()+'_'+Math.random().toString(36).slice(2); }
+    }catch(_){
+      try{
+        let id=sessionStorage.getItem('saree_visitor_id');
+        if(!id){id=(crypto.randomUUID?crypto.randomUUID():('v_'+Date.now()+'_'+Math.random().toString(36).slice(2)));sessionStorage.setItem('saree_visitor_id',id);}
+        return id;
+      }catch(__){ return 'v_'+Date.now(); }
+    }
   }
   window.recordSareeQrVisit = async function(entityType,entityId){
     if(!entityType || !entityId || !window.supabaseClient) return false;
-    try{const {error}=await supabaseClient.rpc('record_qr_visit',{p_entity_type:String(entityType),p_entity_id:String(entityId),p_visitor_id:visitorId()});if(error)throw error;return true;}catch(err){console.warn('QR visit:',err);return false;}
+    let legacyOk=false;
+    try{const {error}=await supabaseClient.rpc('record_qr_visit',{p_entity_type:String(entityType),p_entity_id:String(entityId),p_visitor_id:visitorId()});if(error)throw error;legacyOk=true;}catch(err){console.warn('QR visit:',err);}
+    const monthlyOk=typeof window.sareeTrackStat==='function' ? await window.sareeTrackStat(entityType,entityId,'qr',visitorId()) : false;
+    return legacyOk || monthlyOk;
   };
   window.getSareeQrVisitCount = async function(entityType,entityId){
     if(!entityType || !entityId || !window.supabaseClient) return null;
@@ -223,6 +231,63 @@
       console.warn('site visit count:',err);
       return null;
     }
+  };
+
+  function sareeMonthKey(){
+    try{return new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Damascus',year:'numeric',month:'2-digit'}).format(new Date()).slice(0,7);}
+    catch(_){return new Date().toISOString().slice(0,7);}
+  }
+  window.sareeMonthlyKey=sareeMonthKey;
+
+  function sareePersonKey(){
+    try{return (typeof profileData!=='undefined' && profileData?.id) ? String(profileData.id) : visitorId();}
+    catch(_){return visitorId();}
+  }
+
+  window.sareeTrackStat = async function(entityType,entityId,eventType,personKey){
+    if(!window.supabaseClient || !entityType || !eventType) return false;
+    const entityIdValue=String(entityId || 'site');
+    const key=personKey || (eventType==='whatsapp' ? sareePersonKey() : null);
+    try{
+      const targets=[{type:String(entityType),id:entityIdValue}];
+      if(entityType!=='site' && ['view','order','whatsapp','qr'].includes(eventType)) targets.push({type:'site',id:'site'});
+      for(const t of targets){
+        const {error}=await supabaseClient.rpc('record_saree_stat_event',{
+          p_entity_type:t.type,p_entity_id:t.id,p_event_type:String(eventType),p_person_key:eventType==='whatsapp'?String(key):null
+        });
+        if(error) throw error;
+      }
+      return true;
+    }catch(err){console.warn('monthly statistic:',err);return false;}
+  };
+  window.sareeTrackWhatsapp = function(entityType,entityId){
+    const person=sareePersonKey();
+    return window.sareeTrackStat(entityType,entityId,'whatsapp',person);
+  };
+  window.sareeTrackSessionVisit = async function(entityType,entityId){
+    const key='saree_monthly_visit:'+sareeMonthKey()+':'+String(entityType)+':'+String(entityId);
+    try{if(sessionStorage.getItem(key)==='1') return false;sessionStorage.setItem(key,'1');}catch(_){ }
+    return window.sareeTrackStat(entityType,entityId,'visit',visitorId());
+  };
+  window.sareeTrackSessionView = async function(){
+    const key='saree_monthly_site_view_once:'+sareeMonthKey();
+    try{if(sessionStorage.getItem(key)==='1') return false;sessionStorage.setItem(key,'1');}catch(_){ }
+    return window.sareeTrackStat('site','site','view');
+  };
+  window.sareeLoadMonthlyStats = async function(entityType,entityId,limit=24){
+    if(!window.supabaseClient) return [];
+    const fn=(entityType==='site')?'saree_site_monthly_stats':'saree_owner_monthly_stats';
+    const args=entityType==='site'?{p_limit:limit}:{p_entity_type:String(entityType),p_entity_id:String(entityId),p_limit:limit};
+    const {data,error}=await supabaseClient.rpc(fn,args);
+    if(error) throw error;
+    return Array.isArray(data)?data:[];
+  };
+  function monthlyStatsTable(rows){
+    if(!rows.length) return '<p class="muted">لا توجد بيانات شهرية بعد.</p>';
+    return `<div style="overflow:auto"><table style="width:100%;border-collapse:collapse"><thead><tr><th>الشهر</th><th>الطلبات</th><th>المشاهدات</th><th>واتساب</th><th>الزيارات</th><th>QR</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${esc(new Date(String(r.month_start)+'T00:00:00').toLocaleDateString('ar',{year:'numeric',month:'long'}))}</td><td>${fmt(r.orders_count)}</td><td>${fmt(r.views_count)}</td><td>${fmt(r.whatsapp_people_count)}</td><td>${fmt(r.visits_count)}</td><td>${fmt(r.qr_visits_count)}</td></tr>`).join('')}</tbody></table></div>`;
+  }
+  window.sareeRenderMonthlyStats = function(nodeId,rows){
+    const node=$(nodeId); if(node) node.innerHTML=monthlyStatsTable(rows||[]);
   };
 
   window.__sareeLocation = window.__sareeLocation || {lat:null,lng:null,requested:false,ready:false};
@@ -264,8 +329,9 @@
         state.lng = pos.coords.longitude;
         state.ready = true;
         updateDistancesInPlace();
+        try{window.renderProducts?.();}catch(_){ }
       },
-      () => { state.ready = false; },
+      () => { state.ready = false; try{window.renderProducts?.();}catch(_){ } },
       {enableHighAccuracy:false,timeout:9000,maximumAge:300000}
     );
   };
@@ -333,7 +399,7 @@
       <div class="actions">
         <button type="button" class="btn primary" data-store-open="${esc(st.id)}">فتح صفحة المتجر</button>
         ${maps ? `<button type="button" class="btn secondary" data-map-open="${esc(maps)}">الاتجاهات</button>` : ''}
-        ${wa ? `<a class="btn secondary" href="${esc(wa)}" target="_blank" rel="noopener">💬 واتساب</a>` : ''}
+        ${wa ? `<a class="btn secondary" href="${esc(wa)}" target="_blank" rel="noopener" onclick="window.sareeTrackWhatsapp?.('store','${esc(st.id)}')">💬 واتساب</a>` : ''}
       </div>
     </article>`;
   }
@@ -369,26 +435,61 @@
   function priceOld(v){ return typeof window.old === 'function' ? window.old(v) : Number(v||0)*100; }
   function fmt(v){ return typeof window.f === 'function' ? window.f(v) : Number(v||0).toLocaleString('en-US',{maximumFractionDigits:2}); }
 
+  function storeForListing(row){
+    const id=String(row?.store_id || row?.stores?.id || '');
+    return (stores||[]).find(s=>String(s.id)===id) || row?.stores || null;
+  }
+  function distanceKmForStore(st){
+    const loc=window.__sareeLocation;
+    if(!loc?.ready || loc.lat==null || loc.lng==null || st?.latitude==null || st?.longitude==null) return null;
+    return haversine(loc.lat,loc.lng,Number(st.latitude),Number(st.longitude));
+  }
+  function sortListingsByDistance(rows){
+    const list=Array.isArray(rows)?rows.slice():[];
+    return list.sort((a,b)=>{
+      const sa=storeForListing(a), sb=storeForListing(b);
+      const da=distanceKmForStore(sa), db=distanceKmForStore(sb);
+      if(window.__sareeLocation?.ready){
+        if(da==null && db!=null) return 1;
+        if(da!=null && db==null) return -1;
+        if(da!=null && db!=null && Math.abs(da-db)>0.0001) return da-db;
+      }
+      const na=String(sa?.name||a?.stores?.name||'');
+      const nb=String(sb?.name||b?.stores?.name||'');
+      return na.localeCompare(nb,'ar');
+    });
+  }
+  function storeListingMarkup(row){
+    const st=storeForListing(row)||{};
+    const distance=distanceText(st);
+    const updated=row?.updated_at?new Date(row.updated_at).toLocaleString('ar'):'—';
+    return `<div class="priceRow" style="margin-top:8px"><div class="row" style="justify-content:space-between;align-items:center"><b>${esc(st.name||row?.stores?.name||'متجر')}</b><span class="price">${fmt(priceNumber(row))} ل.س</span></div><div class="meta"><span>${distance?'📏 '+esc(distance):'📍 الموقع غير متاح'}</span><span>${esc([st.city,st.area].filter(Boolean).join(' — '))}</span></div><div class="muted">آخر تحديث للسعر: ${esc(updated)}</div></div>`;
+  }
+  window.sareeSortListingsByDistance=sortListingsByDistance;
+  window.sareeDistanceText=distanceText;
+
   window.renderProducts = function(){
     const q=(document.getElementById('search')?.value||'').trim().toLowerCase();
     const city=document.getElementById('cityFilter')?.value||'';
     const cat=document.getElementById('catFilter')?.value||'';
+    const publicStoreIds=new Set((stores||[]).filter(st=>st.active!==false).map(st=>String(st.id)));
     const list=(products||[]).map(p=>{
-      const ps=(prices||[]).filter(x=>String(x.product_id)===String(p.id) && x.approved===true && x.price_new!=null).sort((a,b)=>Number(a.price_new)-Number(b.price_new));
-      return {p,ps,c:ps[0]||null};
+      const ps=(prices||[]).filter(x=>String(x.product_id)===String(p.id) && x.approved===true && x.price_new!=null && (x.store_id?publicStoreIds.has(String(x.store_id)):x.stores?.active!==false));
+      return {p,ps:sortListingsByDistance(ps)};
     }).filter(x=>{
-      if(!x.c) return false;
+      if(!x.ps.length) return false;
       const p=x.p;
       const txt=[p.name,p.description,p.brand,p.category,p.unit].join(' ').toLowerCase();
-      const cityOk=!city || x.ps.some(row=>String(row.stores?.city||'')===String(city)||String(row.stores?.area||'')===String(city));
+      const cityOk=!city || x.ps.some(row=>String(storeForListing(row)?.city||'')===String(city)||String(storeForListing(row)?.area||'')===String(city));
       return (!q||txt.includes(q)) && (!cat||p.category===cat) && cityOk;
     });
     const box=document.getElementById('products');
     if(!box) return;
-    box.innerHTML=list.map(({p,ps,c})=>{
+    box.innerHTML=list.map(({p,ps})=>{
       const fav=favorites.includes(p.id);
-      return `<article class="card">${p.image_url?`<img class="img" src="${esc(p.image_url)}" alt="${esc(p.name)}" loading="lazy">`:''}<span class="pill">${esc(p.category||'عام')}</span><div class="name">${esc(p.name||'مادة')}</div><div class="muted">${esc(p.unit||'')} ${p.brand?'• '+esc(p.brand):''}</div><div class="price">${fmt(priceNumber(c))} ل.س جديدة</div><div class="old">${priceOld(priceNumber(c))} ل.س قديمة</div><div class="meta"><span>الأرخص: ${esc(c.stores?.name||'')}</span><span>${esc(c.stores?.city||'')}</span></div><div class="meta"><span>${ps.length} متاجر</span><span>آخر تحديث: ${c.updated_at?esc(new Date(c.updated_at).toLocaleDateString('ar')):'—'}</span></div><div class="actions"><button class="btn secondary" onclick="toggleFav('${esc(p.id)}')">${fav?'★ إزالة من المفضلة':'☆ أضف للمفضلة'}</button><button class="btn primary" onclick="window.sareeOpenProductInfo?.('${esc(p.id)}')">تفاصيل الأسعار</button><button class="btn secondary" onclick="addBasket('${esc(p.id)}')">أضف للسلة</button></div></article>`;
-    }).join('') || '<div class="card muted">لا توجد مواد لها أسعار معتمدة حالياً.</div>';
+      return `<article class="card">${p.image_url?`<img class="img" src="${esc(p.image_url)}" alt="${esc(p.name)}" loading="lazy">`:''}<span class="pill">${esc(p.category||'عام')}</span><div class="name">${esc(p.name||'مادة')}</div><div class="muted">${esc(p.unit||'')} ${p.brand?'• '+esc(p.brand):''}</div><div class="meta"><span>${ps.length} متاجر مسجلة</span><span>الترتيب: الأقرب إلى الأبعد</span></div><div>${ps.map(storeListingMarkup).join('')}</div><div class="actions"><button class="btn secondary" onclick="toggleFav('${esc(p.id)}')">${fav?'★ إزالة من المفضلة':'☆ أضف للمفضلة'}</button><button class="btn primary" onclick="window.sareeOpenProductInfo?.('${esc(p.id)}')">تفاصيل الأسعار</button><button class="btn secondary" onclick="addBasket('${esc(p.id)}')">أضف للسلة</button></div></article>`;
+    }).join('') || '<div class="card muted">لا توجد نتائج.</div>';
+    window.requestSareeLocation?.();
   };
 
   async function loadApprovedStoreListings(storeId){
@@ -403,7 +504,7 @@
     if(!rows.length) return rows;
     const productIds=[...new Set(rows.map(r=>r.product_id).filter(Boolean))];
     if(!productIds.length) return rows;
-    const {data:aliases,error:aliasError}=await supabaseClient.from(STORE_BARCODE_TABLE)
+    const {data:aliases,error:aliasError}=await supabaseClient.from(LEGACY_STORE_BARCODE_TABLE)
       .select('store_id,product_id,barcode')
       .eq('store_id',storeId).in('product_id',productIds);
     if(aliasError){
@@ -459,6 +560,7 @@
     try{ await refreshStores(); }catch(err){ console.warn('stores:',err); }
     const st = (stores || []).find(x=>String(x.id)===String(storeId));
     if(!st){ title.textContent='المتجر'; body.innerHTML='<div class="card muted">المتجر غير موجود أو غير متاح حالياً.</div>'; return; }
+    window.sareeTrackStat?.('store',st.id,'view');
     if(typeof window.recordStoreVisit==='function') window.recordStoreVisit(st.id).catch(()=>{});
     const qrMode=new URLSearchParams(location.search).get('qr')==='1';
     if(qrMode && typeof window.recordSareeQrVisit==='function') window.recordSareeQrVisit('store',st.id).catch(()=>{});
@@ -479,7 +581,7 @@
         ${[st.city,st.area].filter(Boolean).length ? `<p class="muted">📍 ${esc([st.city,st.area].filter(Boolean).join(' — '))}</p>` : ''}
         ${st.address ? `<p class="muted">📍 العنوان: ${esc(st.address)}</p>` : ''}
         ${st.phone ? `<div class="actions"><a class="btn secondary" href="tel:${esc(st.phone)}">📞 الهاتف</a></div>` : ''}
-        ${wa ? `<div class="actions"><a class="btn primary" href="${esc(wa)}" target="_blank" rel="noopener">💬 واتساب المتجر</a></div>` : ''}
+        ${wa ? `<div class="actions"><a class="btn primary" href="${esc(wa)}" target="_blank" rel="noopener" onclick="window.sareeTrackWhatsapp?.('store','${esc(st.id)}')">💬 واتساب المتجر</a></div>` : ''}
         ${st.opening_hours ? `<p class="muted">🕐 ساعات الدوام: ${esc(st.opening_hours)}</p>` : ''}
         ${st.working_days ? `<p class="muted">📅 أيام العمل: ${esc(st.working_days)}</p>` : ''}
         ${maps ? `<button type="button" class="btn secondary" id="storeDirectionsBtn">موقع واتجاه المتجر</button>` : ''}
@@ -546,14 +648,26 @@
     if(result) result.innerHTML='';
     try{
       const found=await window.lookupStoreBarcode(storeId,code);
-      const unique=found.row ? uniqueListings([found.row]) : [];
-      if(!unique.length){
-        if(msg) msg.textContent='لا توجد مادة بهذا الباركود في هذا المتجر.';
-        if(result) result.innerHTML='<div class="card muted">لم يتم العثور على المادة داخل هذا المتجر.</div>';
+      const productId=found.central?.product_id || found.row?.product_id || null;
+      if(!productId){
+        if(msg) msg.textContent='لا توجد مادة بهذا الباركود في المنصة.';
+        if(result) result.innerHTML='<div class="card muted">لم يتم العثور على المادة في المنصة.</div>';
         return;
       }
-      const row = unique[0];
-      const p = row.products || {};
+      const {data:listing,error:listingError}=await supabaseClient
+        .from('price_listings')
+        .select('id,price_new,price,store_id,product_id,approved,updated_at,products(*)')
+        .eq('store_id',storeId)
+        .eq('product_id',productId)
+        .eq('approved',true)
+        .maybeSingle();
+      if(listingError) throw listingError;
+      if(!listing){
+        if(msg) msg.textContent='لا توجد مادة بهذا الباركود في هذا المتجر.';
+        if(result) result.innerHTML='<div class="card muted">المادة موجودة في المنصة، لكنها غير مضافة لهذا المتجر.</div>';
+        return;
+      }
+      const row={...listing,products:listing.products||found.row?.products||{}};
       if(msg) msg.textContent='تم العثور على مادة واحدة ضمن هذا المتجر.';
       if(result) result.innerHTML = renderStorePriceCards([row],storeId);
       bindMaterialActions(result);
@@ -582,9 +696,10 @@
   }
   async function storeBarcodeExists(storeId,code,excludeProductId){
     const barcode = normBarcode(code);
-    if(!barcode) return false;
-    const rows = await loadApprovedStoreListings(storeId);
-    return rows.some(r => String(r.product_id)!==String(excludeProductId||'') && rowBarcodeMatches(r,barcode));
+    if(!barcode || !window.supabaseClient) return false;
+    const {data,error}=await supabaseClient.rpc('saree_lookup_product_by_barcode',{p_barcode:barcode});
+    if(error) throw error;
+    return !!data?.product_id && String(data.product_id)!==String(excludeProductId||'');
   }
 
   function resetMaterialForm(){
@@ -706,33 +821,16 @@
         const {data:row,error}=await supabaseClient.from('price_listings').select('id,store_id,product_id,price_new,price,products(*)').eq('id',editing.listingId).eq('store_id',storeId).single();
         if(error) throw error;
         const current=row.products||{};
-        if(barcode && await storeBarcodeExists(storeId,barcode,row.product_id)) return alert('هذا الباركود مستخدم لمادة أخرى داخل هذا المتجر.');
+        if(barcode && await storeBarcodeExists(storeId,barcode,row.product_id)) return alert('هذا الباركود مستخدم لمادة أخرى في المنصة.');
         try{ await validateAdditionalBarcodes(storeId,row.product_id); }catch(err){ return alert(err.message||'تعذر التحقق من الباركودات الإضافية.'); }
         let imageUrl=current.image_url||null;
         if(file) imageUrl=await uploadImage(file,'materials');
         const productValues={name:n||current.name||'مادة',brand:brand||null,unit:unit||null,category,image_url:imageUrl,barcode:barcode||null,company_id:companyId||null};
-        const sharedWithOtherStore=await productUsedByOtherStores(row.product_id,storeId);
-        if(role()==='store' || sharedWithOtherStore){
-          const user=await ensureCurrentUser();
-          const oldProductId=row.product_id;
-          const {data:clone,error:cloneError}=await supabaseClient.from('products').insert({...productValues,active:true,created_by:user.id}).select().single();
-          if(cloneError) throw cloneError;
-          const {error:updateListingError}=await supabaseClient.from('price_listings').update({product_id:clone.id,price_new:v,price:v,approved:true,updated_at:new Date().toISOString()}).eq('id',editing.listingId).eq('store_id',storeId);
-          if(updateListingError) throw updateListingError;
-          const {error:oldBarcodeDeleteError}=await supabaseClient.rpc('store_set_product_barcodes',{
-            p_store_id:String(storeId),
-            p_product_id:String(oldProductId),
-            p_barcodes:[]
-          });
-          if(oldBarcodeDeleteError) throw oldBarcodeDeleteError;
-          await saveStoreAdditionalBarcodes(storeId,clone.id);
-        }else{
-          const {error:productError}=await supabaseClient.from('products').update(productValues).eq('id',row.product_id);
-          if(productError) throw productError;
-          const {error:updateListingError}=await supabaseClient.from('price_listings').update({price_new:v,price:v,approved:true,updated_at:new Date().toISOString()}).eq('id',editing.listingId).eq('store_id',storeId);
-          if(updateListingError) throw updateListingError;
-          await saveStoreAdditionalBarcodes(storeId,row.product_id);
-        }
+        const {error:productError}=await supabaseClient.from('products').update(productValues).eq('id',row.product_id);
+        if(productError) throw productError;
+        const {error:updateListingError}=await supabaseClient.from('price_listings').update({price_new:v,price:v,approved:true,updated_at:new Date().toISOString()}).eq('id',editing.listingId).eq('store_id',storeId);
+        if(updateListingError) throw updateListingError;
+        await saveStoreAdditionalBarcodes(storeId,row.product_id);
         alert('تم حفظ تعديلات المادة بنجاح ✅');
         window.__editingMaterial=null;
         await window.renderStoreDetail(storeId);
@@ -775,12 +873,10 @@
             || requestedBarcode!==normBarcode(baseProduct.barcode||'')
             || String(companyId||'')!==String(baseProduct.company_id||'')
             || Boolean(file);
-          if(requestedBarcode && requestedBarcode!==normBarcode(baseProduct.barcode||'') && await storeBarcodeExists(storeId,requestedBarcode,productId)) return alert('هذا الباركود مستخدم لمادة أخرى داخل هذا المتجر.');
-          const sharedWithOtherStore=await productUsedByOtherStores(productId,storeId);
-          if(sharedWithOtherStore || dataChanged){
-            const {data:clone,error:cloneError}=await supabaseClient.from('products').insert({name:n||baseProduct.name||'مادة',brand:brand||null,unit:unit||null,category,barcode:requestedBarcode||null,image_url:requestedImage,company_id:companyId||null,active:true,created_by:profileData.id}).select().single();
-            if(cloneError) throw cloneError;
-            productId=clone.id;
+          if(requestedBarcode && requestedBarcode!==normBarcode(baseProduct.barcode||'') && await storeBarcodeExists(storeId,requestedBarcode,productId)) return alert('هذا الباركود مستخدم لمادة أخرى في المنصة.');
+          if(dataChanged){
+            const {error:productUpdateError}=await supabaseClient.from('products').update({name:n||baseProduct.name||'مادة',brand:brand||null,unit:unit||null,category,barcode:requestedBarcode||null,image_url:requestedImage,company_id:companyId||null}).eq('id',productId);
+            if(productUpdateError) throw productUpdateError;
           }else if(imageUrl){
             const {error:imageError}=await supabaseClient.from('products').update({image_url:imageUrl}).eq('id',productId);
             if(imageError) throw imageError;
@@ -866,7 +962,7 @@
         ${st?.image_url ? `<img class="img storeLogo" src="${esc(st.image_url)}" alt="${esc(st.name)}">` : ''}
         <div class="name">${esc(st?.name||'لا يوجد متجر مرتبط')}</div>
         <div class="notice ${can?'':'pending'}">${can?'صلاحية كاملة لإدارة متجرك ومواده وأسعاره والنشر المباشر.':'الحساب غير مرتبط بمتجر بعد.'}</div>
-        ${st ? `<div class="card" style="margin-top:10px"><div class="name" id="merchantVisitorCount">—</div><div class="muted">إجمالي زيارات المتجر</div></div>` : ''}
+        ${st ? `<div class="card" style="margin-top:10px"><div class="name" id="merchantVisitorCount">—</div><div class="muted">إجمالي زيارات المتجر</div></div><div class="card" style="margin-top:10px"><h2>الإحصائيات الشهرية</h2><div id="merchantMonthlyStats" class="muted">جاري التحميل...</div></div>` : ''}
         <div class="actions">
           ${st ? `<button type="button" class="btn primary" onclick="openStore('${esc(st.id)}')">فتح متجري</button><button type="button" class="btn secondary" onclick="openMerchantStoreEdit('${esc(st.id)}')">تعديل بيانات المتجر</button>` : ''}
           <button type="button" class="btn primary" ${can?'':'disabled'} onclick="showAdd()">إضافة مادة / سعر</button>
@@ -875,15 +971,16 @@
       </div>
       <div class="card"><h2>طلباتك</h2>${error?`<p class="muted">${esc(error.message)}</p>`:reqs.length?reqs.map(r=>`<div class="priceRow"><b>${esc(r.product_name||'طلب تعديل سعر')}</b><div class="muted">${r.price_new!=null?fmt(r.price_new)+' ل.س جديدة':''} • ${r.created_at?esc(new Date(r.created_at).toLocaleString('ar')):''}</div><span class="pill">${r.status==='pending'?'قيد المراجعة':r.status==='approved'?'مقبول':'مرفوض'}</span>${r.reason?`<div class="muted">السبب: ${esc(r.reason)}</div>`:''}</div>`).join(''):'<p class="muted">لا توجد طلبات.</p>'}</div>`;
     if(typeof window.loadMerchantStoreVisitorCount==='function') window.loadMerchantStoreVisitorCount();
+    if(st && typeof window.sareeLoadMonthlyStats==='function') window.sareeLoadMonthlyStats('store',st.id).then(rows=>window.sareeRenderMonthlyStats?.('merchantMonthlyStats',rows)).catch(err=>console.warn('merchant monthly stats:',err));
   };
 
   // تسجيل زيارة المتجر وتحديث العداد
   window.recordStoreVisit = async function(storeId){
     if(!storeId || !window.supabaseClient) return false;
     try{
-      const {error}=await supabaseClient.rpc('record_store_visit',{p_store_id:storeId});
-      if(error) throw error;
-      return true;
+      const sessionResult=await window.sareeTrackSessionVisit('store',storeId);
+      try{await supabaseClient.rpc('record_store_visit',{p_store_id:storeId});}catch(err){console.warn('legacy record store visit:',err);}
+      return sessionResult!==false;
     }catch(err){
       console.warn('record store visit:',err);
       return false;
@@ -1179,28 +1276,12 @@
             };
             if(r.barcode) productUpdate.barcode=r.barcode;
 
-            const sharedWithOtherStore=await productUsedByOtherStores(existing.product_id,st.id);
-            let listingProductId=existing.product_id;
-            const dataChanged=String(productUpdate.name||'')!==String(current.name||'')
-              || String(productUpdate.brand||'')!==String(current.brand||'')
-              || String(productUpdate.unit||'')!==String(current.unit||'')
-              || String(productUpdate.category||'عام')!==String(current.category||'عام')
-              || (r.barcode && normBarcode(r.barcode)!==normBarcode(current.barcode||''));
-            if(sharedWithOtherStore || dataChanged){
-              const {data:clone,error:cloneError}=await supabaseClient
-                .from('products')
-                .insert({...productUpdate,image_url:current.image_url||null,active:true,created_by:profileData.id})
-                .select()
-                .single();
-              if(cloneError)throw cloneError;
-              listingProductId=clone.id;
-            }else{
-              const {error:productUpdateError}=await supabaseClient
-                .from('products')
-                .update(productUpdate)
-                .eq('id',existing.product_id);
-              if(productUpdateError)throw productUpdateError;
-            }
+            const listingProductId=existing.product_id;
+            const productUpdateErrorResult=await supabaseClient
+              .from('products')
+              .update(productUpdate)
+              .eq('id',existing.product_id);
+            if(productUpdateErrorResult.error)throw productUpdateErrorResult.error;
 
             const pricePayload={
               price_new:Number(r.price),
@@ -1291,6 +1372,7 @@
         </div></div></div>`).join('') : '<p class="muted">لا توجد متاجر.</p>';
     const usersHtml=users.filter(u=>u.id!==ADMIN_UID).length ? users.filter(u=>u.id!==ADMIN_UID).map(u=>`<div class="priceRow"><div class="accordionHead" data-toggle-id="user_${esc(u.id)}"><b>${esc(u.name||u.id)}</b><span>▾</span></div><div id="user_${esc(u.id)}" class="accordionBody hidden"><div class="muted">الدور: ${esc(u.role||'user')} ${u.phone?'• 📞 '+esc(u.phone):''}${u.store_id?' • مرتبط بمتجر':''}</div><div class="actions"><button type="button" class="btn secondary" onclick="setAccountToUser('${esc(u.id)}')">تحويل إلى مستخدم وإزالة الربط</button></div></div></div>`).join('') : '<p class="muted">لا توجد حسابات.</p>';
     $('adminPanel').innerHTML=`
+      <div class="card"><h2>الإحصائيات الشهرية للموقع</h2><div id="adminMonthlyStats" class="muted">جاري التحميل...</div></div>
       <div class="grid"><div class="card"><div class="name">${requests.length}</div><div class="muted">طلبات معلقة</div></div><div class="card"><div class="name">${(stores||[]).length}</div><div class="muted">متاجر</div></div><div class="card"><div class="name">${(products||[]).length}</div><div class="muted">منتجات</div></div><div class="card"><div class="name">${users.length}</div><div class="muted">حسابات</div></div><div class="card"><div class="name" id="visitorCount">—</div><div class="muted">إجمالي زيارات الموقع</div></div></div>
       <div class="card"><div class="accordionHead" data-toggle-id="adminRequestsBody"><h2>طلبات التجار</h2><span>▾</span></div><div id="adminRequestsBody" class="accordionBody hidden">${pending}</div></div>
       <div class="card"><div class="accordionHead" data-toggle-id="adminAddStoreBody"><h2>إضافة متجر</h2><span>▾</span></div><div id="adminAddStoreBody" class="accordionBody hidden"><div class="two"><input id="sn" placeholder="اسم المتجر"><input id="scity" placeholder="المدينة"><input id="sarea" placeholder="المنطقة"><input id="saddr" placeholder="العنوان"><input id="sphone" placeholder="الهاتف"><input id="swhatsapp" placeholder="رابط واتساب المتجر"><select id="scompany"><option value="">بدون شركة</option>${companies.map(c=>`<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')}</select><input id="shours" placeholder="ساعات الدوام"><input id="sdays" placeholder="أيام العمل"><input id="simg" type="file" accept="image/*"></div><button class="btn primary" onclick="adminAddStore()">إضافة المتجر</button></div></div>
@@ -1309,6 +1391,7 @@
     if($('signupPhoneAdminToggle')){ $('signupPhoneAdminToggle').checked=window.__sareeSignupPhoneEnabled===true; loadSignupPhoneSetting().then(()=>{ $('signupPhoneAdminToggle').checked=window.__sareeSignupPhoneEnabled===true; }).catch(console.warn); }
     window.loadVisitorCount();
     window.loadAdminStoreVisitorCounts();
+    if(typeof window.sareeLoadMonthlyStats==='function') window.sareeLoadMonthlyStats('site','site').then(rows=>window.sareeRenderMonthlyStats?.('adminMonthlyStats',rows)).catch(err=>console.warn('admin monthly stats:',err));
     window.ensureSareeAdminInstallPanel?.();
     setTimeout(buildAllQRCodes,30);
   };
