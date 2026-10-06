@@ -442,15 +442,30 @@ async function handleBarcode(barcode) {
       const scopedStoreId = storeId ||
         (typeof profileData !== 'undefined' && profileData?.store_id) ||
         el('merchantStoreSelect')?.value ||
-        (typeof window.__editingMaterial!=='undefined' ? window.__editingMaterial?.storeId : null) ||
         new URLSearchParams(location.search).get('store') || null;
 
-      let data = null;
-      if(typeof supabaseClient!=='undefined'){
-        const {data:central,error:centralError}=await supabaseClient.rpc('saree_lookup_product_by_barcode',{p_barcode:code});
-        if(centralError) throw centralError;
-        data=Array.isArray(central)?central[0]||null:central||null;
+      if (!scopedStoreId) {
+        const msg = el('barcodeMsg');
+        if (msg) msg.textContent = 'تم قراءة الباركود. اختر المتجر ثم احفظ المادة.';
+        return;
       }
+
+      let found={row:null,matchedBy:null};
+      if(typeof window.lookupStoreBarcode==='function'){
+        found=await window.lookupStoreBarcode(scopedStoreId,code);
+      }else{
+        const { data: listings, error } = await supabaseClient
+          .from('price_listings')
+          .select('id,store_id,product_id,approved,updated_at,products(*)')
+          .eq('store_id', scopedStoreId)
+          .eq('approved', true)
+          .order('updated_at', { ascending:false });
+        if (error) throw error;
+        const listing = (Array.isArray(listings) ? listings : []).find(row => cleanBarcode(row?.products?.barcode || row?.barcode || '') === code);
+        found={row:listing||null,matchedBy:listing?'primary':null};
+      }
+      const listing=found.row;
+      const data = listing?.products || null;
 
       if (!data) {
         const existing = el('existingProduct');
@@ -459,7 +474,7 @@ async function handleBarcode(barcode) {
           existing.dispatchEvent(new Event('change', { bubbles:true }));
         }
         const msg = el('barcodeMsg');
-        if (msg) msg.textContent = 'هذا الباركود غير موجود مركزيًا. يمكنك إنشاء مادة جديدة وسيتم حفظ الباركود مركزيًا.';
+        if (msg) msg.textContent = 'لم نجد مادة بهذا الباركود داخل هذا المتجر. يمكنك إضافة مادة جديدة.';
         return;
       }
 
@@ -480,18 +495,19 @@ async function handleBarcode(barcode) {
         if (el(id)) el(id).value = data[id] || '';
       });
       if (el('merchantCompanySelect')) el('merchantCompanySelect').value = data.company_id || '';
-      if (el('barcode')) el('barcode').value = cleanBarcode(data.barcode || code);
-      if (typeof window.showCentralProductImagePreview === 'function') {
-        window.showCentralProductImagePreview(data.image_url || '');
+      if (found.matchedBy === 'alias' && typeof window.setScannedStoreBarcodeForForm === 'function') {
+        if (el('barcode')) el('barcode').value = cleanBarcode(data.barcode || '');
+        await window.setScannedStoreBarcodeForForm(scopedStoreId,code,data.id);
       }
+
       const msg = el('barcodeMsg');
-      if (msg) msg.textContent = scopedStoreId
-        ? 'تم التعرف على المادة من الباركود المركزي وتعبئة بياناتها تلقائيًا.'
-        : 'تم التعرف على المادة من الباركود المركزي وتعبئة بياناتها تلقائيًا.';
+      if (msg) msg.textContent = found.matchedBy === 'alias'
+        ? 'تم العثور على المادة بالباركود الإضافي وتعبئة بياناتها.'
+        : 'تم العثور على المادة داخل هذا المتجر وتعبئة بياناتها.';
     } catch (error) {
       console.error('Barcode product lookup:', error);
       const msg = el('barcodeMsg');
-      if (msg) msg.textContent = 'تم قراءة الباركود، لكن تعذر جلب بيانات المادة المركزية.';
+      if (msg) msg.textContent = 'تم قراءة الباركود، لكن تعذر جلب بيانات المادة من المتجر.';
     }
   }
 
