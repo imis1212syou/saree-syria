@@ -256,6 +256,22 @@
         const visitId=(crypto.randomUUID?crypto.randomUUID():('visit_'+Date.now()+'_'+Math.random().toString(36).slice(2)));
         await supabaseClient.rpc('record_company_visit',{p_company_id:id,p_visitor_id:visitId});
       }catch(_){ }
+
+      // الإحصائيات الشهرية: كل فتح لصفحة الشركة يسجل مشاهدة وزيارة جديدة.
+      try{
+        await supabaseClient.rpc('saree_record_stat_event',{
+          p_entity_type:'company',
+          p_entity_id:String(id),
+          p_event:'view',
+          p_visitor_id:null
+        });
+        await supabaseClient.rpc('saree_record_stat_event',{
+          p_entity_type:'company',
+          p_entity_id:String(id),
+          p_event:'visit',
+          p_visitor_id:null
+        });
+      }catch(_){ }
     }catch(err){alert(err.message||'تعذر فتح الشركة')}
   };
 
@@ -300,7 +316,10 @@
     const lines=items.map(([pid,x],i)=>{const line=Number(x.qty||0)*Number(x.price||0);subtotal+=line;return `${i+1}) ${x.name}${x.unit?' ('+x.unit+')':''} × ${x.qty} = ${money(line)} ل.س`});
     const name=prompt('اسم العميل (اختياري):','')??'';const customerPhone=prompt('رقم هاتف العميل (اختياري):','')??'';const notes=prompt('ملاحظات الطلب (اختياري):','')??'';
     const msg=`طلب من سعرلي سوريا\nالشركة: ${currentCompany.name||''}\n\n${lines.join('\n')}\n\nالمجموع: ${money(subtotal)} ل.س\nأجرة التوصيل: لا توجد\n\nاسم العميل: ${name||'—'}\nهاتف العميل: ${customerPhone||'—'}\nملاحظات: ${notes||'—'}`;
-    window.sareeTrackWhatsapp?.('company',companyId);
+    try{
+      const tracked=window.sareeTrackWhatsapp?.('company',companyId);
+      if(tracked && typeof tracked.then==='function') await tracked;
+    }catch(_){ }
     window.location.href=`whatsapp://send?phone=${phone}&text=${encodeURIComponent(msg)}`;
     setCompanyCart(companyId,{});
     renderCompanyCart(companyId);

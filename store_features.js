@@ -107,12 +107,10 @@
   async function validateAdditionalBarcodes(storeId,productId){
     const desired=additionalBarcodes().filter(code=>code!==normBarcode($('barcode')?.value));
     if(!desired.length) return;
-    const {data,error}=await supabaseClient.from(STORE_BARCODE_TABLE)
-      .select('barcode,product_id').in('barcode',desired);
-    if(error) throw error;
+
     for(const code of desired){
-      const row=(data||[]).find(x=>normBarcode(x.barcode)===code);
-      if(row && String(row.product_id)!==String(productId||'')){
+      const central=await lookupCentralProductByBarcode(code);
+      if(central && String(central.id)!==String(productId||'')){
         throw new Error('هذا الباركود مرتبط بمادة أخرى على المنصة: '+code);
       }
     }
@@ -123,12 +121,15 @@
     ensureAdditionalBarcodeUI();
     const primary=normBarcode($('barcode')?.value);
     const desired=Array.from(new Set([primary,...additionalBarcodes()].map(normBarcode).filter(Boolean)));
+
     const {error}=await supabaseClient.rpc('saree_sync_product_barcodes',{
       p_store_id:String(storeId),
       p_product_id:String(productId),
       p_barcodes:desired
     });
+
     if(error) throw error;
+
     window.__sareeStoreAdditionalBarcodes=desired.filter(x=>x!==primary);
     renderAdditionalBarcodes();
   }
@@ -207,7 +208,35 @@
   }
   window.recordSareeQrVisit = async function(entityType,entityId){
     if(!entityType || !entityId || !window.supabaseClient) return false;
-    try{const {error}=await supabaseClient.rpc('record_qr_visit',{p_entity_type:String(entityType),p_entity_id:String(entityId),p_visitor_id:visitorId()});if(error)throw error;return true;}catch(err){console.warn('QR visit:',err);return false;}
+    let counted=false;
+
+    // السجل الشهري الجديد: كل فتح QR يُحسب حدثًا جديدًا.
+    try{
+      const {error}=await supabaseClient.rpc('saree_record_stat_event',{
+        p_entity_type:String(entityType),
+        p_entity_id:String(entityId),
+        p_event:'qr',
+        p_visitor_id:visitorId()
+      });
+      if(error) throw error;
+      counted=true;
+    }catch(err){
+      console.warn('monthly QR visit:',err);
+    }
+
+    // الحفاظ على عداد QR القديم الموجود في المشروع، إن كانت دالته متاحة.
+    try{
+      const {error}=await supabaseClient.rpc('record_qr_visit',{
+        p_entity_type:String(entityType),
+        p_entity_id:String(entityId),
+        p_visitor_id:visitorId()
+      });
+      if(error) throw error;
+    }catch(err){
+      console.warn('legacy QR visit:',err);
+    }
+
+    return counted;
   };
   window.getSareeQrVisitCount = async function(entityType,entityId){
     if(!entityType || !entityId || !window.supabaseClient) return null;
@@ -265,11 +294,20 @@
         return String(sa.name||'').localeCompare(String(sb.name||''),'ar');
       });
     }
-    return list.sort((a,b)=>{
+
+    // عند توفر موقع المستخدم، لا تدخل في ترتيب المسافة إلا المتاجر
+    // المسجلة التي لديها إحداثيات محفوظة فعلاً. لا نخمن الموقع.
+    const geolocated=list.filter(row=>{
+      const st=(stores||[]).find(x=>String(x.id)===String(row.store_id))||row.stores||{};
+      return Number.isFinite(Number(st.latitude)) &&
+             Number.isFinite(Number(st.longitude));
+    });
+
+    return geolocated.sort((a,b)=>{
       const sa=(stores||[]).find(x=>String(x.id)===String(a.store_id))||a.stores||{};
       const sb=(stores||[]).find(x=>String(x.id)===String(b.store_id))||b.stores||{};
-      const da=(sa.latitude!=null&&sa.longitude!=null)?haversine(loc.lat,loc.lng,Number(sa.latitude),Number(sa.longitude)):Infinity;
-      const db=(sb.latitude!=null&&sb.longitude!=null)?haversine(loc.lat,loc.lng,Number(sb.latitude),Number(sb.longitude)):Infinity;
+      const da=haversine(loc.lat,loc.lng,Number(sa.latitude),Number(sa.longitude));
+      const db=haversine(loc.lat,loc.lng,Number(sb.latitude),Number(sb.longitude));
       if(da!==db) return da-db;
       return String(sa.name||'').localeCompare(String(sb.name||''),'ar');
     });
@@ -614,10 +652,8 @@
   async function storeBarcodeExists(storeId,code,excludeProductId){
     const barcode=normBarcode(code);
     if(!barcode) return false;
-    const {data,error}=await supabaseClient.from(STORE_BARCODE_TABLE)
-      .select('product_id').eq('barcode',barcode).maybeSingle();
-    if(error) throw error;
-    return !!data && String(data.product_id)!==String(excludeProductId||'');
+    const central=await lookupCentralProductByBarcode(barcode);
+    return !!central && String(central.id)!==String(excludeProductId||'');
   }
 
   async function lookupCentralProductByBarcode(code){
@@ -629,6 +665,23 @@
     return data||null;
   }
 
+  function showCentralProductImagePreview(url){
+    const box=$('centralProductImagePreview');
+    const img=$('centralProductImage');
+    if(!box || !img) return;
+    const src=String(url||'').trim();
+    if(src){
+      img.src=src;
+      img.alt='صورة المادة المركزية';
+      box.classList.remove('hidden');
+    }else{
+      img.removeAttribute('src');
+      box.classList.add('hidden');
+    }
+  }
+
+  window.showCentralProductImagePreview=showCentralProductImagePreview;
+
   function resetMaterialForm(){
     window.__editingMaterial = null;
     window.__sareeStoreAdditionalBarcodes=[];
@@ -636,6 +689,7 @@
     if($('pimg')) $('pimg').value='';
     if($('existingProduct')) $('existingProduct').value='';
     if($('merchantCompanySelect')) $('merchantCompanySelect').value='';
+    showCentralProductImagePreview('');
     if($('addHeading')) $('addHeading').textContent='إضافة مادة أو سعر';
     if($('addSubmitBtn')) $('addSubmitBtn').textContent='إرسال للمراجعة';
     ['pn','brand','unit','cat'].forEach(id=>{ if($(id)) $(id).disabled=false; });
@@ -689,6 +743,7 @@
       $('barcode').value=normBarcode(p.barcode||data.barcode||'');
       $('pr').value=Number(data.price_new ?? data.price ?? 0);
       $('merchantStoreBox').innerHTML = `<div class="notice">تعديل مادة من متجر: <b>${esc((stores||[]).find(s=>String(s.id)===String(storeId))?.name||storeId)}</b>${p.image_url?'<br>الصورة الحالية محفوظة ما لم تختر صورة جديدة.':''}</div>`;
+      showCentralProductImagePreview(p.image_url||'');
       await loadStoreMaterialCompanyOptions(p.company_id||'');
       await loadStoreAdditionalBarcodes(storeId,data.product_id);
       $('addHeading').textContent='تعديل المادة أو السعر';
@@ -742,13 +797,13 @@
         const {data:row,error}=await supabaseClient.from('price_listings').select('id,store_id,product_id,price_new,price,products(*)').eq('id',editing.listingId).eq('store_id',storeId).single();
         if(error) throw error;
         const current=row.products||{};
-        if(barcode && await storeBarcodeExists(storeId,barcode,row.product_id)) return alert('هذا الباركود مرتبط بمادة أخرى على المنصة.');
+        const effectiveBarcode=barcode||normBarcode(current.barcode||'');
+        const centralConflict=effectiveBarcode ? await lookupCentralProductByBarcode(effectiveBarcode) : null;
+        if(centralConflict && String(centralConflict.id)!==String(row.product_id)) return alert('هذا الباركود مرتبط بمادة أخرى على المنصة. افتح المادة المركزية نفسها بدل إنشاء مادة جديدة.');
         try{ await validateAdditionalBarcodes(storeId,row.product_id); }catch(err){ return alert(err.message||'تعذر التحقق من الباركودات الإضافية.'); }
         let imageUrl=current.image_url||null;
         if(file) imageUrl=await uploadImage(file,'materials');
-        const productValues={name:n||current.name||'مادة',brand:brand||null,unit:unit||null,category,image_url:imageUrl,barcode:barcode||null,company_id:companyId||null};
-        const centralConflict=await lookupCentralProductByBarcode(barcode);
-        if(centralConflict && String(centralConflict.id)!==String(row.product_id)) return alert('هذا الباركود مرتبط بمادة أخرى على المنصة.');
+        const productValues={name:n||current.name||'مادة',brand:brand||null,unit:unit||null,category,image_url:imageUrl,barcode:effectiveBarcode||null,company_id:companyId||null};
         const {error:productError}=await supabaseClient.from('products').update(productValues).eq('id',row.product_id);
         if(productError) throw productError;
         const {error:updateListingError}=await supabaseClient.from('price_listings').update({price_new:v,price:v,approved:true,updated_at:new Date().toISOString()}).eq('id',editing.listingId).eq('store_id',storeId);
@@ -765,37 +820,45 @@
     if(isAdmin()) storeId=$('merchantStoreSelect')?.value||null;
     else if(role()==='store' && profileData.store_id) storeId=profileData.store_id;
     if(!storeId) return alert('اختر المتجر أولاً.');
-    if(!selected&&!n) return alert('اكتب اسم المادة الجديدة.');
-    try{ await validateAdditionalBarcodes(storeId,selected||null); }catch(err){ return alert(err.message||'تعذر التحقق من الباركودات الإضافية.'); }
+    if(!selected&&!n&&!barcode) return alert('امسح باركودًا أو اختر مادة موجودة أو اكتب اسم المادة الجديدة.');
 
     try{
       let imageUrl=null;
       if(file) imageUrl=await uploadImage(file,'materials');
-      let productId=selected||null;
-      if(productId){
-        const {data:p,error}=await supabaseClient.from('products').select('*').eq('id',productId).single();
+
+      // الباركود المركزي هو المرجع النهائي: عند وجوده نستخدم المنتج المركزي
+      // حتى لو كان هناك اختيار سابق لمادة أخرى.
+      let productId=null;
+      if(barcode){
+        const central=await lookupCentralProductByBarcode(barcode);
+        if(central){
+          productId=central.id;
+          ['pn','brand','unit','cat'].forEach(id=>{if($(id))$(id).value=central[id]||'';});
+          if($('merchantCompanySelect')) $('merchantCompanySelect').value=central.company_id||'';
+          $('barcode').value=normBarcode(central.barcode||barcode);
+          showCentralProductImagePreview(central.image_url||'');
+        }
+      }
+
+      if(!productId && selected){
+        const {data:p,error}=await supabaseClient.from('products').select('*').eq('id',selected).single();
         if(error) throw error;
+        productId=p.id;
         if(!barcode && p.barcode) $('barcode').value=normBarcode(p.barcode);
         if(p){
           ['pn','brand','unit','cat'].forEach(id=>{if($(id) && !$(id).value.trim()) $(id).value=p[id]||'';});
           if($('merchantCompanySelect') && !$('merchantCompanySelect').value) $('merchantCompanySelect').value=p.company_id||'';
+          showCentralProductImagePreview(p.image_url||'');
         }
       }
 
+      try{ await validateAdditionalBarcodes(storeId,productId); }catch(err){ return alert(err.message||'تعذر التحقق من الباركودات الإضافية.'); }
+
       if(isAdmin()){
         if(!productId){
-          if(barcode){
-            const central=await lookupCentralProductByBarcode(barcode);
-            if(central){
-              productId=central.id;
-              ['pn','brand','unit','cat'].forEach(id=>{if($(id))$(id).value=central[id]||'';});
-            }
-          }
-          if(!productId){
-            const {data:p,error}=await supabaseClient.from('products').insert({name:n,brand:brand||null,unit:unit||null,category,barcode:barcode||null,image_url:imageUrl,company_id:companyId||null,active:true,created_by:profileData.id}).select().single();
-            if(error) throw error;
-            productId=p.id;
-          }
+          const {data:p,error}=await supabaseClient.from('products').insert({name:n,brand:brand||null,unit:unit||null,category,barcode:barcode||null,image_url:imageUrl,company_id:companyId||null,active:true,created_by:profileData.id}).select().single();
+          if(error) throw error;
+          productId=p.id;
         }else{
           const {data:baseProduct,error:baseError}=await supabaseClient.from('products').select('*').eq('id',productId).single();
           if(baseError) throw baseError;
@@ -831,20 +894,11 @@
         if(!storeId) return alert('الحساب غير مرتبط بمتجر بعد.');
         let finalProductId=productId;
         if(!finalProductId){
-          if(barcode){
-            const central=await lookupCentralProductByBarcode(barcode);
-            if(central){
-              finalProductId=central.id;
-              ['pn','brand','unit','cat'].forEach(id=>{if($(id))$(id).value=central[id]||'';});
-            }
-          }
-          if(!finalProductId){
-            const {data:p,error}=await supabaseClient.from('products').insert({
-              name:n,brand:brand||null,unit:unit||null,category,barcode:barcode||null,image_url:imageUrl,company_id:companyId||null,active:true,created_by:user.id
-            }).select().single();
-            if(error) throw error;
-            finalProductId=p.id;
-          }
+          const {data:p,error}=await supabaseClient.from('products').insert({
+            name:n,brand:brand||null,unit:unit||null,category,barcode:barcode||null,image_url:imageUrl,company_id:companyId||null,active:true,created_by:user.id
+          }).select().single();
+          if(error) throw error;
+          finalProductId=p.id;
         }
         const {data:existing,error:existingError}=await supabaseClient.from('price_listings').select('id').eq('product_id',finalProductId).eq('store_id',storeId).maybeSingle();
         if(existingError) throw existingError;
@@ -1002,12 +1056,21 @@
     select.dataset.storeBarcodeBound='1';
     select.addEventListener('change',async()=>{
       const pid=select.value;
-      if(!pid){window.__sareeStoreAdditionalBarcodes=[];renderAdditionalBarcodes();return;}
+      if(!pid){
+        window.__sareeStoreAdditionalBarcodes=[];
+        showCentralProductImagePreview('');
+        renderAdditionalBarcodes();
+        return;
+      }
       const storeId=activeStoreIdForMaterialForm();
       try{
-        const {data:p,error}=await supabaseClient.from('products').select('barcode').eq('id',pid).maybeSingle();
+        const {data:p,error}=await supabaseClient.from('products').select('barcode,image_url,company_id,name,brand,unit,category').eq('id',pid).maybeSingle();
         if(error) throw error;
-        if($('barcode') && dataBarcode(p?.barcode)) $('barcode').value=normBarcode(p.barcode);
+        if(p){
+          if($('barcode') && dataBarcode(p.barcode)) $('barcode').value=normBarcode(p.barcode);
+          if($('merchantCompanySelect') && p.company_id) $('merchantCompanySelect').value=p.company_id;
+          showCentralProductImagePreview(p.image_url||'');
+        }
         await loadStoreAdditionalBarcodes(storeId,pid);
       }catch(err){
         console.warn('load store material barcodes:',err);

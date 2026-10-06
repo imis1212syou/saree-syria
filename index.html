@@ -30,7 +30,7 @@
 <div class="hero"><h1>مقارنة أسعار المنتجات في سوريا</h1><p class="muted">تظهر المتاجر المسجلة التي لديها المادة مرتبة حسب قربها من موقعك. التاجر المرتبط بمتجره ينشر المواد والأسعار مباشرة بعد الحفظ.</p><div id="roleActions" class="actions"></div></div><div id="adsHome" class="adSlot hidden"></div>
 <div class="grid"><div class="stat"><b id="pc">0</b> منتجات</div><div class="stat" role="button" tabindex="0" onclick="openNav('stores')" onkeydown="if(event.key==='Enter'||event.key===' ')openNav('stores')" style="cursor:pointer"><b id="sc">0</b> متاجر</div><div class="stat" role="button" tabindex="0" onclick="openNav('companies')" onkeydown="if(event.key==='Enter'||event.key===' ')openNav('companies')" style="cursor:pointer"><b id="cc">0</b> شركات</div><div class="stat"><b id="approvedCount">0</b> أسعار معتمدة</div><div class="stat"><b id="basketCount">0</b> في السلة</div></div>
 <div class="searchbar"><input id="search" placeholder="ابحث عن منتج أو علامة أو تصنيف أو مدينة..." oninput="renderProducts()"><div class="two"><select id="cityFilter" onchange="renderProducts()"><option value="">كل المدن</option></select><select id="catFilter" onchange="renderProducts()"><option value="">كل التصنيفات</option></select></div></div>
-<h2>أفضل الأسعار حالياً</h2><div id="products" class="grid"></div>
+<h2>المواد والمتاجر المسجلة</h2><div id="products" class="grid"></div>
 </section>
 
 <section id="basket" class="page"><div class="hero"><h1>سلة المشتريات</h1><p class="muted">أرخص سعر لكل مادة.</p></div><div id="basketList"></div></section>
@@ -146,6 +146,12 @@
       id="pimg"
       type="file"
       accept="image/*">
+
+    <div id="centralProductImagePreview" class="hidden" style="margin-top:10px">
+      <div class="muted">صورة المادة المركزية المحفوظة:</div>
+      <img id="centralProductImage" class="img materialImage" alt="صورة المادة المركزية" loading="lazy">
+      <div class="muted">عند إضافة المادة إلى متجر آخر تبقى هذه الصورة نفسها للمادة المركزية.</div>
+    </div>
 
     <!-- إرسال -->
     <button
@@ -296,9 +302,6 @@ function openStore(id){if(!id)return;window.__sareeTrackedCompanyVisitId=null;hi
 async function recordStoreVisit(storeId){
   try{
     if(!storeId) return;
-    const key='saree_store_visit_once_'+String(storeId);
-    if(sessionStorage.getItem(key)==='1') return;
-    sessionStorage.setItem(key,'1');
     const visitId=visitorId();
     const {error}=await supabaseClient.from('store_visitor_visits').insert({store_id:storeId,visitor_id:visitId});
     if(error) throw error;
@@ -362,9 +365,6 @@ function visitorId(){
 }
 async function recordVisitor(){
  try{
-   const key='saree_site_visit_once';
-   if(sessionStorage.getItem(key)==='1') return;
-   sessionStorage.setItem(key,'1');
    await supabaseClient.from('visitor_visits').insert({visitor_id:visitorId()});
  }catch(err){console.warn('visitor tracking:',err)}
 }

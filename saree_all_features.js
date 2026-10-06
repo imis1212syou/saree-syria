@@ -492,15 +492,18 @@
     else if(phone.startsWith('9') && phone.length>=9 && phone.length<=10) phone='963'+phone;
     return phone;
   }
-  window.sareeDirectWhatsapp=(target,text)=>{
+  window.sareeDirectWhatsapp=async (target,text,entityType='store',entityId=null)=>{
     const phone=phoneFromTarget(target); if(!phone) return false;
     const encoded=encodeURIComponent(text||'');
     const isAndroid=/Android/i.test(navigator.userAgent);
-    const isIOS=/iPhone|iPad|iPod/i.test(navigator.userAgent);
     const appUrl=`whatsapp://send?phone=${phone}&text=${encoded}`;
     const intent=`intent://send?phone=${phone}&text=${encoded}#Intent;scheme=whatsapp;package=com.whatsapp;end`;
+    // نسجل الحدث قبل الانتقال إلى تطبيق WhatsApp حتى لا يضيع طلب التسجيل.
+    try{
+      const tracked=window.sareeTrackWhatsapp?.(entityType,entityId);
+      if(tracked && typeof tracked.then==='function') await tracked;
+    }catch(_){ }
     // Android: intent يطلب تطبيق WhatsApp مباشرة. iOS/باقي الأجهزة: whatsapp://.
-    window.sareeTrackWhatsapp?.('store',storeId);
     window.location.href=(isAndroid?intent:appUrl);
     return true;
   };
@@ -528,7 +531,7 @@
       try{
         const {error}=await supabaseClient.rpc('submit_whatsapp_order',{p_store_id:storeId,p_customer_name:name||null,p_customer_phone:phone||null,p_customer_notes:notes||null,p_subtotal:subtotal,p_request_fee:fee,p_total:total,p_items:items.map(([pid,x])=>({product_id:pid,name:x.name,unit:x.unit,quantity:x.qty,unit_price:x.price,line_total:Number(x.qty||0)*Number(x.price||0)}))});
         if(error)throw error;
-        if(!window.sareeDirectWhatsapp(target,msg))throw new Error('رقم واتساب المتجر غير صالح.');
+        if(!(await window.sareeDirectWhatsapp(target,msg,'store',storeId)))throw new Error('رقم واتساب المتجر غير صالح.');
         localStorage.setItem(cartsKey,JSON.stringify({...all,[storeId]:{}}));
         window.updateUniversalCartCount?.();
         return true;

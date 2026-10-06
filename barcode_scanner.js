@@ -481,6 +481,9 @@ async function handleBarcode(barcode) {
       });
       if (el('merchantCompanySelect')) el('merchantCompanySelect').value = data.company_id || '';
       if (el('barcode')) el('barcode').value = cleanBarcode(data.barcode || code);
+      if (typeof window.showCentralProductImagePreview === 'function') {
+        window.showCentralProductImagePreview(data.image_url || '');
+      }
       const msg = el('barcodeMsg');
       if (msg) msg.textContent = scopedStoreId
         ? 'تم التعرف على المادة من الباركود المركزي وتعبئة بياناتها تلقائيًا.'
