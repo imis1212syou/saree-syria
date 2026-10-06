@@ -27,10 +27,10 @@
 </section>
 
 <section id="home" class="page active">
-<div class="hero"><h1>مقارنة أسعار المنتجات في سوريا</h1><p class="muted">تظهر المتاجر المسجلة التي لديها المادة مرتبة حسب القرب من موقعك. التاجر المرتبط بمتجره ينشر المواد والأسعار مباشرة بعد الحفظ.</p><div id="roleActions" class="actions"></div></div><div id="adsHome" class="adSlot hidden"></div>
+<div class="hero"><h1>مقارنة أسعار المنتجات في سوريا</h1><p class="muted">الأرخص يظهر أولاً. التاجر المرتبط بمتجره ينشر المواد والأسعار مباشرة بعد الحفظ.</p><div id="roleActions" class="actions"></div></div><div id="adsHome" class="adSlot hidden"></div>
 <div class="grid"><div class="stat"><b id="pc">0</b> منتجات</div><div class="stat" role="button" tabindex="0" onclick="openNav('stores')" onkeydown="if(event.key==='Enter'||event.key===' ')openNav('stores')" style="cursor:pointer"><b id="sc">0</b> متاجر</div><div class="stat" role="button" tabindex="0" onclick="openNav('companies')" onkeydown="if(event.key==='Enter'||event.key===' ')openNav('companies')" style="cursor:pointer"><b id="cc">0</b> شركات</div><div class="stat"><b id="approvedCount">0</b> أسعار معتمدة</div><div class="stat"><b id="basketCount">0</b> في السلة</div></div>
 <div class="searchbar"><input id="search" placeholder="ابحث عن منتج أو علامة أو تصنيف أو مدينة..." oninput="renderProducts()"><div class="two"><select id="cityFilter" onchange="renderProducts()"><option value="">كل المدن</option></select><select id="catFilter" onchange="renderProducts()"><option value="">كل التصنيفات</option></select></div></div>
-<h2>أسعار المنتجات والمتاجر</h2><div id="products" class="grid"></div>
+<h2>أفضل الأسعار حالياً</h2><div id="products" class="grid"></div>
 </section>
 
 <section id="basket" class="page"><div class="hero"><h1>سلة المشتريات</h1><p class="muted">أرخص سعر لكل مادة.</p></div><div id="basketList"></div></section>
@@ -353,33 +353,19 @@ async function goRole(){if(await sareeCheckAdmin()){show('admin');await renderAd
 function enterVisitor(){const n=$('visitorName').value.trim();if(!n)return alert('اكتب اسمك أولاً');removeEmailConfirmationNotice();clearPasswordRecoveryState();localStorage.setItem('visitor_name',n);profileData=null;sareeAdminStatus=null;window.__SAREE_ADMIN_STATUS__=false;renderTopAccount();renderRoleActions();$('status').textContent=n+' • زائر';show('home');refreshAll()}
 function currentName(){return localStorage.getItem('visitor_name')||'زائر'}
 function visitorId(){
- try{
-  let id=localStorage.getItem('saree_visitor_id');
-  if(!id){
-    id=(crypto.randomUUID?crypto.randomUUID():('v_'+Date.now()+'_'+Math.random().toString(36).slice(2)));
-    localStorage.setItem('saree_visitor_id',id);
-  }
-  return id;
- }catch(_){
-  try{
-   let id=sessionStorage.getItem('saree_visitor_id');
-   if(!id){
-     id=(crypto.randomUUID?crypto.randomUUID():('v_'+Date.now()+'_'+Math.random().toString(36).slice(2)));
-     sessionStorage.setItem('saree_visitor_id',id);
-   }
-   return id;
-  }catch(__){ return 'v_'+Date.now(); }
+ let id=localStorage.getItem('saree_visitor_id');
+ if(!id){
+   id=(crypto.randomUUID?crypto.randomUUID():('v_'+Date.now()+'_'+Math.random().toString(36).slice(2)));
+   localStorage.setItem('saree_visitor_id',id);
  }
+ return id;
 }
 async function recordVisitor(){
  try{
-   const vid=visitorId();
-   if(typeof window.sareeTrackStat==='function') await window.sareeTrackStat('site','site','view');
-   const key='saree_site_visit_once:'+(window.sareeMonthlyKey?.() || new Date().toISOString().slice(0,7));
+   const key='saree_site_visit_once';
    if(sessionStorage.getItem(key)==='1') return;
    sessionStorage.setItem(key,'1');
-   await supabaseClient.from('visitor_visits').insert({visitor_id:vid});
-   if(typeof window.sareeTrackStat==='function') await window.sareeTrackStat('site','site','visit',vid);
+   await supabaseClient.from('visitor_visits').insert({visitor_id:visitorId()});
  }catch(err){console.warn('visitor tracking:',err)}
 }
 function confirmLogout(){if(confirm('هل أنت متأكد أنك تريد تسجيل الخروج؟')) logout();}
@@ -670,7 +656,7 @@ async function loadPublicData(){
     const [p,s,l,c]=await Promise.all([
       supabaseClient.from('products').select('*').eq('active',true).order('name'),
       supabaseClient.from('stores').select('*').eq('active',true).order('name'),
-      supabaseClient.from('price_listings').select('*,stores(id,name,city,area,address,phone,image_url,verified,company_id,active,latitude,longitude,companies(id,name,verified,active))').eq('approved',true),
+      supabaseClient.from('price_listings').select('*,stores(id,name,city,area,address,phone,image_url,verified,company_id,companies(id,name,verified,active))').eq('approved',true).order('price_new'),
       supabaseClient.from('companies').select('id,name,active,verified').eq('active',true)
     ]);
     if(p.error||s.error||l.error) throw(p.error||s.error||l.error);
@@ -693,23 +679,21 @@ function allPrices(p){return prices.filter(x=>x.product_id===p.id).sort((a,b)=>N
 function cheapest(p){return allPrices(p)[0]}
 function renderProducts(){
  const q=($('search').value||'').trim().toLowerCase(),city=$('cityFilter').value,cat=$('catFilter').value;
- const activeStoreIds=new Set((stores||[]).filter(s=>s.active!==false).map(s=>String(s.id)));
- const priceRows=p=>{const rows=prices.filter(x=>x.product_id===p.id&&activeStoreIds.has(String(x.store_id||x.stores?.id||'')));return typeof window.sareeSortListingsByDistance==='function'?window.sareeSortListingsByDistance(rows):rows.slice().sort((a,b)=>String(a.stores?.name||'').localeCompare(String(b.stores?.name||''),'ar'));};
  const list=products.filter(p=>{
-  const ps=priceRows(p);
-  const txt=[p.name,p.description,p.brand,p.category,p.unit].join(' ').toLowerCase();
-  return ps.length&&(!q||txt.includes(q))&&(!cat||p.category===cat)&&(!city||ps.some(x=>(x.stores?.city||'')===city||(x.stores?.area||'')===city));
+  const txt=[p.name,p.description,p.brand,p.category,p.unit].join(' ').toLowerCase(),ps=allPrices(p);
+  return (!q||txt.includes(q))&&(!cat||p.category===cat)&&(!city||ps.some(x=>(x.stores?.city||'')===city||(x.stores?.area||'')===city))
  });
  $('products').innerHTML=list.map(p=>{
-  const ps=priceRows(p),fav=favorites.includes(p.id);
-  const rows=ps.map(x=>{const st=(stores||[]).find(s=>String(s.id)===String(x.store_id))||x.stores||{};const d=typeof window.sareeDistanceText==='function'?window.sareeDistanceText(st):'';return `<div class="priceRow" style="margin-top:8px"><div class="row" style="justify-content:space-between;align-items:center"><b>${e(st.name||'المتجر')}</b><span class="price">${f(x.price_new)} ل.س</span></div><div class="meta"><span>${d?'📏 '+e(d):'📍 الموقع غير متاح'}</span><span>${e([st.city,st.area].filter(Boolean).join(' — '))}</span></div><div class="muted">آخر تحديث للسعر: ${x.updated_at?e(new Date(x.updated_at).toLocaleString('ar')):'—'}</div></div>`}).join('');
-  return `<div class="card">${p.image_url?`<img class="img" src="${escAttr(p.image_url)}">`:''}<span class="pill">${e(p.category||'عام')}</span><div class="name">${e(p.name)}</div><div class="muted">${e(p.unit||'')} ${p.brand?'• '+e(p.brand):''}</div><div class="meta"><span>${ps.length} متاجر مسجلة</span><span>الترتيب: الأقرب إلى الأبعد</span></div><div>${rows}</div><div class="actions"><button class="btn secondary" onclick="toggleFav('${p.id}')">${fav?'★ إزالة من المفضلة':'☆ أضف للمفضلة'}</button><button class="btn primary" onclick="details('${p.id}')">تفاصيل الأسعار</button><button class="btn secondary" onclick="addBasket('${p.id}')">أضف للسلة</button></div></div>`;
+  const c=cheapest(p),ps=allPrices(p),fav=favorites.includes(p.id);
+  return `<div class="card">${p.image_url?`<img class="img" src="${escAttr(p.image_url)}">`:''}<span class="pill">${e(p.category||'عام')}</span><div class="name">${e(p.name)}</div><div class="muted">${e(p.unit||'')} ${p.brand?'• '+e(p.brand):''}</div>
+  ${c?`<div class="price">${f(c.price_new)} ل.س جديدة</div><div class="old">${old(c.price_new)} ل.س قديمة</div><div class="meta"><span>الأرخص: ${e(c.stores?.name||'')}</span><span>${e(c.stores?.city||'')}</span></div><div class="meta"><span>${ps.length} متاجر</span><span>آخر تحديث: ${new Date(c.updated_at).toLocaleDateString('ar')}</span></div>`:'<div class="notice pending">لا يوجد سعر معتمد حالياً</div>'}
+  <div class="actions"><button class="btn secondary" onclick="toggleFav('${p.id}')">${fav?'★ إزالة من المفضلة':'☆ أضف للمفضلة'}</button><button class="btn primary" onclick="details('${p.id}')">تفاصيل الأسعار</button><button class="btn secondary" onclick="addBasket('${p.id}')">أضف للسلة</button></div></div>`
  }).join('')||'<div class="card muted">لا توجد نتائج.</div>';
- if(typeof window.requestSareeLocation==='function') window.requestSareeLocation();
 }
 function details(id){
- if(typeof window.sareeOpenProductInfo==='function') return window.sareeOpenProductInfo(id);
- const p=products.find(x=>x.id===id);if(!p)return;const activeStoreIds=new Set((stores||[]).filter(s=>s.active!==false).map(s=>String(s.id)));let ps=prices.filter(x=>x.product_id===p.id&&activeStoreIds.has(String(x.store_id||x.stores?.id||'')));ps=typeof window.sareeSortListingsByDistance==='function'?window.sareeSortListingsByDistance(ps):ps;const text=p.name+'\n\n'+ps.map((x,i)=>`${i+1}) ${f(x.price_new)} ل.س جديدة — ${x.stores?.name||'المتجر'} — ${x.stores?.city||''} ${x.stores?.area||''}`).join('\n');alert(text||'لا توجد أسعار معتمدة.');
+ const p=products.find(x=>x.id===id);if(!p)return;const ps=allPrices(p),c=ps[0],save=c&&ps.length>1?Number(ps[ps.length-1].price_new)-Number(c.price_new):0;
+ let text=p.name+'\n\n'+ps.map((x,i)=>`${i+1}) ${f(x.price_new)} ل.س جديدة — ${x.stores?.name||''} — ${x.stores?.city||''} ${x.stores?.area||''}`).join('\n');
+ text+=(save>0?`\n\nالتوفير بين الأعلى والأرخص: ${f(save)} ل.س`:'');alert(text||'لا توجد أسعار معتمدة.');
 }
 async function vote(priceId,v){
  const {data:{user}}=await supabaseClient.auth.getUser();
