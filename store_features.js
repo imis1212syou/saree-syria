@@ -849,10 +849,29 @@
       let imageUrl=null;
       if(file) imageUrl=await uploadImage(file,'materials');
       let productId=selected||null;
+      let barcodeMatchedExisting=false;
       if(productId){
         const {data:p,error}=await supabaseClient.from('products').select('*').eq('id',productId).single();
         if(error) throw error;
         if(!barcode && p.barcode) $('barcode').value=normBarcode(p.barcode);
+      }else if(barcode){
+        const {data:centralBarcode,error:centralBarcodeError}=await supabaseClient.rpc('saree_lookup_product_by_barcode',{p_barcode:barcode});
+        if(centralBarcodeError) throw centralBarcodeError;
+        if(centralBarcode?.product_id){
+          productId=String(centralBarcode.product_id);
+          barcodeMatchedExisting=true;
+          const existingSelect=$('existingProduct');
+          if(existingSelect){
+            let option=[...existingSelect.options].find(o=>String(o.value)===productId);
+            if(!option){
+              option=document.createElement('option');
+              option.value=productId;
+              option.textContent='المادة الممسوحة: '+(centralBarcode.name||'مادة');
+              existingSelect.appendChild(option);
+            }
+            existingSelect.value=productId;
+          }
+        }
       }
 
       if(isAdmin()){
@@ -861,6 +880,8 @@
           const {data:p,error}=await supabaseClient.from('products').insert({name:n,brand:brand||null,unit:unit||null,category,barcode:barcode||null,image_url:imageUrl,company_id:companyId||null,active:true,created_by:profileData.id}).select().single();
           if(error) throw error;
           productId=p.id;
+        }else if(barcodeMatchedExisting){
+          // الباركود المركزي موجود مسبقًا: استخدم المادة نفسها، ولا تنشئ نسخة جديدة أو تعدّل بياناتها المركزية.
         }else{
           const {data:baseProduct,error:baseError}=await supabaseClient.from('products').select('*').eq('id',productId).single();
           if(baseError) throw baseError;
