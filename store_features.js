@@ -9,7 +9,7 @@
   const esc = v => String(v ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
   const normBarcode = v => String(v ?? '').replace(/\D/g,'').trim();
   const role = () => String(profileData?.role || '').toLowerCase();
-  const isAdmin = () => window.__SAREE_ADMIN_STATUS__ === true;
+  const isAdmin = () => window.__SAREE_ADMIN_STATUS__ === true || String(profileData?.role || '').toLowerCase() === 'admin';
   const canManageStore = storeId => isAdmin() || (
     role() === 'store' &&
     !!profileData?.store_id &&
@@ -25,7 +25,7 @@
   window.__sareeStoreAdditionalBarcodes = window.__sareeStoreAdditionalBarcodes || [];
 
   function activeStoreIdForMaterialForm(){
-    if(isAdmin()) return $('merchantStoreSelect')?.value || null;
+    if(isAdmin()) return $('merchantStoreSelect')?.value || window.__editingMaterial?.storeId || null;
     return role()==='store' ? (profileData?.store_id || null) : null;
   }
 
