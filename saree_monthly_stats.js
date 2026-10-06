@@ -7,25 +7,10 @@
   const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
   const fmt=n=>Number(n||0).toLocaleString('ar-SY');
   const monthLabel=v=>{try{return new Date(v+'T00:00:00').toLocaleDateString('ar-SY',{month:'long',year:'numeric'})}catch(_){return v}};
-  const sessionId=()=>{
-    try{
-      let id=sessionStorage.getItem('saree_stats_session_id');
-      if(!id){id=(crypto.randomUUID?crypto.randomUUID():('ss_'+Date.now()+'_'+Math.random().toString(36).slice(2)));sessionStorage.setItem('saree_stats_session_id',id)}
-      return id;
-    }catch(_){return 'ss_'+Date.now()}
-  };
-  const visitorId=()=>{
-    try{
-      let id=localStorage.getItem('saree_visitor_id');
-      if(!id){id=(crypto.randomUUID?crypto.randomUUID():('v_'+Date.now()+'_'+Math.random().toString(36).slice(2)));localStorage.setItem('saree_visitor_id',id)}
-      return id;
-    }catch(_){return 'v_'+Date.now()}
-  };
-
   async function record(entityType,entityId,event){
     if(!window.supabaseClient) return false;
     try{
-      const {error}=await supabaseClient.rpc('saree_record_stat_event',{p_entity_type:entityType,p_entity_id:entityType==='site'?SITE_ID:entityId,p_event:event,p_visitor_id:visitorId()});
+      const {error}=await supabaseClient.rpc('saree_record_stat_event',{p_entity_type:entityType,p_entity_id:entityType==='site'?SITE_ID:entityId,p_event:event,p_visitor_id:null});
       if(error) throw error;
       return true;
     }catch(err){
@@ -52,7 +37,7 @@
   }
 
   function metricGrid(row){
-    return `<div class="grid"><div class="stat"><b>${fmt(row?.orders)}</b><div class="muted">الطلبات</div></div><div class="stat"><b>${fmt(row?.views)}</b><div class="muted">المشاهدات</div></div><div class="stat"><b>${fmt(row?.whatsapp_people)}</b><div class="muted">أشخاص واتساب</div></div><div class="stat"><b>${fmt(row?.visits)}</b><div class="muted">إجمالي الزيارات</div></div><div class="stat"><b>${fmt(row?.qr_visits)}</b><div class="muted">زيارات QR</div></div></div>`;
+    return `<div class="grid"><div class="stat"><b>${fmt(row?.orders)}</b><div class="muted">الطلبات</div></div><div class="stat"><b>${fmt(row?.views)}</b><div class="muted">المشاهدات</div></div><div class="stat"><b>${fmt(row?.whatsapp_people)}</b><div class="muted">تواصلات واتساب</div></div><div class="stat"><b>${fmt(row?.visits)}</b><div class="muted">إجمالي الزيارات</div></div><div class="stat"><b>${fmt(row?.qr_visits)}</b><div class="muted">زيارات QR</div></div></div>`;
   }
 
   function growth(cur,prev,key){
@@ -151,48 +136,46 @@
     return m?m[1]:raw.replace(/\D/g,'');
   }
 
-  function whatsappEntityFromElement(el){
+  function whatsappEntityFromTarget(target){
+    const key=whatsappPhoneKey(target);
+    if(!key)return null;
+    try{
+      if(typeof stores!=='undefined'&&Array.isArray(stores)){
+        const st=stores.find(x=>whatsappPhoneKey(x?.whatsapp_url||x?.whatsapp)===key);
+        if(st)return {type:'store',id:st.id};
+      }
+      if(typeof companies!=='undefined'&&Array.isArray(companies)){
+        const c=companies.find(x=>whatsappPhoneKey(x?.whatsapp_url||x?.whatsapp)===key);
+        if(c)return {type:'company',id:c.id};
+      }
+    }catch{}
     const params=new URLSearchParams(location.search);
     if(params.get('store'))return {type:'store',id:params.get('store')};
     if(params.get('company'))return {type:'company',id:params.get('company')};
-    const storeCard=el.closest?.('.storeCard,.card');
-    const storeTarget=storeCard?.querySelector?.('[data-store-open]');
-    if(storeTarget?.dataset?.storeOpen)return {type:'store',id:storeTarget.dataset.storeOpen};
-    const companyTarget=storeCard?.querySelector?.('[data-company-open],[onclick*="openCompanyById"]');
-    const companyOnclick=companyTarget?.getAttribute?.('onclick')||'';
-    const companyMatch=companyOnclick.match(/openCompanyById\(['"]([^'"]+)/);
-    if(companyMatch)return {type:'company',id:companyMatch[1]};
-    const onclick=storeCard?.querySelector?.('[onclick*="openStore"], [onclick*="openCompanyById"]')?.getAttribute?.('onclick')||'';
-    const storeMatch=onclick.match(/openStore\(['"]([^'"]+)/);
-    if(storeMatch)return {type:'store',id:storeMatch[1]};
-    const href=el.getAttribute?.('href')||'';
-    const key=whatsappPhoneKey(href);
-    if(key){
-      try{
-        if(typeof stores!=='undefined'&&Array.isArray(stores)){
-          const st=stores.find(x=>whatsappPhoneKey(x?.whatsapp_url||x?.whatsapp)===key);
-          if(st)return {type:'store',id:st.id};
-        }
-        if(typeof companies!=='undefined'&&Array.isArray(companies)){
-          const c=companies.find(x=>whatsappPhoneKey(x?.whatsapp_url||x?.whatsapp)===key);
-          if(c)return {type:'company',id:c.id};
-        }
-      }catch{}
-    }
     return null;
   }
+
+  window.sareeTrackWhatsapp=function(entityType,entityId){
+    if(!entityId)return false;
+    return record(entityType,entityId,'whatsapp');
+  };
+
+  window.sareeTrackWhatsappTarget=function(target){
+    const entity=whatsappEntityFromTarget(target);
+    if(entity?.id)return window.sareeTrackWhatsapp(entity.type,entity.id);
+    return false;
+  };
 
   function installEventTracking(){
     if(document.body&&!document.body.__sareeMonthlyWhatsappTracked){
       document.body.__sareeMonthlyWhatsappTracked=true;
       document.addEventListener('click',ev=>{
-        const el=ev.target?.closest?.('a,button');
+        const el=ev.target?.closest?.('a');
         if(!el)return;
         const text=String(el.innerText||el.textContent||'');
         const href=String(el.getAttribute?.('href')||'');
         if(!/واتساب|whatsapp/i.test(text+' '+href))return;
-        const entity=whatsappEntityFromElement(el);
-        if(entity?.id)record(entity.type,entity.id,'whatsapp');
+        window.sareeTrackWhatsappTarget?.(href);
       },true);
     }
 
@@ -204,7 +187,7 @@
 
     if(typeof window.show==='function'&&!window.show.__sareeMonthlyWrapped){
       const original=window.show;
-      const wrapped=function(id){const result=original.apply(this,arguments);if(throttled('saree_monthly_site_view_'+String(id),800))record('site',SITE_ID,'view');return result};
+      const wrapped=function(id){const result=original.apply(this,arguments);if(id!=='storeDetail'&&id!=='companyDetail'&&throttled('saree_monthly_site_view_'+String(id),800))record('site',SITE_ID,'view');return result};
       wrapped.__sareeMonthlyWrapped=true;window.show=wrapped;
     }
 
@@ -228,7 +211,7 @@
 
     if(typeof window.sareeSendWhatsappOrder==='function'&&!window.sareeSendWhatsappOrder.__sareeMonthlyWrapped){
       const original=window.sareeSendWhatsappOrder;
-      const wrapped=async function(storeId){const result=await original.apply(this,arguments);if(result===true){await record('store',storeId,'order');await record('store',storeId,'whatsapp')}return result};
+      const wrapped=async function(storeId){const result=await original.apply(this,arguments);if(result===true)await record('store',storeId,'order');return result};
       wrapped.__sareeMonthlyWrapped=true;window.sareeSendWhatsappOrder=wrapped;
     }
 
@@ -242,9 +225,8 @@
           const items=all&&Array.isArray(all[id])?all[id]:[];
           hasItems=items.length>0;
         }catch{}
-        const pending=hasItems?record('company',id,'order').then(()=>record('company',id,'whatsapp')):Promise.resolve();
         const result=await original.apply(this,arguments);
-        await pending;
+        if(hasItems)await record('company',id,'order');
         return result;
       };
       wrapped.__sareeMonthlyWrapped=true;window.companySendWhatsappOrder=wrapped;

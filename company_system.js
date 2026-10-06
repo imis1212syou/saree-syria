@@ -300,6 +300,7 @@
     const lines=items.map(([pid,x],i)=>{const line=Number(x.qty||0)*Number(x.price||0);subtotal+=line;return `${i+1}) ${x.name}${x.unit?' ('+x.unit+')':''} × ${x.qty} = ${money(line)} ل.س`});
     const name=prompt('اسم العميل (اختياري):','')??'';const customerPhone=prompt('رقم هاتف العميل (اختياري):','')??'';const notes=prompt('ملاحظات الطلب (اختياري):','')??'';
     const msg=`طلب من سعرلي سوريا\nالشركة: ${currentCompany.name||''}\n\n${lines.join('\n')}\n\nالمجموع: ${money(subtotal)} ل.س\nأجرة التوصيل: لا توجد\n\nاسم العميل: ${name||'—'}\nهاتف العميل: ${customerPhone||'—'}\nملاحظات: ${notes||'—'}`;
+    window.sareeTrackWhatsapp?.('company',companyId);
     window.location.href=`whatsapp://send?phone=${phone}&text=${encodeURIComponent(msg)}`;
     setCompanyCart(companyId,{});
     renderCompanyCart(companyId);

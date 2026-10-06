@@ -50,7 +50,7 @@
     const storesList=getStores();
     const rows=getPrices().filter(x=>String(x.product_id)===String(p.id) && storesList.some(st=>String(st.id)===String(x.store_id) && st.active!==false));
     const sorted=typeof window.sareeSortListingsByDistance==='function' ? window.sareeSortListingsByDistance(rows) : rows.slice().sort((a,b)=>String(a.stores?.name||'').localeCompare(String(b.stores?.name||''),'ar'));
-    return `<article class="card saree-medium-card"><div onclick="window.sareeOpenProductInfo('${esc(p.id)}')" style="cursor:pointer">${p.image_url?`<img class="img" src="${esc(p.image_url)}" alt="${esc(p.name)}" loading="lazy">`:''}<span class="pill">${esc(p.category||'عام')}</span><div class="name">${esc(p.name||'مادة')}</div>${p.brand?`<div class="muted">${esc(p.brand)}</div>`:''}${p.unit?`<div class="muted">${esc(p.unit)}</div>`:''}<div class="muted">${sorted.length} متاجر مسجلة لديها المادة</div>${sorted.slice(0,3).map(r=>{const st=storesList.find(x=>String(x.id)===String(r.store_id))||r.stores||{};const dist=typeof window.sareeDistanceText==='function'?(window.sareeDistanceText(st)||'المسافة غير متاحة'):'المسافة غير متاحة';return `<div class="muted" style="margin-top:6px">${esc(st.name||r.stores?.name||'المتجر')} — ${money(r.price_new)} ل.س • 📏 ${esc(dist)}</div>`}).join('')}</div><div class="actions"><button class="btn primary" onclick="window.sareeOpenProductInfo('${esc(p.id)}')">تفاصيل</button></div></article>`;
+    return `<article class="card saree-medium-card"><div onclick="window.sareeOpenProductInfo('${esc(p.id)}')" style="cursor:pointer">${p.image_url?`<img class="img" src="${esc(p.image_url)}" alt="${esc(p.name)}" loading="lazy">`:''}<span class="pill">${esc(p.category||'عام')}</span><div class="name">${esc(p.name||'مادة')}</div>${p.brand?`<div class="muted">${esc(p.brand)}</div>`:''}${p.unit?`<div class="muted">${esc(p.unit)}</div>`:''}<div class="muted">${sorted.length} متاجر مسجلة لديها المادة</div>${sorted.map(r=>{const st=storesList.find(x=>String(x.id)===String(r.store_id))||r.stores||{};const dist=typeof window.sareeDistanceText==='function'?(window.sareeDistanceText(st)||'المسافة غير متاحة'):'المسافة غير متاحة';return `<div class="muted" style="margin-top:6px">${esc(st.name||r.stores?.name||'المتجر')} — ${money(r.price_new)} ل.س • 📏 ${esc(dist)}</div>`}).join('')}</div><div class="actions"><button class="btn primary" onclick="window.sareeOpenProductInfo('${esc(p.id)}')">تفاصيل</button></div></article>`;
   }
 
   window.sareeOpenStoreFromProduct=function(storeId){
@@ -397,7 +397,7 @@
         const platformStores=getStores().filter(st=>st?.active!==false);
         const rs=getPrices().filter(x=>String(x.product_id)===String(p.id) && platformStores.some(st=>String(st.id)===String(x.store_id)));
         const sorted=typeof window.sareeSortListingsByDistance==='function' ? window.sareeSortListingsByDistance(rs) : rs.slice();
-        const preview=sorted.slice(0,3).map(r=>{const st=platformStores.find(x=>String(x.id)===String(r.store_id))||r.stores||{};const dist=typeof window.sareeDistanceText==='function'?(window.sareeDistanceText(st)||'المسافة غير متاحة'):'المسافة غير متاحة';return `<div class="muted" style="margin-top:6px">${esc(st.name||'المتجر')} — ${money(r.price_new)} ل.س • 📏 ${esc(dist)}</div>`}).join('');
+        const preview=sorted.map(r=>{const st=platformStores.find(x=>String(x.id)===String(r.store_id))||r.stores||{};const dist=typeof window.sareeDistanceText==='function'?(window.sareeDistanceText(st)||'المسافة غير متاحة'):'المسافة غير متاحة';return `<div class="muted" style="margin-top:6px">${esc(st.name||'المتجر')} — ${money(r.price_new)} ل.س • 📏 ${esc(dist)}</div>`}).join('');
         return `<article class="card saree-medium-card">${p.image_url?`<img class="img" src="${esc(p.image_url)}" alt="${esc(p.name)}" loading="lazy">`:''}<span class="pill">${esc(p.category||'عام')}</span><div class="name">${esc(p.name||'مادة')}</div>${p.brand?`<div class="muted">${esc(p.brand)}</div>`:''}${p.unit?`<div class="muted">${esc(p.unit)}</div>`:''}<div class="muted">${sorted.length} متاجر مسجلة لديها المادة</div>${preview}<div class="actions"><button class="btn primary" onclick="window.sareeOpenProductInfo('${esc(p.id)}')">تفاصيل</button></div></article>`;
       }).join(''):'<div class="card muted">لا توجد منتجات مطابقة.</div>';
     };
@@ -500,6 +500,7 @@
     const appUrl=`whatsapp://send?phone=${phone}&text=${encoded}`;
     const intent=`intent://send?phone=${phone}&text=${encoded}#Intent;scheme=whatsapp;package=com.whatsapp;end`;
     // Android: intent يطلب تطبيق WhatsApp مباشرة. iOS/باقي الأجهزة: whatsapp://.
+    window.sareeTrackWhatsapp?.('store',storeId);
     window.location.href=(isAndroid?intent:appUrl);
     return true;
   };
