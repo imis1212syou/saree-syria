@@ -27,7 +27,7 @@
 </section>
 
 <section id="home" class="page active">
-<div class="hero"><h1>مقارنة أسعار المنتجات في سوريا</h1><p class="muted">الأرخص يظهر أولاً. التاجر المرتبط بمتجره ينشر المواد والأسعار مباشرة بعد الحفظ.</p><div id="roleActions" class="actions"></div></div><div id="adsHome" class="adSlot hidden"></div>
+<div class="hero"><h1>مقارنة أسعار المنتجات في سوريا</h1><p class="muted">تظهر المتاجر المسجلة التي لديها المادة مرتبة حسب قربها من موقعك. التاجر المرتبط بمتجره ينشر المواد والأسعار مباشرة بعد الحفظ.</p><div id="roleActions" class="actions"></div></div><div id="adsHome" class="adSlot hidden"></div>
 <div class="grid"><div class="stat"><b id="pc">0</b> منتجات</div><div class="stat" role="button" tabindex="0" onclick="openNav('stores')" onkeydown="if(event.key==='Enter'||event.key===' ')openNav('stores')" style="cursor:pointer"><b id="sc">0</b> متاجر</div><div class="stat" role="button" tabindex="0" onclick="openNav('companies')" onkeydown="if(event.key==='Enter'||event.key===' ')openNav('companies')" style="cursor:pointer"><b id="cc">0</b> شركات</div><div class="stat"><b id="approvedCount">0</b> أسعار معتمدة</div><div class="stat"><b id="basketCount">0</b> في السلة</div></div>
 <div class="searchbar"><input id="search" placeholder="ابحث عن منتج أو علامة أو تصنيف أو مدينة..." oninput="renderProducts()"><div class="two"><select id="cityFilter" onchange="renderProducts()"><option value="">كل المدن</option></select><select id="catFilter" onchange="renderProducts()"><option value="">كل التصنيفات</option></select></div></div>
 <h2>أفضل الأسعار حالياً</h2><div id="products" class="grid"></div>
@@ -656,7 +656,7 @@ async function loadPublicData(){
     const [p,s,l,c]=await Promise.all([
       supabaseClient.from('products').select('*').eq('active',true).order('name'),
       supabaseClient.from('stores').select('*').eq('active',true).order('name'),
-      supabaseClient.from('price_listings').select('*,stores(id,name,city,area,address,phone,image_url,verified,company_id,companies(id,name,verified,active))').eq('approved',true).order('price_new'),
+      supabaseClient.from('price_listings').select('*,stores(id,name,city,area,address,phone,image_url,verified,active,latitude,longitude,company_id,companies(id,name,verified,active))').eq('approved',true).order('price_new'),
       supabaseClient.from('companies').select('id,name,active,verified').eq('active',true)
     ]);
     if(p.error||s.error||l.error) throw(p.error||s.error||l.error);
@@ -1175,6 +1175,8 @@ supabaseClient.auth.onAuthStateChange((event)=>{
 
   
 <script src="company_system.js"></script>
+
+<script src="saree_monthly_stats.js?v=20261006-stats"></script>
 
 
   
