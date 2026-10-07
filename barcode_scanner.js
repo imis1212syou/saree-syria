@@ -673,11 +673,15 @@ async function handleBarcode(barcode) {
         if (el('barcode')) el('barcode').value = code;
         if (el('merchantCompanySelect')) el('merchantCompanySelect').value = data.company_id || '';
 
-        // إذا كانت شاشة الإضافة تعرض صورة المادة، نضع رابط الصورة في الحقل
-        // الموجود أصلًا فقط إن وجد، بدون إنشاء أي حقل جديد أو تغيير الحفظ.
-        const imageUrlInput = el('productImageUrl') || el('image_url') || el('merchantImageUrl');
-        if (imageUrlInput && 'value' in imageUrlInput && data.image_url) {
-          imageUrlInput.value = data.image_url;
+        // حقل اختيار الملف لا يمكن للمتصفح تعبئته برابط صورة لأسباب أمنية.
+        // لذلك نحفظ رابط الصورة المسترجع مؤقتًا ونستخدمه عند الحفظ إذا لم
+        // يختر المستخدم صورة جديدة.
+        window.__barcodeTemplateImageUrl = data.image_url || null;
+        const imagePreview = el('barcodeTemplateImagePreview');
+        if (imagePreview) {
+          imagePreview.innerHTML = data.image_url
+            ? `<div class=\"notice\"><div class=\"muted\" style=\"margin-bottom:6px\">صورة المادة السابقة:</div><img src=\"${String(data.image_url).replace(/\"/g,'&quot;')}\" alt=\"\" style=\"max-width:120px;max-height:120px;border-radius:12px;object-fit:cover\"></div>`
+            : '';
         }
 
         const msg = el('barcodeMsg');

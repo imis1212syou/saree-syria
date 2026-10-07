@@ -172,6 +172,16 @@
         if(!error) list=data||[];
       }catch(_){}
     }
+    // عند التعبئة التلقائية قد تكون الشركة المحفوظة غير موجودة ضمن
+    // قائمة الشركات النشطة الحالية. نجلبها بالـ id فقط حتى لا تضيع
+    // بيانات الشركة، من دون تغيير صلاحيات أو ربط جديد.
+    if(selectedId && !list.some(c => String(c.id) === String(selectedId))){
+      try{
+        const {data:chosenCompany,error:companyError}=await supabaseClient
+          .from('companies').select('id,name').eq('id',selectedId).maybeSingle();
+        if(!companyError && chosenCompany) list=[chosenCompany,...list];
+      }catch(_){}
+    }
     box.innerHTML = `
       <label class="muted">الشركة المرتبطة بالمادة (اختياري)</label>
       <select id="merchantCompanySelect">
@@ -609,6 +619,8 @@
     window.__sareeStoreAdditionalBarcodes=[];
     ['pn','brand','unit','cat','pr','barcode','addMsg','barcodeMsg'].forEach(id=>{ if($(id)) $(id).value=''; if($(id)) $(id).textContent=''; });
     if($('pimg')) $('pimg').value='';
+    window.__barcodeTemplateImageUrl=null;
+    if($('barcodeTemplateImagePreview')) $('barcodeTemplateImagePreview').innerHTML='';
     if($('existingProduct')) $('existingProduct').value='';
     if($('merchantCompanySelect')) $('merchantCompanySelect').value='';
     if($('addHeading')) $('addHeading').textContent='إضافة مادة أو سعر';
@@ -769,7 +781,7 @@
     try{ await validateAdditionalBarcodes(storeId,selected||null); }catch(err){ return alert(err.message||'تعذر التحقق من الباركودات الإضافية.'); }
 
     try{
-      let imageUrl=null;
+      let imageUrl=window.__barcodeTemplateImageUrl || null;
       if(file) imageUrl=await uploadImage(file,'materials');
       let productId=selected||null;
       if(productId){
@@ -863,6 +875,8 @@
       $('addMsg').textContent='تم إرسال الطلب للمراجعة. لن يظهر للعامة قبل موافقة المدير.';
       ['pn','brand','unit','cat','pr','barcode'].forEach(id=>{ if($(id)) $(id).value=''; });
       if($('pimg')) $('pimg').value='';
+      window.__barcodeTemplateImageUrl=null;
+      if($('barcodeTemplateImagePreview')) $('barcodeTemplateImagePreview').innerHTML='';
       if($('existingProduct')) $('existingProduct').value='';
       alert('تم إرسال الطلب للمراجعة ✅');
     }catch(err){
