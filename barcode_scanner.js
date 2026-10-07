@@ -642,9 +642,53 @@ async function handleBarcode(barcode) {
         return;
       }
 
-      // ثانياً: البحث على مستوى المنصة كمصدر تعبئة فقط. لا نختار product_id
-      // الموجود في متجر آخر، حتى تبقى بيانات المتجر مستقلة ولا يتحول الباركود
-      // إلى معرف مركزي للمادة.
+      // ثانياً: استخدام دالة Supabase المخصصة للقراءة فقط.
+      // هذه الدالة لا تنشئ علاقة بين المتاجر ولا تحجز الباركود؛
+      // وظيفتها الوحيدة إعادة بيانات مادة سابقة لتعبئة النموذج.
+      let rpcTemplate = null;
+      try {
+        const { data: rpcData, error: rpcError } = await supabaseClient.rpc(
+          'saree_lookup_product_by_barcode',
+          { p_barcode: code }
+        );
+        if (!rpcError && rpcData && typeof rpcData === 'object') {
+          rpcTemplate = rpcData;
+        } else if (rpcError) {
+          console.warn('Barcode template RPC lookup:', rpcError);
+        }
+      } catch (error) {
+        console.warn('Barcode template RPC lookup:', error);
+      }
+
+      if (!barcodeStillCurrent()) return;
+      if (rpcTemplate) {
+        const data = rpcTemplate;
+        const existing = el('existingProduct');
+        if (existing) {
+          existing.value = '';
+          existing.dispatchEvent(new Event('change', { bubbles:true }));
+        }
+
+        ['pn','brand','unit','cat'].forEach(id => {
+          if (el(id)) el(id).value = data[id] || '';
+        });
+        if (el('barcode')) el('barcode').value = code;
+        if (el('merchantCompanySelect')) el('merchantCompanySelect').value = data.company_id || '';
+
+        // إذا كانت شاشة الإضافة تعرض صورة المادة، نضع رابط الصورة في الحقل
+        // الموجود أصلًا فقط إن وجد، بدون إنشاء أي حقل جديد أو تغيير الحفظ.
+        const imageUrlInput = el('productImageUrl') || el('image_url') || el('merchantImageUrl');
+        if (imageUrlInput && 'value' in imageUrlInput && data.image_url) {
+          imageUrlInput.value = data.image_url;
+        }
+
+        const msg = el('barcodeMsg');
+        if (msg) msg.textContent = 'تم العثور على بيانات سابقة لهذا الباركود وتعبئتها تلقائياً. الباركود يبقى خاصاً بهذا المتجر.';
+        return;
+      }
+
+      // احتياط للنسخ القديمة/البيانات التي يمكن قراءتها مباشرة من الواجهة.
+      // لا يغيّر هذا أي علاقة بين المنتجات والمتاجر.
       const template = await findLatestGlobalBarcodeTemplate(code);
       if (!barcodeStillCurrent()) return;
       if (template?.product) {
