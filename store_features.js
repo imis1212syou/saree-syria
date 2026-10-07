@@ -1019,13 +1019,13 @@
         const code=normBarcode(barcodeInput.value);
         barcodeInput.value=code;
         if(timer) clearTimeout(timer);
-        if(!code || code.length<6) return;
+        if(!code || code.length<8) return;
         timer=setTimeout(()=>{
           const storeId=activeStoreIdForMaterialForm();
-          if(!storeId) return;
+          if(!storeId || !barcodeInput || normBarcode(barcodeInput.value)!==code) return;
           if(typeof window.fillStoreMaterialFromBarcode!=='function') return;
           window.fillStoreMaterialFromBarcode(code,storeId).catch(err=>console.warn('barcode autofill:',err));
-        },450);
+        },600);
       });
     }
 

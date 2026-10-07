@@ -439,6 +439,8 @@ async function handleBarcode(barcode) {
     const candidates = [];
     const seen = new Set();
 
+    // هذا البحث هو مصدر بيانات فقط. لا نأخذ product_id من متجر آخر
+    // ولا نربط المادة الجديدة به.
     try {
       const { data, error } = await supabaseClient
         .from('products')
@@ -453,11 +455,10 @@ async function handleBarcode(barcode) {
         candidates.push({ product, source: 'primary' });
       });
     } catch (error) {
-      console.warn('Global primary barcode lookup:', error);
+      console.warn('Barcode template primary lookup:', error);
     }
 
-    // الباركودات الإضافية تُستخدم هنا كمصدر بيانات فقط، وليس كمرجع مركزي
-    // أو قيد فريد على الباركود بين المتاجر.
+    // الباركود الإضافي مصدر بيانات فقط، وليس قيداً مركزياً.
     try {
       const { data: aliasRows, error: aliasError } = await supabaseClient
         .from('store_product_barcodes')
@@ -481,14 +482,13 @@ async function handleBarcode(barcode) {
         });
       }
     } catch (error) {
-      // فشل قراءة الباركودات الإضافية لا يعطل البحث بالباركود الأساسي.
-      console.warn('Global alias barcode lookup:', error);
+      console.warn('Barcode template alias lookup:', error);
     }
 
     if (!candidates.length) return null;
 
-    // لا يوجد وقت داخل store_product_barcodes نفسه؛ لذلك نستخدم أحدث
-    // وقت متاح للمادة أو لتحديث سعرها كأفضل مؤشر على أحدث سجل.
+    // لا يوجد created_at في جدول الباركودات الإضافية عندك، لذلك نستخدم
+    // آخر تحديث للسعر كأقرب مؤشر زمني لاختيار آخر بيانات استُخدمت.
     const productIds = candidates.map(x => String(x.product.id));
     const latestListingAt = new Map();
     try {
@@ -505,18 +505,17 @@ async function handleBarcode(barcode) {
         latestListingAt.set(id, row.updated_at || '');
       });
     } catch (error) {
-      console.warn('Latest barcode template ordering:', error);
+      console.warn('Barcode template ordering:', error);
     }
 
     candidates.sort((a, b) => {
-      const pa = a.product || {};
-      const pb = b.product || {};
-      const productTime = value => {
-        const created = new Date(value.created_at || 0).getTime() || 0;
-        const listing = new Date(latestListingAt.get(String(value.id)) || 0).getTime() || 0;
+      const timeOf = item => {
+        const p = item.product || {};
+        const created = new Date(p.created_at || 0).getTime() || 0;
+        const listing = new Date(latestListingAt.get(String(p.id)) || 0).getTime() || 0;
         return Math.max(created, listing);
       };
-      return productTime(pb) - productTime(pa);
+      return timeOf(b) - timeOf(a);
     });
 
     return candidates[0] || null;
