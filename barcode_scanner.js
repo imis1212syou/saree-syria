@@ -467,12 +467,7 @@ async function handleBarcode(barcode) {
       const listing=found.row;
       const data = listing?.products || null;
 
-      let centralData=null;
-      if(!data && typeof window.lookupCentralProductByBarcode==='function') {
-        try{ centralData=await window.lookupCentralProductByBarcode(code); }catch(_){}
-      }
-      const resolvedData = data || centralData;
-      if (!resolvedData) {
+      if (!data) {
         const existing = el('existingProduct');
         if (existing) {
           existing.value = '';
@@ -485,14 +480,14 @@ async function handleBarcode(barcode) {
 
       const existing = el('existingProduct');
       if (existing) {
-        let option = [...existing.options].find(o => String(o.value) === String(resolvedData.id || resolvedData.product_id));
+        let option = [...existing.options].find(o => String(o.value) === String(data.id));
         if (!option) {
           option = document.createElement('option');
-          option.value = resolvedData.id || resolvedData.product_id;
-          option.textContent = 'المادة الممسوحة: ' + (resolvedData.name || 'مادة');
+          option.value = data.id;
+          option.textContent = 'المادة الممسوحة: ' + (data.name || 'مادة');
           existing.appendChild(option);
         }
-        existing.value = resolvedData.id || resolvedData.product_id;
+        existing.value = data.id;
         existing.dispatchEvent(new Event('change', { bubbles:true }));
       }
 
@@ -506,11 +501,9 @@ async function handleBarcode(barcode) {
       }
 
       const msg = el('barcodeMsg');
-      if (msg) msg.textContent = centralData && !data
-        ? 'تم العثور على المادة مركزيًا وتعبئة بياناتها. يمكنك إضافة سعر هذا المتجر.'
-        : found.matchedBy === 'alias'
-          ? 'تم العثور على المادة بالباركود الإضافي وتعبئة بياناتها.'
-          : 'تم العثور على المادة داخل هذا المتجر وتعبئة بياناتها.';
+      if (msg) msg.textContent = found.matchedBy === 'alias'
+        ? 'تم العثور على المادة بالباركود الإضافي وتعبئة بياناتها.'
+        : 'تم العثور على المادة داخل هذا المتجر وتعبئة بياناتها.';
     } catch (error) {
       console.error('Barcode product lookup:', error);
       const msg = el('barcodeMsg');

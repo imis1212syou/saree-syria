@@ -575,19 +575,6 @@
     return user;
   }
 
-  async function lookupCentralProductByBarcode(code){
-    const barcode=normBarcode(code);
-    if(!barcode) return null;
-    try{
-      const {data,error}=await supabaseClient.rpc('saree_lookup_product_by_barcode',{p_barcode:barcode});
-      if(!error && data && data.product_id) return data;
-    }catch(_){}
-    const {data,error}=await supabaseClient.from('products').select('*').eq('barcode',barcode).limit(1).maybeSingle();
-    if(error) throw error;
-    return data||null;
-  }
-  window.lookupCentralProductByBarcode=lookupCentralProductByBarcode;
-
   async function productUsedByOtherStores(productId,storeId){
     const {data,error}=await supabaseClient.from('price_listings').select('store_id').eq('product_id',productId).neq('store_id',storeId).limit(1);
     if(error) throw error;
@@ -757,34 +744,13 @@
     if(isAdmin()) storeId=$('merchantStoreSelect')?.value||null;
     else if(role()==='store' && profileData.store_id) storeId=profileData.store_id;
     if(!storeId) return alert('اختر المتجر أولاً.');
-    if(!selected&&!n&&!barcode) return alert('اكتب اسم المادة الجديدة أو امسح الباركود.');
-    try{
-      if(!selected && barcode){
-        const central=await lookupCentralProductByBarcode(barcode);
-        if(central?.product_id){
-          const existing=$('existingProduct');
-          if(existing){
-            let option=[...existing.options].find(o=>String(o.value)===String(central.product_id));
-            if(!option){ option=document.createElement('option'); option.value=central.product_id; option.textContent='المادة الممسوحة: '+(central.name||'مادة'); existing.appendChild(option); }
-            existing.value=central.product_id;
-            existing.dispatchEvent(new Event('change',{bubbles:true}));
-          }
-          ['pn','brand','unit','cat'].forEach(id=>{ if($(id) && central[id]!=null) $(id).value=central[id]||''; });
-          if($('merchantCompanySelect')) $('merchantCompanySelect').value=central.company_id||'';
-          $('barcode').value=normBarcode(central.barcode||barcode);
-        }
-      }
-      await validateAdditionalBarcodes(storeId,$('existingProduct').value||selected||null);
-    }catch(err){ return alert(err.message||'تعذر التحقق من الباركودات الإضافية.'); }
+    if(!selected&&!n) return alert('اكتب اسم المادة الجديدة.');
+    try{ await validateAdditionalBarcodes(storeId,selected||null); }catch(err){ return alert(err.message||'تعذر التحقق من الباركودات الإضافية.'); }
 
     try{
       let imageUrl=null;
       if(file) imageUrl=await uploadImage(file,'materials');
-      let productId=selected||$('existingProduct').value||null;
-      if(!productId && barcode){
-        const central=await lookupCentralProductByBarcode(barcode);
-        if(central?.product_id) productId=String(central.product_id);
-      }
+      let productId=selected||null;
       if(productId){
         const {data:p,error}=await supabaseClient.from('products').select('*').eq('id',productId).single();
         if(error) throw error;
