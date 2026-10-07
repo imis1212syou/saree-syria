@@ -91,7 +91,7 @@
 
   window.openBarcodeScannerForAdd = function (storeId) {
     scannerMode = 'add';
-    scannerStoreId = storeId || null;
+    scannerStoreId = storeId || window.__editingMaterial?.storeId || null;
     scannerCompanyId = null;
     scanLocked = false;
     openScanner();
@@ -441,6 +441,7 @@ async function handleBarcode(barcode) {
     try {
       const scopedStoreId = storeId ||
         (typeof profileData !== 'undefined' && profileData?.store_id) ||
+        window.__editingMaterial?.storeId ||
         el('merchantStoreSelect')?.value ||
         new URLSearchParams(location.search).get('store') || null;
 

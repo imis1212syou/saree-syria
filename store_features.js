@@ -24,8 +24,8 @@
   window.__sareeStoreAdditionalBarcodes = window.__sareeStoreAdditionalBarcodes || [];
 
   function activeStoreIdForMaterialForm(){
-    if(isAdmin()) return $('merchantStoreSelect')?.value || null;
-    return role()==='store' ? (profileData?.store_id || null) : null;
+    if(isAdmin()) return $('merchantStoreSelect')?.value || window.__editingMaterial?.storeId || null;
+    return role()==='store' ? (profileData?.store_id || window.__editingMaterial?.storeId || null) : (window.__editingMaterial?.storeId || null);
   }
 
   function additionalBarcodes(){
@@ -180,6 +180,23 @@
       </select>
     `;
     if($('merchantCompanySelect')) $('merchantCompanySelect').value = selectedId || '';
+  }
+
+  async function loadStoreMaterialCompanyInfo(selectedId){
+    const box = $('merchantCompanyBox');
+    if(!box) return;
+    let name='';
+    if(selectedId){
+      let list = Array.isArray(window.companies) ? window.companies : [];
+      if(!list.length){
+        try{
+          const {data,error}=await supabaseClient.from('companies').select('id,name').eq('active',true).order('name');
+          if(!error) list=data||[];
+        }catch(_){}
+      }
+      name = list.find(c=>String(c.id)===String(selectedId))?.name || '';
+    }
+    box.innerHTML = `<div class="notice">الشركة المرتبطة بالمادة: <b>${esc(name || (selectedId ? 'شركة محفوظة' : 'بدون شركة'))}</b></div>`;
   }
 
   const mapsUrl = st => {
@@ -636,7 +653,7 @@
       if(error) throw error;
       if(!data) throw new Error('لم يتم العثور على المادة.');
       const p=data.products||{};
-      window.__editingMaterial={listingId,storeId,productId:data.product_id};
+      window.__editingMaterial={listingId,storeId,productId:data.product_id,companyId:p.company_id||null};
       window.show('add');
       $('existingProduct').value='';
       ['pn','brand','unit','cat'].forEach(id=>{ if($(id)) $(id).disabled=false; });
@@ -647,7 +664,7 @@
       $('barcode').value=normBarcode(p.barcode||data.barcode||'');
       $('pr').value=Number(data.price_new ?? data.price ?? 0);
       $('merchantStoreBox').innerHTML = `<div class="notice">تعديل مادة من متجر: <b>${esc((stores||[]).find(s=>String(s.id)===String(storeId))?.name||storeId)}</b>${p.image_url?'<br>الصورة الحالية محفوظة ما لم تختر صورة جديدة.':''}</div>`;
-      await loadStoreMaterialCompanyOptions(p.company_id||'');
+      await loadStoreMaterialCompanyInfo(p.company_id||null);
       await loadStoreAdditionalBarcodes(storeId,data.product_id);
       $('addHeading').textContent='تعديل المادة أو السعر';
       $('addSubmitBtn').textContent='حفظ التعديلات';
@@ -701,6 +718,7 @@
 
     if(editing){
       const storeId=String(editing.storeId);
+      const companyId=editing.companyId||null;
       if(!canManageStore(storeId)) return alert('ليس لديك صلاحية تعديل هذه المادة.');
       try{
         const {data:row,error}=await supabaseClient.from('price_listings').select('id,store_id,product_id,price_new,price,products(*)').eq('id',editing.listingId).eq('store_id',storeId).single();
@@ -715,16 +733,19 @@
         if(role()==='store' || sharedWithOtherStore){
           const user=await ensureCurrentUser();
           const oldProductId=row.product_id;
+          const oldAdditionalBarcodes=additionalBarcodes().slice();
           const {data:clone,error:cloneError}=await supabaseClient.from('products').insert({...productValues,active:true,created_by:user.id}).select().single();
           if(cloneError) throw cloneError;
           const {error:updateListingError}=await supabaseClient.from('price_listings').update({product_id:clone.id,price_new:v,price:v,approved:true,updated_at:new Date().toISOString()}).eq('id',editing.listingId).eq('store_id',storeId);
           if(updateListingError) throw updateListingError;
-          const {error:oldBarcodeDeleteError}=await supabaseClient.rpc('store_set_product_barcodes',{
-            p_store_id:String(storeId),
-            p_product_id:String(oldProductId),
-            p_barcodes:[]
-          });
-          if(oldBarcodeDeleteError) throw oldBarcodeDeleteError;
+          if(oldAdditionalBarcodes.length){
+            const {error:oldBarcodeDeleteError}=await supabaseClient.rpc('store_set_product_barcodes',{
+              p_store_id:String(storeId),
+              p_product_id:String(oldProductId),
+              p_barcodes:[]
+            });
+            if(oldBarcodeDeleteError) throw oldBarcodeDeleteError;
+          }
           await saveStoreAdditionalBarcodes(storeId,clone.id);
         }else{
           const {error:productError}=await supabaseClient.from('products').update(productValues).eq('id',row.product_id);
