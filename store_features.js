@@ -119,9 +119,24 @@
   }
 
   async function saveStoreAdditionalBarcodes(storeId,productId){
-    if(!storeId || !productId) return;
+    if(!storeId || !productId) return [];
     ensureAdditionalBarcodeUI();
-    const desired=additionalBarcodes().filter(code=>code!==normBarcode($('barcode')?.value));
+    const requested=additionalBarcodes().filter(code=>code!==normBarcode($('barcode')?.value));
+    const desired=[];
+    const conflicts=[];
+
+    // الباركود الإضافي لا يجوز أن ينتسب إلى product_id مختلف في السجل المركزي.
+    // بدلاً من ترك عملية التعديل تفشل بعد تحديث السعر/المادة، نتجاهل الباركود المتعارض
+    // ونحفظ بقية التعديل بشكل طبيعي.
+    for(const code of requested){
+      const central=await window.lookupSareeProductByBarcode(code);
+      if(central?.product_id && String(central.product_id)!==String(productId)){
+        conflicts.push(code);
+        continue;
+      }
+      desired.push(code);
+    }
+
     const {error}=await supabaseClient.rpc('store_set_product_barcodes',{
       p_store_id:String(storeId),
       p_product_id:String(productId),
@@ -130,6 +145,7 @@
     if(error) throw error;
     window.__sareeStoreAdditionalBarcodes=desired;
     renderAdditionalBarcodes();
+    return conflicts;
   }
 
   function rowBarcodeMatches(row,code){
@@ -601,8 +617,39 @@
     );
 
     if(error) throw error;
+    if(data && data.product_id) return data;
 
-    return data && data.product_id ? data : null;
+    // احتياطياً: إذا لم تُرجع دالة البحث المركزية المادة رغم وجود
+    // سجل للباركود في السجل المركزي، اقرأ المالك الحالي للباركود مباشرة.
+    try{
+      const {data:owner,error:ownerError}=await supabaseClient
+        .from('saree_product_barcodes')
+        .select('product_id')
+        .eq('barcode',barcode)
+        .maybeSingle();
+      if(!ownerError && owner?.product_id){
+        const {data:product,error:productError}=await supabaseClient
+          .from('products')
+          .select('id,name,brand,unit,category,company_id,barcode')
+          .eq('id',owner.product_id)
+          .maybeSingle();
+        if(!productError && product?.id){
+          return {
+            product_id:product.id,
+            name:product.name||'',
+            brand:product.brand||'',
+            unit:product.unit||'',
+            category:product.category||'',
+            company_id:product.company_id||null,
+            barcode:product.barcode||barcode
+          };
+        }
+      }
+    }catch(_){
+      // لا نغيّر السلوك إذا لم يكن الوصول المباشر متاحاً؛ يبقى الحارس المركزي في Supabase هو المرجع النهائي.
+    }
+
+    return null;
   };
 
   function resetMaterialForm(){
@@ -790,7 +837,8 @@
           });
           if(oldBarcodeDeleteError) throw oldBarcodeDeleteError;
 
-          await saveStoreAdditionalBarcodes(storeId,targetProductId);
+          const skippedAdditional=await saveStoreAdditionalBarcodes(storeId,targetProductId);
+          if(skippedAdditional.length) alert('تم حفظ التعديل، لكن لم تتم إضافة الباركودات المرتبطة بمواد أخرى: '+skippedAdditional.join('، '));
 
         }else{
           const {error:productError}=await supabaseClient.from('products').update(productValues).eq('id',row.product_id);
@@ -804,7 +852,8 @@
           }).eq('id',editing.listingId).eq('store_id',storeId);
           if(updateListingError) throw updateListingError;
 
-          await saveStoreAdditionalBarcodes(storeId,row.product_id);
+          const skippedAdditional=await saveStoreAdditionalBarcodes(storeId,row.product_id);
+          if(skippedAdditional.length) alert('تم حفظ التعديل، لكن لم تتم إضافة الباركودات المرتبطة بمواد أخرى: '+skippedAdditional.join('، '));
         }
         alert('تم حفظ تعديلات المادة بنجاح ✅');
         window.__editingMaterial=null;
