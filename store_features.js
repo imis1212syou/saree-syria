@@ -628,6 +628,63 @@
   // البحث المركزي عن المادة بالباركود.
   // إذا كان الباركود موجوداً في متجر آخر أو كإضافي، نعيد استخدام product_id نفسه
   // بدلاً من إنشاء product جديد يحمل نفس الباركود.
+  async function loadCentralBarcodeOwner(code){
+    const barcode=normBarcode(code);
+    if(!barcode) return null;
+
+    try{
+      const central=await window.lookupSareeProductByBarcode(barcode);
+      if(central?.product_id) return central;
+    }catch(err){
+      console.warn('central barcode lookup:',err);
+    }
+
+    // الحارس الأخير: قد يكون سجل المالك موجوداً بينما دالة البحث لا تعيده،
+    // لذلك نبحث أيضاً في سجل الباركود المركزي ثم في products.barcode.
+    try{
+      const {data:owner,error:ownerError}=await supabaseClient
+        .from('saree_product_barcodes')
+        .select('product_id')
+        .eq('barcode',barcode)
+        .maybeSingle();
+      if(!ownerError && owner?.product_id){
+        const {data:product,error:productError}=await supabaseClient
+          .from('products')
+          .select('id,name,brand,unit,category,company_id,barcode')
+          .eq('id',owner.product_id)
+          .maybeSingle();
+        if(!productError && product?.id) return {
+          product_id:product.id,
+          name:product.name||'',
+          brand:product.brand||'',
+          unit:product.unit||'',
+          category:product.category||'',
+          company_id:product.company_id||null,
+          barcode:product.barcode||barcode
+        };
+      }
+    }catch(_){ }
+
+    try{
+      const {data:product,error:productError}=await supabaseClient
+        .from('products')
+        .select('id,name,brand,unit,category,company_id,barcode')
+        .eq('barcode',barcode)
+        .maybeSingle();
+      if(!productError && product?.id) return {
+        product_id:product.id,
+        name:product.name||'',
+        brand:product.brand||'',
+        unit:product.unit||'',
+        category:product.category||'',
+        company_id:product.company_id||null,
+        barcode:product.barcode||barcode
+      };
+    }catch(_){ }
+
+    return null;
+  }
+
   window.lookupSareeProductByBarcode = async function(code){
     const barcode = normBarcode(code);
     if(!barcode) return null;
@@ -640,8 +697,6 @@
     if(error) throw error;
     if(data && data.product_id) return data;
 
-    // احتياطياً: إذا لم تُرجع دالة البحث المركزية المادة رغم وجود
-    // سجل للباركود في السجل المركزي، اقرأ المالك الحالي للباركود مباشرة.
     try{
       const {data:owner,error:ownerError}=await supabaseClient
         .from('saree_product_barcodes')
@@ -666,9 +721,26 @@
           };
         }
       }
-    }catch(_){
-      // لا نغيّر السلوك إذا لم يكن الوصول المباشر متاحاً؛ يبقى الحارس المركزي في Supabase هو المرجع النهائي.
-    }
+    }catch(_){ }
+
+    try{
+      const {data:product,error:productError}=await supabaseClient
+        .from('products')
+        .select('id,name,brand,unit,category,company_id,barcode')
+        .eq('barcode',barcode)
+        .maybeSingle();
+      if(!productError && product?.id){
+        return {
+          product_id:product.id,
+          name:product.name||'',
+          brand:product.brand||'',
+          unit:product.unit||'',
+          category:product.category||'',
+          company_id:product.company_id||null,
+          barcode:product.barcode||barcode
+        };
+      }
+    }catch(_){ }
 
     return null;
   };
@@ -830,7 +902,7 @@
         // لا ننشئ نسخة جديدة؛ نستخدم product_id الموجود.
         let targetProductId=String(row.product_id);
         if(barcode){
-          const central=await window.lookupSareeProductByBarcode(barcode);
+          const central=await loadCentralBarcodeOwner(barcode);
           if(central?.product_id){
             targetProductId=String(central.product_id);
           }
@@ -863,7 +935,38 @@
 
         }else{
           const {error:productError}=await supabaseClient.from('products').update(productValues).eq('id',row.product_id);
-          if(productError) throw productError;
+          if(productError){
+            const msg=String(productError.message||'');
+            const conflictBarcode=(msg.match(/\d{8,20}/g)||[])
+              .map(normBarcode)
+              .find(code=>code===barcode);
+            if(conflictBarcode){
+              const central=await loadCentralBarcodeOwner(conflictBarcode);
+              if(central?.product_id && String(central.product_id)!==String(row.product_id)){
+                const {error:moveError}=await supabaseClient.from('price_listings').update({
+                  product_id:String(central.product_id),
+                  price_new:v,
+                  price:v,
+                  approved:true,
+                  updated_at:new Date().toISOString()
+                }).eq('id',editing.listingId).eq('store_id',storeId);
+                if(moveError) throw moveError;
+                const {error:oldBarcodeDeleteError}=await supabaseClient.rpc('store_set_product_barcodes',{
+                  p_store_id:String(storeId),
+                  p_product_id:String(row.product_id),
+                  p_barcodes:[]
+                });
+                if(oldBarcodeDeleteError) throw oldBarcodeDeleteError;
+                const skippedAdditional=await saveStoreAdditionalBarcodes(storeId,String(central.product_id));
+                if(skippedAdditional.length) alert('تم حفظ التعديل، لكن لم تتم إضافة الباركودات المرتبطة بمواد أخرى: '+skippedAdditional.join('، '));
+                alert('تم حفظ تعديلات المادة بنجاح ✅');
+                window.__editingMaterial=null;
+                await window.renderStoreDetail(storeId);
+                return;
+              }
+            }
+            throw productError;
+          }
 
           const {error:updateListingError}=await supabaseClient.from('price_listings').update({
             price_new:v,
