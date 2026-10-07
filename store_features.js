@@ -137,13 +137,34 @@
       desired.push(code);
     }
 
-    const {error}=await supabaseClient.rpc('store_set_product_barcodes',{
+    // الحارس النهائي: قد يكون هناك باركود قديم موجود في السجل المركزي
+    // ولم تُرجعه عملية البحث لأي سبب. إذا رفض Supabase الحفظ، نستخرج
+    // الباركود المتعارض من رسالة الخطأ ونستبعده ثم نعيد الحفظ مرة واحدة.
+    let safeDesired=[...desired];
+    let {error}=await supabaseClient.rpc('store_set_product_barcodes',{
       p_store_id:String(storeId),
       p_product_id:String(productId),
-      p_barcodes:desired
+      p_barcodes:safeDesired
     });
+
+    if(error){
+      const msg=String(error.message||'');
+      const digits=msg.match(/\d{8,20}/g)||[];
+      const conflicting=digits.filter(code=>safeDesired.includes(normBarcode(code)));
+      if(conflicting.length){
+        conflicting.forEach(code=>{
+          safeDesired=safeDesired.filter(x=>x!==normBarcode(code));
+          if(!conflicts.includes(normBarcode(code))) conflicts.push(normBarcode(code));
+        });
+        ({error}=await supabaseClient.rpc('store_set_product_barcodes',{
+          p_store_id:String(storeId),
+          p_product_id:String(productId),
+          p_barcodes:safeDesired
+        }));
+      }
+    }
     if(error) throw error;
-    window.__sareeStoreAdditionalBarcodes=desired;
+    window.__sareeStoreAdditionalBarcodes=safeDesired;
     renderAdditionalBarcodes();
     return conflicts;
   }
