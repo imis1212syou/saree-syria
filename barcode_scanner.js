@@ -438,76 +438,73 @@ async function handleBarcode(barcode) {
 
     const candidates = [];
     const seen = new Set();
-    const addCandidate = (product, source) => {
+    const addCandidate = (product, source, when) => {
       if (!product?.id || seen.has(String(product.id))) return;
       if (cleanBarcode(product.barcode || '') !== target) return;
       seen.add(String(product.id));
-      candidates.push({ product, source });
+      candidates.push({ product, source, when: when || product.created_at || null });
     };
 
-    // أول مصدر: البيانات العامة المحمّلة أصلًا في الصفحة.
-    // هذا يجعل التعبئة تعمل حتى لو كانت قيمة barcode في قاعدة البيانات
-    // تحتوي على فواصل/مسافات أو كان استعلام eq الصريح لا يطابقها.
+    // 1) استخدم البيانات المحمّلة أصلًا في الصفحة.
     try {
       const publicProducts = (typeof products !== 'undefined' && Array.isArray(products)) ? products : [];
-      publicProducts.forEach(product => addCandidate(product, 'primary'));
+      publicProducts.forEach(product => addCandidate(product, 'primary', product.created_at));
     } catch (_) {}
 
-    // مصدر احتياطي من products، مع تطابق آمن بعد تنظيف الباركود محليًا.
+    // 2) بحث مباشر في products بالباركود نفسه، بدون ربط المنتج بمتجر آخر.
+    // لا نعتمد على active فقط لأن المنتج القديم قد يكون غير نشط لكنه ما يزال
+    // مصدرًا صالحًا لاقتراح البيانات.
+    try {
+      const { data, error } = await supabaseClient
+        .from('products')
+        .select('*')
+        .eq('barcode', target)
+        .order('created_at', { ascending: false })
+        .limit(50);
+      if (!error) (data || []).forEach(product => addCandidate(product, 'primary', product.created_at));
+    } catch (error) {
+      console.warn('Barcode template direct lookup:', error);
+    }
+
+    // 3) إذا كانت قيمة الباركود مخزنة بصيغة فيها مسافات/رموز، نحمل مجموعة
+    // معقولة ونطابقها بعد تنظيفها محليًا.
     if (!candidates.length) {
       try {
         const { data, error } = await supabaseClient
           .from('products')
           .select('*')
-          .eq('active', true)
           .not('barcode', 'is', null)
           .order('created_at', { ascending: false })
-          .limit(1000);
-        if (error) throw error;
-        (data || []).forEach(product => addCandidate(product, 'primary'));
+          .limit(2000);
+        if (!error) (data || []).forEach(product => addCandidate(product, 'primary', product.created_at));
       } catch (error) {
-        console.warn('Barcode template primary lookup:', error);
+        console.warn('Barcode template normalized lookup:', error);
       }
     }
 
-    // الباركودات الإضافية: نستخدمها كمصدر بيانات فقط.
-    // لا نأخذ product_id منها لربط المادة الجديدة، ولا نضع قيدًا مركزيًا.
+    // 4) الباركودات الإضافية مصدر بيانات فقط. لا نستخدم product_id لربط
+    // المادة الجديدة بمتجر آخر.
     try {
-      let aliasRows = null;
-      let aliasError = null;
-
-      ({ data: aliasRows, error: aliasError } = await supabaseClient
+      const { data: aliasRows, error: aliasError } = await supabaseClient
         .from('store_product_barcodes')
         .select('product_id,store_id,barcode')
-        .eq('barcode', target)
-        .limit(200));
+        .limit(5000);
 
-      // fallback عند وجود باركود محفوظ بصيغة مختلفة؛ ننظفه محليًا.
-      if (aliasError || !Array.isArray(aliasRows) || !aliasRows.length) {
-        const fallback = await supabaseClient
-          .from('store_product_barcodes')
-          .select('product_id,store_id,barcode')
-          .limit(1000);
-        if (!fallback.error) {
-          aliasRows = (fallback.data || []).filter(row => cleanBarcode(row?.barcode || '') === target);
-        } else if (aliasError) {
-          throw aliasError;
+      if (!aliasError && Array.isArray(aliasRows)) {
+        const matches = aliasRows.filter(row => cleanBarcode(row?.barcode || '') === target);
+        const ids = [...new Set(matches.map(x => x.product_id).filter(Boolean))];
+        if (ids.length) {
+          const { data: productsByAlias, error: productsError } = await supabaseClient
+            .from('products')
+            .select('*')
+            .in('id', ids);
+          if (!productsError) {
+            (productsByAlias || []).forEach(product => {
+              const match = matches.find(x => String(x.product_id) === String(product.id));
+              addCandidate(product, 'alias', match?.created_at || product.created_at);
+            });
+          }
         }
-      }
-
-      const ids = [...new Set((aliasRows || []).map(x => x.product_id).filter(Boolean))];
-      if (ids.length) {
-        const { data: productsByAlias, error: productsError } = await supabaseClient
-          .from('products')
-          .select('*')
-          .in('id', ids);
-        if (productsError) throw productsError;
-        (productsByAlias || []).forEach(product => {
-          if (!product?.id || seen.has(String(product.id))) return;
-          // المنتج المرتبط بالباركود الإضافي لا يشترط أن يحمل نفس barcode الأساسي.
-          seen.add(String(product.id));
-          candidates.push({ product, source: 'alias' });
-        });
       }
     } catch (error) {
       console.warn('Barcode template alias lookup:', error);
@@ -515,51 +512,62 @@ async function handleBarcode(barcode) {
 
     if (!candidates.length) return null;
 
-    // نستخدم آخر تحديث فعلي للسعر المتاح في الصفحة أولًا، ثم fallback من DB.
-    const latestListingAt = new Map();
-    try {
-      const publicPrices = (typeof prices !== 'undefined' && Array.isArray(prices)) ? prices : [];
-      publicPrices.forEach(row => {
-        const id = String(row?.product_id || '');
-        if (!id) return;
-        const current = latestListingAt.get(id) || '';
-        if (!current || new Date(row.updated_at || 0).getTime() > new Date(current || 0).getTime()) {
-          latestListingAt.set(id, row.updated_at || '');
-        }
-      });
-    } catch (_) {}
-
-    const productIds = candidates.map(x => String(x.product.id));
-    if (productIds.length) {
-      try {
-        const { data: listings, error: listingsError } = await supabaseClient
-          .from('price_listings')
-          .select('product_id,updated_at')
-          .in('product_id', productIds)
-          .order('updated_at', { ascending: false })
-          .limit(500);
-        if (listingsError) throw listingsError;
-        (listings || []).forEach(row => {
-          const id = String(row.product_id || '');
-          if (!id || latestListingAt.has(id)) return;
-          latestListingAt.set(id, row.updated_at || '');
-        });
-      } catch (error) {
-        console.warn('Barcode template ordering:', error);
-      }
-    }
-
+    // الأحدث أولًا: تاريخ إنشاء المادة، وهو المرجع المتاح فعلًا بدون إنشاء
+    // قيد مركزي جديد للباركود.
     candidates.sort((a, b) => {
-      const timeOf = item => {
-        const p = item.product || {};
-        const created = new Date(p.created_at || 0).getTime() || 0;
-        const listing = new Date(latestListingAt.get(String(p.id)) || 0).getTime() || 0;
-        return Math.max(created, listing);
-      };
-      return timeOf(b) - timeOf(a);
+      const ta = new Date(a.when || a.product?.created_at || 0).getTime() || 0;
+      const tb = new Date(b.when || b.product?.created_at || 0).getTime() || 0;
+      return tb - ta;
     });
 
     return candidates[0] || null;
+  }
+
+  async function findStoreBarcodeTemplate(storeId, code) {
+    const target = cleanBarcode(code);
+    if (!storeId || !target) return null;
+
+    // لا نحصر البحث في approved=true هنا؛ الهدف تعبئة النموذج من مادة موجودة
+    // في المتجر، وليس عرضها للزوار.
+    try {
+      const { data, error } = await supabaseClient
+        .from('price_listings')
+        .select('id,store_id,product_id,updated_at,approved,products(*)')
+        .eq('store_id', storeId)
+        .order('updated_at', { ascending: false })
+        .limit(1000);
+      if (!error) {
+        const row = (data || []).find(r => cleanBarcode(r?.products?.barcode || r?.barcode || '') === target);
+        if (row?.products) return { row, matchedBy: 'primary' };
+      }
+    } catch (error) {
+      console.warn('Store barcode direct lookup:', error);
+    }
+
+    // الباركودات الإضافية داخل هذا المتجر.
+    try {
+      const { data: aliases, error: aliasError } = await supabaseClient
+        .from('store_product_barcodes')
+        .select('store_id,product_id,barcode')
+        .eq('store_id', storeId)
+        .limit(5000);
+      if (!aliasError) {
+        const matches = (aliases || []).filter(x => cleanBarcode(x?.barcode || '') === target);
+        const ids = [...new Set(matches.map(x => x.product_id).filter(Boolean))];
+        if (ids.length) {
+          const { data: ps, error: pe } = await supabaseClient
+            .from('products').select('*').in('id', ids);
+          if (!pe && ps?.length) return {
+            row: { product_id: ps[0].id, products: ps[0] },
+            matchedBy: 'alias'
+          };
+        }
+      }
+    } catch (error) {
+      console.warn('Store additional barcode direct lookup:', error);
+    }
+
+    return null;
   }
 
   async function fillProductFromBarcode(barcode, storeId) {
@@ -584,7 +592,18 @@ async function handleBarcode(barcode) {
       // أولاً: البحث داخل المتجر الحالي للحفاظ على السلوك السابق.
       let found = { row:null, matchedBy:null };
       if (typeof window.lookupStoreBarcode === 'function') {
-        found = await window.lookupStoreBarcode(scopedStoreId, code);
+        try {
+          found = await window.lookupStoreBarcode(scopedStoreId, code);
+        } catch (lookupError) {
+          console.warn('Scoped barcode lookup:', lookupError);
+        }
+      }
+
+      // fallback مباشر للمتجر حتى تعمل التعبئة أيضًا إذا كانت المادة موجودة
+      // لكن listing غير معتمد بعد أو لم تدخل ضمن القائمة العامة.
+      if (!found.row) {
+        const direct = await findStoreBarcodeTemplate(scopedStoreId, code);
+        if (direct) found = direct;
       }
 
       const listing = found.row;
