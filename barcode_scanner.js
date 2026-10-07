@@ -46,6 +46,30 @@
     });
   }
 
+  function fillMaterialFieldsFromBarcodeData(data) {
+    const values = {
+      pn: data?.name || '',
+      brand: data?.brand || '',
+      unit: data?.unit || '',
+      cat: data?.category || ''
+    };
+
+    const apply = () => {
+      Object.entries(values).forEach(([id, value]) => {
+        const field = el(id);
+        if (!field) return;
+        field.value = value;
+        field.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+    };
+
+    // نطبّق القيم الآن وبعد أي change listener آخر على قائمة المادة،
+    // حتى لا يقوم مستمع الواجهة بإعادة ضبط الحقول بعد التعبئة.
+    apply();
+    requestAnimationFrame(apply);
+    setTimeout(apply, 0);
+  }
+
   function setStatus(text) {
     const status = el('barcodeScanStatus');
 
@@ -623,9 +647,7 @@ async function handleBarcode(barcode) {
           existing.dispatchEvent(new Event('change', { bubbles:true }));
         }
 
-        ['pn','brand','unit','cat'].forEach(id => {
-          if (el(id)) el(id).value = data[id] || '';
-        });
+        fillMaterialFieldsFromBarcodeData(data);
         if (el('merchantCompanySelect')) el('merchantCompanySelect').value = data.company_id || '';
 
         if (found.matchedBy === 'alias' && typeof window.setScannedStoreBarcodeForForm === 'function') {
@@ -667,9 +689,7 @@ async function handleBarcode(barcode) {
           existing.dispatchEvent(new Event('change', { bubbles:true }));
         }
 
-        ['pn','brand','unit','cat'].forEach(id => {
-          if (el(id)) el(id).value = data[id] || '';
-        });
+        fillMaterialFieldsFromBarcodeData(data);
         if (el('barcode')) el('barcode').value = code;
         if (el('merchantCompanySelect')) el('merchantCompanySelect').value = data.company_id || '';
 
@@ -701,9 +721,7 @@ async function handleBarcode(barcode) {
           existing.dispatchEvent(new Event('change', { bubbles:true }));
         }
 
-        ['pn','brand','unit','cat'].forEach(id => {
-          if (el(id)) el(id).value = data[id] || '';
-        });
+        fillMaterialFieldsFromBarcodeData(data);
         if (el('barcode')) el('barcode').value = code;
         if (el('merchantCompanySelect')) el('merchantCompanySelect').value = data.company_id || '';
 
