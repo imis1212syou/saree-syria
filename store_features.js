@@ -24,6 +24,7 @@
   window.__sareeStoreAdditionalBarcodes = window.__sareeStoreAdditionalBarcodes || [];
 
   function activeStoreIdForMaterialForm(){
+    if(window.__editingMaterial?.storeId) return String(window.__editingMaterial.storeId);
     if(isAdmin()) return $('merchantStoreSelect')?.value || null;
     return role()==='store' ? (profileData?.store_id || null) : null;
   }
