@@ -393,11 +393,7 @@ async function handleBarcode(barcode) {
 
     if (mode === 'add') {
       const input = el('barcode');
-      if (input) {
-        input.value = clean;
-        input.dispatchEvent(new Event('input', { bubbles:true }));
-        input.dispatchEvent(new Event('change', { bubbles:true }));
-      }
+      if (input) input.value = clean;
       const msg = el('barcodeMsg');
       if (msg) msg.textContent = 'تم قراءة الباركود: ' + clean;
       await fillProductFromBarcode(clean, storeId);
@@ -436,8 +432,100 @@ async function handleBarcode(barcode) {
     }
   }
 
+  async function findLatestGlobalBarcodeTemplate(code) {
+    const target = cleanBarcode(code);
+    if (!target) return null;
+
+    const candidates = [];
+    const seen = new Set();
+
+    try {
+      const { data, error } = await supabaseClient
+        .from('products')
+        .select('*')
+        .eq('active', true)
+        .eq('barcode', target)
+        .limit(100);
+      if (error) throw error;
+      (data || []).forEach(product => {
+        if (!product?.id || seen.has(String(product.id))) return;
+        seen.add(String(product.id));
+        candidates.push({ product, source: 'primary' });
+      });
+    } catch (error) {
+      console.warn('Global primary barcode lookup:', error);
+    }
+
+    // الباركودات الإضافية تُستخدم هنا كمصدر بيانات فقط، وليس كمرجع مركزي
+    // أو قيد فريد على الباركود بين المتاجر.
+    try {
+      const { data: aliasRows, error: aliasError } = await supabaseClient
+        .from('store_product_barcodes')
+        .select('product_id,store_id,barcode')
+        .eq('barcode', target)
+        .limit(200);
+      if (aliasError) throw aliasError;
+
+      const ids = [...new Set((aliasRows || []).map(x => x.product_id).filter(Boolean))];
+      if (ids.length) {
+        const { data: productsByAlias, error: productsError } = await supabaseClient
+          .from('products')
+          .select('*')
+          .eq('active', true)
+          .in('id', ids);
+        if (productsError) throw productsError;
+        (productsByAlias || []).forEach(product => {
+          if (!product?.id || seen.has(String(product.id))) return;
+          seen.add(String(product.id));
+          candidates.push({ product, source: 'alias' });
+        });
+      }
+    } catch (error) {
+      // فشل قراءة الباركودات الإضافية لا يعطل البحث بالباركود الأساسي.
+      console.warn('Global alias barcode lookup:', error);
+    }
+
+    if (!candidates.length) return null;
+
+    // لا يوجد وقت داخل store_product_barcodes نفسه؛ لذلك نستخدم أحدث
+    // وقت متاح للمادة أو لتحديث سعرها كأفضل مؤشر على أحدث سجل.
+    const productIds = candidates.map(x => String(x.product.id));
+    const latestListingAt = new Map();
+    try {
+      const { data: listings, error: listingsError } = await supabaseClient
+        .from('price_listings')
+        .select('product_id,updated_at')
+        .in('product_id', productIds)
+        .order('updated_at', { ascending: false })
+        .limit(500);
+      if (listingsError) throw listingsError;
+      (listings || []).forEach(row => {
+        const id = String(row.product_id || '');
+        if (!id || latestListingAt.has(id)) return;
+        latestListingAt.set(id, row.updated_at || '');
+      });
+    } catch (error) {
+      console.warn('Latest barcode template ordering:', error);
+    }
+
+    candidates.sort((a, b) => {
+      const pa = a.product || {};
+      const pb = b.product || {};
+      const productTime = value => {
+        const created = new Date(value.created_at || 0).getTime() || 0;
+        const listing = new Date(latestListingAt.get(String(value.id)) || 0).getTime() || 0;
+        return Math.max(created, listing);
+      };
+      return productTime(pb) - productTime(pa);
+    });
+
+    return candidates[0] || null;
+  }
+
   async function fillProductFromBarcode(barcode, storeId) {
     const code = cleanBarcode(barcode);
+    if (!code) return;
+
     try {
       const scopedStoreId = storeId ||
         (typeof profileData !== 'undefined' && profileData?.store_id) ||
@@ -445,72 +533,95 @@ async function handleBarcode(barcode) {
         el('merchantStoreSelect')?.value ||
         new URLSearchParams(location.search).get('store') || null;
 
+      const barcodeStillCurrent = () => cleanBarcode(el('barcode')?.value) === code;
+
       if (!scopedStoreId) {
         const msg = el('barcodeMsg');
-        if (msg) msg.textContent = 'تم قراءة الباركود. اختر المتجر ثم احفظ المادة.';
+        if (msg) msg.textContent = 'تم إدخال الباركود. اختر المتجر ثم احفظ المادة.';
         return;
       }
 
-      let found={row:null,matchedBy:null};
-      if(typeof window.lookupStoreBarcode==='function'){
-        found=await window.lookupStoreBarcode(scopedStoreId,code);
-      }else{
-        const { data: listings, error } = await supabaseClient
-          .from('price_listings')
-          .select('id,store_id,product_id,approved,updated_at,products(*)')
-          .eq('store_id', scopedStoreId)
-          .eq('approved', true)
-          .order('updated_at', { ascending:false });
-        if (error) throw error;
-        const listing = (Array.isArray(listings) ? listings : []).find(row => cleanBarcode(row?.products?.barcode || row?.barcode || '') === code);
-        found={row:listing||null,matchedBy:listing?'primary':null};
+      // أولاً: البحث داخل المتجر الحالي للحفاظ على السلوك السابق.
+      let found = { row:null, matchedBy:null };
+      if (typeof window.lookupStoreBarcode === 'function') {
+        found = await window.lookupStoreBarcode(scopedStoreId, code);
       }
-      const listing=found.row;
+
+      const listing = found.row;
       const data = listing?.products || null;
 
-      if (!data) {
+      if (!barcodeStillCurrent()) return;
+
+      if (data) {
+        const existing = el('existingProduct');
+        if (existing) {
+          let option = [...existing.options].find(o => String(o.value) === String(data.id));
+          if (!option) {
+            option = document.createElement('option');
+            option.value = data.id;
+            option.textContent = 'المادة الممسوحة: ' + (data.name || 'مادة');
+            existing.appendChild(option);
+          }
+          existing.value = data.id;
+          existing.dispatchEvent(new Event('change', { bubbles:true }));
+        }
+
+        ['pn','brand','unit','cat'].forEach(id => {
+          if (el(id)) el(id).value = data[id] || '';
+        });
+        if (el('merchantCompanySelect')) el('merchantCompanySelect').value = data.company_id || '';
+
+        if (found.matchedBy === 'alias' && typeof window.setScannedStoreBarcodeForForm === 'function') {
+          if (el('barcode')) el('barcode').value = cleanBarcode(data.barcode || '');
+          await window.setScannedStoreBarcodeForForm(scopedStoreId, code, data.id);
+        }
+
+        const msg = el('barcodeMsg');
+        if (msg) msg.textContent = found.matchedBy === 'alias'
+          ? 'تم العثور على المادة بالباركود الإضافي وتعبئة بياناتها.'
+          : 'تم العثور على المادة داخل هذا المتجر وتعبئة بياناتها.';
+        return;
+      }
+
+      // ثانياً: البحث على مستوى المنصة كمصدر تعبئة فقط. لا نختار product_id
+      // الموجود في متجر آخر، حتى تبقى بيانات المتجر مستقلة ولا يتحول الباركود
+      // إلى معرف مركزي للمادة.
+      const template = await findLatestGlobalBarcodeTemplate(code);
+      if (!barcodeStillCurrent()) return;
+      if (template?.product) {
+        const data = template.product;
         const existing = el('existingProduct');
         if (existing) {
           existing.value = '';
           existing.dispatchEvent(new Event('change', { bubbles:true }));
         }
+
+        ['pn','brand','unit','cat'].forEach(id => {
+          if (el(id)) el(id).value = data[id] || '';
+        });
+        if (el('barcode')) el('barcode').value = code;
+        if (el('merchantCompanySelect')) el('merchantCompanySelect').value = data.company_id || '';
+
         const msg = el('barcodeMsg');
-        if (msg) msg.textContent = 'لم نجد مادة بهذا الباركود داخل هذا المتجر. يمكنك إضافة مادة جديدة.';
+        if (msg) msg.textContent = 'تم العثور على بيانات سابقة لهذا الباركود وتعبئتها تلقائياً. الباركود يبقى خاصاً بهذا المتجر.';
         return;
       }
 
       const existing = el('existingProduct');
       if (existing) {
-        let option = [...existing.options].find(o => String(o.value) === String(data.id));
-        if (!option) {
-          option = document.createElement('option');
-          option.value = data.id;
-          option.textContent = 'المادة الممسوحة: ' + (data.name || 'مادة');
-          existing.appendChild(option);
-        }
-        existing.value = data.id;
+        existing.value = '';
         existing.dispatchEvent(new Event('change', { bubbles:true }));
       }
-
-      ['pn','brand','unit','cat'].forEach(id => {
-        if (el(id)) el(id).value = data[id] || '';
-      });
-      if (el('merchantCompanySelect')) el('merchantCompanySelect').value = data.company_id || '';
-      if (found.matchedBy === 'alias' && typeof window.setScannedStoreBarcodeForForm === 'function') {
-        if (el('barcode')) el('barcode').value = cleanBarcode(data.barcode || '');
-        await window.setScannedStoreBarcodeForForm(scopedStoreId,code,data.id);
-      }
-
       const msg = el('barcodeMsg');
-      if (msg) msg.textContent = found.matchedBy === 'alias'
-        ? 'تم العثور على المادة بالباركود الإضافي وتعبئة بياناتها.'
-        : 'تم العثور على المادة داخل هذا المتجر وتعبئة بياناتها.';
+      if (msg) msg.textContent = 'لم نجد بيانات سابقة لهذا الباركود. يمكنك إضافة مادة جديدة.';
     } catch (error) {
       console.error('Barcode product lookup:', error);
       const msg = el('barcodeMsg');
-      if (msg) msg.textContent = 'تم قراءة الباركود، لكن تعذر جلب بيانات المادة من المتجر.';
+      if (msg) msg.textContent = 'تم إدخال الباركود، لكن تعذر جلب بياناته حالياً.';
     }
   }
+
+  window.fillStoreMaterialFromBarcode = fillProductFromBarcode;
 
   async function showStoreBarcodeResult(
     barcode,
@@ -723,7 +834,8 @@ async function handleBarcode(barcode) {
           padding:15px;
           margin:15px 0;
           border-radius:15px;
-          background:rgba(57,217,138,.08);
+          background:#fff;
+          color:#1e3a49;
         ">
 
           <div style="

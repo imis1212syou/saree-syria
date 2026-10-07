@@ -664,7 +664,7 @@
       $('barcode').value=normBarcode(p.barcode||data.barcode||'');
       $('pr').value=Number(data.price_new ?? data.price ?? 0);
       $('merchantStoreBox').innerHTML = `<div class="notice">تعديل مادة من متجر: <b>${esc((stores||[]).find(s=>String(s.id)===String(storeId))?.name||storeId)}</b>${p.image_url?'<br>الصورة الحالية محفوظة ما لم تختر صورة جديدة.':''}</div>`;
-      await loadStoreMaterialCompanyInfo(p.company_id||null);
+      await loadStoreMaterialCompanyOptions(p.company_id||'');
       await loadStoreAdditionalBarcodes(storeId,data.product_id);
       $('addHeading').textContent='تعديل المادة أو السعر';
       $('addSubmitBtn').textContent='حفظ التعديلات';
@@ -718,7 +718,7 @@
 
     if(editing){
       const storeId=String(editing.storeId);
-      const companyId=editing.companyId||null;
+      const companyId=$('merchantCompanySelect')?.value||null;
       if(!canManageStore(storeId)) return alert('ليس لديك صلاحية تعديل هذه المادة.');
       try{
         const {data:row,error}=await supabaseClient.from('price_listings').select('id,store_id,product_id,price_new,price,products(*)').eq('id',editing.listingId).eq('store_id',storeId).single();
@@ -1010,6 +1010,25 @@
   function initStoreBarcodeFeature(){
     ensureAdditionalBarcodeUI();
     bindExistingProductBarcodeLoader();
+
+    const barcodeInput=$('barcode');
+    if(barcodeInput && barcodeInput.dataset.autoFillBound!=='1'){
+      barcodeInput.dataset.autoFillBound='1';
+      let timer=null;
+      barcodeInput.addEventListener('input',()=>{
+        const code=normBarcode(barcodeInput.value);
+        barcodeInput.value=code;
+        if(timer) clearTimeout(timer);
+        if(!code || code.length<6) return;
+        timer=setTimeout(()=>{
+          const storeId=activeStoreIdForMaterialForm();
+          if(!storeId) return;
+          if(typeof window.fillStoreMaterialFromBarcode!=='function') return;
+          window.fillStoreMaterialFromBarcode(code,storeId).catch(err=>console.warn('barcode autofill:',err));
+        },450);
+      });
+    }
+
     $('merchantStoreSelect')?.addEventListener('change',async()=>{
       const pid=$('existingProduct')?.value;
       if(pid){try{await loadStoreAdditionalBarcodes(activeStoreIdForMaterialForm(),pid)}catch(err){console.warn('store barcode change:',err)}}
