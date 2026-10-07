@@ -583,27 +583,25 @@ async function handleBarcode(barcode) {
 
       const barcodeStillCurrent = () => cleanBarcode(el('barcode')?.value) === code;
 
-      if (!scopedStoreId) {
-        const msg = el('barcodeMsg');
-        if (msg) msg.textContent = 'تم إدخال الباركود. اختر المتجر ثم احفظ المادة.';
-        return;
-      }
-
-      // أولاً: البحث داخل المتجر الحالي للحفاظ على السلوك السابق.
+      // أولاً: إذا كان المتجر معروفًا، نبحث داخله فقط للحفاظ على السلوك السابق.
+      // إذا لم يكن storeId متاحًا بعد (خصوصًا في شاشة المدير)، لا نوقف العملية؛
+      // لأن البحث العام أدناه هو مجرد تعبئة بيانات ولا يربط الباركود بأي متجر.
       let found = { row:null, matchedBy:null };
-      if (typeof window.lookupStoreBarcode === 'function') {
-        try {
-          found = await window.lookupStoreBarcode(scopedStoreId, code);
-        } catch (lookupError) {
-          console.warn('Scoped barcode lookup:', lookupError);
+      if (scopedStoreId) {
+        if (typeof window.lookupStoreBarcode === 'function') {
+          try {
+            found = await window.lookupStoreBarcode(scopedStoreId, code);
+          } catch (lookupError) {
+            console.warn('Scoped barcode lookup:', lookupError);
+          }
         }
-      }
 
-      // fallback مباشر للمتجر حتى تعمل التعبئة أيضًا إذا كانت المادة موجودة
-      // لكن listing غير معتمد بعد أو لم تدخل ضمن القائمة العامة.
-      if (!found.row) {
-        const direct = await findStoreBarcodeTemplate(scopedStoreId, code);
-        if (direct) found = direct;
+        // fallback مباشر للمتجر حتى تعمل التعبئة أيضًا إذا كانت المادة موجودة
+        // لكن listing غير معتمد بعد أو لم تدخل ضمن القائمة العامة.
+        if (!found.row) {
+          const direct = await findStoreBarcodeTemplate(scopedStoreId, code);
+          if (direct) found = direct;
+        }
       }
 
       const listing = found.row;
