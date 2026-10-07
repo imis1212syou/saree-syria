@@ -126,43 +126,46 @@
     const conflicts=[];
 
     // الباركود الإضافي لا يجوز أن ينتسب إلى product_id مختلف في السجل المركزي.
-    // بدلاً من ترك عملية التعديل تفشل بعد تحديث السعر/المادة، نتجاهل الباركود المتعارض
-    // ونحفظ بقية التعديل بشكل طبيعي.
+    // أي تعارض معروف يُستبعد قبل الحفظ، حتى لا يفشل حفظ التعديل كله.
     for(const code of requested){
-      const central=await window.lookupSareeProductByBarcode(code);
-      if(central?.product_id && String(central.product_id)!==String(productId)){
-        conflicts.push(code);
-        continue;
+      try{
+        const central=await window.lookupSareeProductByBarcode(code);
+        if(central?.product_id && String(central.product_id)!==String(productId)){
+          conflicts.push(code);
+          continue;
+        }
+      }catch(_){
+        // نتابع إلى الحارس النهائي أدناه؛ لا نفشل تعديل المادة بسبب فشل استعلام البحث.
       }
       desired.push(code);
     }
 
-    // الحارس النهائي: قد يكون هناك باركود قديم موجود في السجل المركزي
-    // ولم تُرجعه عملية البحث لأي سبب. إذا رفض Supabase الحفظ، نستخرج
-    // الباركود المتعارض من رسالة الخطأ ونستبعده ثم نعيد الحفظ مرة واحدة.
+    // الحارس النهائي: إذا رفضت Supabase مجموعة الباركودات بسبب أكثر من باركود
+    // متعارض، نستبعد التعارض واحداً تلو الآخر ونعيد الحفظ حتى تنجح المجموعة.
     let safeDesired=[...desired];
-    let {error}=await supabaseClient.rpc('store_set_product_barcodes',{
-      p_store_id:String(storeId),
-      p_product_id:String(productId),
-      p_barcodes:safeDesired
-    });
+    let error=null;
+    while(true){
+      ({error}=await supabaseClient.rpc('store_set_product_barcodes',{
+        p_store_id:String(storeId),
+        p_product_id:String(productId),
+        p_barcodes:safeDesired
+      }));
 
-    if(error){
+      if(!error) break;
+
       const msg=String(error.message||'');
       const digits=msg.match(/\d{8,20}/g)||[];
-      const conflicting=digits.filter(code=>safeDesired.includes(normBarcode(code)));
-      if(conflicting.length){
-        conflicting.forEach(code=>{
-          safeDesired=safeDesired.filter(x=>x!==normBarcode(code));
-          if(!conflicts.includes(normBarcode(code))) conflicts.push(normBarcode(code));
-        });
-        ({error}=await supabaseClient.rpc('store_set_product_barcodes',{
-          p_store_id:String(storeId),
-          p_product_id:String(productId),
-          p_barcodes:safeDesired
-        }));
-      }
+      const conflicting=[...new Set(digits.map(normBarcode))]
+        .filter(code=>safeDesired.includes(code));
+
+      if(!conflicting.length) break;
+
+      conflicting.forEach(code=>{
+        safeDesired=safeDesired.filter(x=>x!==code);
+        if(!conflicts.includes(code)) conflicts.push(code);
+      });
     }
+
     if(error) throw error;
     window.__sareeStoreAdditionalBarcodes=safeDesired;
     renderAdditionalBarcodes();
