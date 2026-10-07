@@ -20,10 +20,3 @@
 - `company_toggle_category`
 
 ملاحظة: هذه النسخة تعرض إجمالي الزيارات فقط، ولا تعرض الزوار الفريدين.
-
-دوال الباركود المركزي المستخدمة لمنع تكرار سجل المادة عند إضافتها إلى متجر آخر:
-- `saree_lookup_product_by_barcode`
-- `saree_get_product_barcodes`
-- `saree_set_product_barcodes`
-
-مهم: يجب إبقاء Trigger `saree_products_primary_barcode_sync` فعالًا؛ الإصلاح في التطبيق يعيد استخدام المادة المركزية بدل إنشاء سجل `products` جديد بنفس الباركود عند إضافتها لمتجر آخر.

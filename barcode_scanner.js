@@ -468,13 +468,52 @@ async function handleBarcode(barcode) {
       const data = listing?.products || null;
 
       if (!data) {
+        // إذا لم توجد المادة داخل المتجر الحالي، ابحث في السجل المركزي.
+        // هذا يسمح بإضافة نفس المادة لمتجر آخر مع إعادة استخدام product_id
+        // بدلاً من إنشاء product جديد بنفس الباركود.
+        try{
+          const central = typeof window.lookupSareeProductByBarcode === 'function'
+            ? await window.lookupSareeProductByBarcode(code)
+            : null;
+
+          if(central?.product_id){
+            const existing = el('existingProduct');
+            if(existing){
+              const pid=String(central.product_id);
+              let option=[...existing.options].find(o=>String(o.value)===pid);
+              if(!option){
+                option=document.createElement('option');
+                option.value=pid;
+                option.textContent='المادة الموجودة في المنصة: '+(central.name||'مادة');
+                existing.appendChild(option);
+              }
+              existing.value=pid;
+              existing.dispatchEvent(new Event('change',{bubbles:true}));
+            }
+
+            ['pn','brand','unit','cat'].forEach(id=>{
+              if(el(id)) el(id).value = central[id] || (id==='cat'?'عام':'');
+            });
+            if(el('merchantCompanySelect') && central.company_id){
+              el('merchantCompanySelect').value=central.company_id;
+            }
+            if(el('barcode')) el('barcode').value=cleanBarcode(central.barcode || code);
+
+            const msg=el('barcodeMsg');
+            if(msg) msg.textContent='تم العثور على المادة الموجودة في متجر/جزء آخر من المنصة وتعبئتها تلقائياً.';
+            return;
+          }
+        }catch(globalError){
+          console.warn('Global barcode lookup:',globalError);
+        }
+
         const existing = el('existingProduct');
         if (existing) {
           existing.value = '';
           existing.dispatchEvent(new Event('change', { bubbles:true }));
         }
         const msg = el('barcodeMsg');
-        if (msg) msg.textContent = 'لم نجد مادة بهذا الباركود داخل هذا المتجر. يمكنك إضافة مادة جديدة.';
+        if (msg) msg.textContent = 'لم نجد مادة بهذا الباركود في المنصة. يمكنك إضافة مادة جديدة.';
         return;
       }
 
