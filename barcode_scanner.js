@@ -438,45 +438,73 @@ async function handleBarcode(barcode) {
 
     const candidates = [];
     const seen = new Set();
+    const addCandidate = (product, source) => {
+      if (!product?.id || seen.has(String(product.id))) return;
+      if (cleanBarcode(product.barcode || '') !== target) return;
+      seen.add(String(product.id));
+      candidates.push({ product, source });
+    };
 
-    // هذا البحث هو مصدر بيانات فقط. لا نأخذ product_id من متجر آخر
-    // ولا نربط المادة الجديدة به.
+    // أول مصدر: البيانات العامة المحمّلة أصلًا في الصفحة.
+    // هذا يجعل التعبئة تعمل حتى لو كانت قيمة barcode في قاعدة البيانات
+    // تحتوي على فواصل/مسافات أو كان استعلام eq الصريح لا يطابقها.
     try {
-      const { data, error } = await supabaseClient
-        .from('products')
-        .select('*')
-        .eq('active', true)
-        .eq('barcode', target)
-        .limit(100);
-      if (error) throw error;
-      (data || []).forEach(product => {
-        if (!product?.id || seen.has(String(product.id))) return;
-        seen.add(String(product.id));
-        candidates.push({ product, source: 'primary' });
-      });
-    } catch (error) {
-      console.warn('Barcode template primary lookup:', error);
+      const publicProducts = (typeof products !== 'undefined' && Array.isArray(products)) ? products : [];
+      publicProducts.forEach(product => addCandidate(product, 'primary'));
+    } catch (_) {}
+
+    // مصدر احتياطي من products، مع تطابق آمن بعد تنظيف الباركود محليًا.
+    if (!candidates.length) {
+      try {
+        const { data, error } = await supabaseClient
+          .from('products')
+          .select('*')
+          .eq('active', true)
+          .not('barcode', 'is', null)
+          .order('created_at', { ascending: false })
+          .limit(1000);
+        if (error) throw error;
+        (data || []).forEach(product => addCandidate(product, 'primary'));
+      } catch (error) {
+        console.warn('Barcode template primary lookup:', error);
+      }
     }
 
-    // الباركود الإضافي مصدر بيانات فقط، وليس قيداً مركزياً.
+    // الباركودات الإضافية: نستخدمها كمصدر بيانات فقط.
+    // لا نأخذ product_id منها لربط المادة الجديدة، ولا نضع قيدًا مركزيًا.
     try {
-      const { data: aliasRows, error: aliasError } = await supabaseClient
+      let aliasRows = null;
+      let aliasError = null;
+
+      ({ data: aliasRows, error: aliasError } = await supabaseClient
         .from('store_product_barcodes')
         .select('product_id,store_id,barcode')
         .eq('barcode', target)
-        .limit(200);
-      if (aliasError) throw aliasError;
+        .limit(200));
+
+      // fallback عند وجود باركود محفوظ بصيغة مختلفة؛ ننظفه محليًا.
+      if (aliasError || !Array.isArray(aliasRows) || !aliasRows.length) {
+        const fallback = await supabaseClient
+          .from('store_product_barcodes')
+          .select('product_id,store_id,barcode')
+          .limit(1000);
+        if (!fallback.error) {
+          aliasRows = (fallback.data || []).filter(row => cleanBarcode(row?.barcode || '') === target);
+        } else if (aliasError) {
+          throw aliasError;
+        }
+      }
 
       const ids = [...new Set((aliasRows || []).map(x => x.product_id).filter(Boolean))];
       if (ids.length) {
         const { data: productsByAlias, error: productsError } = await supabaseClient
           .from('products')
           .select('*')
-          .eq('active', true)
           .in('id', ids);
         if (productsError) throw productsError;
         (productsByAlias || []).forEach(product => {
           if (!product?.id || seen.has(String(product.id))) return;
+          // المنتج المرتبط بالباركود الإضافي لا يشترط أن يحمل نفس barcode الأساسي.
           seen.add(String(product.id));
           candidates.push({ product, source: 'alias' });
         });
@@ -487,25 +515,38 @@ async function handleBarcode(barcode) {
 
     if (!candidates.length) return null;
 
-    // لا يوجد created_at في جدول الباركودات الإضافية عندك، لذلك نستخدم
-    // آخر تحديث للسعر كأقرب مؤشر زمني لاختيار آخر بيانات استُخدمت.
-    const productIds = candidates.map(x => String(x.product.id));
+    // نستخدم آخر تحديث فعلي للسعر المتاح في الصفحة أولًا، ثم fallback من DB.
     const latestListingAt = new Map();
     try {
-      const { data: listings, error: listingsError } = await supabaseClient
-        .from('price_listings')
-        .select('product_id,updated_at')
-        .in('product_id', productIds)
-        .order('updated_at', { ascending: false })
-        .limit(500);
-      if (listingsError) throw listingsError;
-      (listings || []).forEach(row => {
-        const id = String(row.product_id || '');
-        if (!id || latestListingAt.has(id)) return;
-        latestListingAt.set(id, row.updated_at || '');
+      const publicPrices = (typeof prices !== 'undefined' && Array.isArray(prices)) ? prices : [];
+      publicPrices.forEach(row => {
+        const id = String(row?.product_id || '');
+        if (!id) return;
+        const current = latestListingAt.get(id) || '';
+        if (!current || new Date(row.updated_at || 0).getTime() > new Date(current || 0).getTime()) {
+          latestListingAt.set(id, row.updated_at || '');
+        }
       });
-    } catch (error) {
-      console.warn('Barcode template ordering:', error);
+    } catch (_) {}
+
+    const productIds = candidates.map(x => String(x.product.id));
+    if (productIds.length) {
+      try {
+        const { data: listings, error: listingsError } = await supabaseClient
+          .from('price_listings')
+          .select('product_id,updated_at')
+          .in('product_id', productIds)
+          .order('updated_at', { ascending: false })
+          .limit(500);
+        if (listingsError) throw listingsError;
+        (listings || []).forEach(row => {
+          const id = String(row.product_id || '');
+          if (!id || latestListingAt.has(id)) return;
+          latestListingAt.set(id, row.updated_at || '');
+        });
+      } catch (error) {
+        console.warn('Barcode template ordering:', error);
+      }
     }
 
     candidates.sort((a, b) => {
@@ -785,27 +826,25 @@ async function handleBarcode(barcode) {
         box-sizing:border-box;
       ">
 
-        ${
-          product.image_url
-            ? `
-              <img
-                src="${escapeHtml(product.image_url)}"
-                alt=""
-                style="
-                  width:110px;
-                  height:110px;
-                  object-fit:cover;
-                  border-radius:15px;
-                ">
-            `
-            : ''
-        }
+        <div class="barcode-product-identity">
+          ${
+            product.image_url
+              ? `
+                <img
+                  src="${escapeHtml(product.image_url)}"
+                  alt="${escapeHtml(product.name || 'المادة')}"
+                  class="barcode-product-image"
+                >
+              `
+              : '<div class="barcode-product-image barcode-product-image-empty">مادة</div>'
+          }
 
-        <h2>
-          ${escapeHtml(
-            product.name || 'المادة'
-          )}
-        </h2>
+          <h2 class="barcode-product-name">
+            ${escapeHtml(
+              product.name || 'المادة'
+            )}
+          </h2>
+        </div>
 
         ${
           product.brand

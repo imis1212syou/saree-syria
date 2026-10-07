@@ -108,3 +108,9 @@ label{color:#55717f}
   .nav button:before{width:21px;height:21px}
 }
 @media(prefers-reduced-motion:reduce){.btn,.nav button{transition:none!important}.saree-category-card{transition:none!important}}
+
+.barcode-product-identity{margin:0 0 15px;padding:14px 12px;background:#fff !important;color:#173042 !important;border:1px solid #dbeaf2;border-radius:16px;box-shadow:0 8px 22px rgba(36,92,117,.10)}
+.barcode-product-image{width:110px;height:110px;display:block;margin:0 auto 10px;object-fit:cover;border-radius:15px;background:#f7fbfd;border:1px solid #e4eff4}
+.barcode-product-image-empty{display:flex;align-items:center;justify-content:center;color:#66808e;font-weight:700;object-fit:initial}
+.barcode-product-name{margin:0 !important;color:#173042 !important;font-size:21px !important;line-height:1.5}
+.storeProductCard .name{background:#fff !important;color:#173042 !important;border-radius:10px;padding:6px 8px}
