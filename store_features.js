@@ -269,13 +269,13 @@
     const wrap=document.createElement('div');
     wrap.id='sareeEntityQrFloat';
     wrap.setAttribute('aria-label','QR '+String(name||''));
-    wrap.style.cssText='position:fixed;left:8px;top:50%;transform:translateY(-50%);z-index:9990;width:92px;padding:6px;background:#fff;border:1px solid rgba(24,70,86,.18);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.14);box-sizing:border-box;text-align:center;direction:rtl;';
+    wrap.style.cssText='position:fixed;left:14px;top:50%;transform:translateY(-50%);z-index:9990;width:320px;padding:10px;background:#fff;border:1px solid rgba(24,70,86,.18);border-radius:16px;box-shadow:0 8px 24px rgba(0,0,0,.14);box-sizing:border-box;text-align:center;direction:rtl;pointer-events:none;';
     const box=document.createElement('div');
     box.id='sareeEntityQrFloatBox';
-    box.style.cssText='width:80px;height:80px;display:flex;align-items:center;justify-content:center;margin:auto;';
+    box.style.cssText='width:300px;height:300px;display:flex;align-items:center;justify-content:center;margin:auto;';
     const label=document.createElement('div');
     label.textContent='QR';
-    label.style.cssText='margin-top:3px;color:#1f4f63;font:700 11px/1 Arial,sans-serif;';
+    label.style.cssText='margin-top:6px;color:#1f4f63;font:700 16px/1 Arial,sans-serif;';
     wrap.appendChild(box);
     wrap.appendChild(label);
     document.body.appendChild(wrap);
@@ -283,7 +283,7 @@
       const url=entityType==='company'
         ? (typeof window.companyQrUrlForFloat==='function' ? window.companyQrUrlForFloat(id) : window.location.origin+window.location.pathname+'?company='+encodeURIComponent(id)+'&qr=1')
         : qrStoreUrl(id);
-      new QRCode(box,{text:url,width:80,height:80,correctLevel:QRCode.CorrectLevel?.H ?? 2});
+      new QRCode(box,{text:url,width:300,height:300,correctLevel:QRCode.CorrectLevel?.H ?? 2});
     }catch(err){console.warn('entity QR float:',err);removeEntityQrFloat();}
   };
 
@@ -682,9 +682,12 @@
   }
   async function storeBarcodeExists(storeId,code,excludeProductId){
     const barcode = normBarcode(code);
-    if(!barcode) return false;
+    if(!storeId || !barcode) return false;
     const rows = await loadApprovedStoreListings(storeId);
-    return rows.some(r => String(r.product_id)!==String(excludeProductId||'') && rowBarcodeMatches(r,barcode));
+    return rows.some(r => {
+      if(excludeProductId && String(r.product_id)===String(excludeProductId)) return false;
+      return rowBarcodeMatches(r,barcode);
+    });
   }
 
   function syncBarcodeSubmitState(){
@@ -705,8 +708,8 @@
     if(!input){barcodePrimaryUsed=false;barcodeValidationBusy=false;syncBarcodeSubmitState();return true;}
     const code=normBarcode(input.value);
     const storeId=activeStoreIdForMaterialForm();
-    const selectedProductId=window.__editingMaterial?.productId || $('existingProduct')?.value || null;
-    const localAdditionalConflict=!selectedProductId && additionalBarcodes().includes(code);
+    const editing=window.__editingMaterial;
+    const originalPrimary=normBarcode(editing?.originalBarcode||'');
     const token=++barcodeValidationToken;
     barcodePrimaryUsed=false;
     barcodeValidationBusy=false;
@@ -715,7 +718,14 @@
       syncBarcodeSubmitState();
       return true;
     }
-    if(localAdditionalConflict){
+    // عند تعديل المادة يسمح فقط بالباركود الأساسي الحالي نفسه؛
+    // أي باركود جديد يتم فحصه ضد كل باركود أساسي أو إضافي داخل هذا المتجر.
+    if(editing && originalPrimary && code===originalPrimary){
+      if($('barcodeMsg') && $('barcodeMsg').textContent==='مستخدم') $('barcodeMsg').textContent='';
+      syncBarcodeSubmitState();
+      return true;
+    }
+    if(additionalBarcodes().includes(code)){
       barcodePrimaryUsed=true;
       if($('barcodeMsg')) $('barcodeMsg').textContent='مستخدم';
       syncBarcodeSubmitState();
@@ -724,7 +734,7 @@
     barcodeValidationBusy=true;
     syncBarcodeSubmitState();
     try{
-      const used=await storeBarcodeExists(storeId,code,selectedProductId);
+      const used=await storeBarcodeExists(storeId,code,null);
       if(token!==barcodeValidationToken) return !barcodePrimaryUsed;
       barcodePrimaryUsed=Boolean(used);
       if($('barcodeMsg')) $('barcodeMsg').textContent=used?'مستخدم':'';
@@ -806,7 +816,7 @@
       if(error) throw error;
       if(!data) throw new Error('لم يتم العثور على المادة.');
       const p=data.products||{};
-      window.__editingMaterial={listingId,storeId,productId:data.product_id,companyId:p.company_id||null};
+      window.__editingMaterial={listingId,storeId,productId:data.product_id,companyId:p.company_id||null,originalBarcode:normBarcode(p.barcode||data.barcode||'')};
       window.show('add');
       $('existingProduct').value='';
       ['pn','brand','unit','cat'].forEach(id=>{ if($(id)) $(id).disabled=false; });
@@ -887,7 +897,8 @@
         const {data:row,error}=await supabaseClient.from('price_listings').select('id,store_id,product_id,price_new,price,products(*)').eq('id',editing.listingId).eq('store_id',storeId).single();
         if(error) throw error;
         const current=row.products||{};
-        if(barcode && await storeBarcodeExists(storeId,barcode,row.product_id)){
+        const currentPrimary=normBarcode(current.barcode||row.barcode||'');
+        if(barcode && barcode!==currentPrimary && await storeBarcodeExists(storeId,barcode,null)){
           barcodePrimaryUsed=true;
           if($('barcodeMsg')) $('barcodeMsg').textContent='مستخدم';
           syncBarcodeSubmitState();
@@ -1192,6 +1203,7 @@
         if(error) throw error;
         if($('barcode') && dataBarcode(p?.barcode)) $('barcode').value=normBarcode(p.barcode);
         await loadStoreAdditionalBarcodes(storeId,pid);
+        await window.validateStorePrimaryBarcode?.();
       }catch(err){
         console.warn('load store material barcodes:',err);
       }
