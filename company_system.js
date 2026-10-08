@@ -78,6 +78,7 @@
     const base=companyPublicUrl(id);
     return base+(base.includes('?')?'&':'?')+'qr=1';
   }
+  window.companyQrUrlForFloat=companyQrUrl;
   function companyMapsUrl(c){
     if(c?.latitude!=null && c?.longitude!=null){
       return 'https://www.google.com/maps/dir/?api=1&destination='+encodeURIComponent(c.latitude+','+c.longitude);
@@ -227,6 +228,7 @@
         <h2 style="margin-top:20px">المتاجر المرتبطة بالشركة (${linkedStores.length})</h2><div class="grid">${linkedStores.length?linkedStores.map(renderLinkedStore).join(''):'<div class="card muted">لا توجد متاجر مرتبطة بهذه الشركة حالياً.</div>'}</div>`;
       showPage('companyDetail');
       buildCompanyQR(id);
+      window.sareeShowEntityQrFloat?.('company',id,company.name||'الشركة');
       const render=()=>{
         const q=String($('companyProductSearch')?.value||'').trim().toLowerCase();
         const cat=String($('companyProductCategory')?.value||'');

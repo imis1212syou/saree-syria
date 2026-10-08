@@ -421,12 +421,15 @@ async function handleBarcode(barcode) {
       const msg = el('barcodeMsg');
       if (msg) msg.textContent = 'تم قراءة الباركود: ' + clean;
       await fillProductFromBarcode(clean, storeId);
+      if (typeof window.validateStorePrimaryBarcode === 'function') {
+        await window.validateStorePrimaryBarcode();
+      }
       return;
     }
 
     if (mode === 'additional') {
       const added = typeof window.addScannedStoreAdditionalBarcode === 'function'
-        ? window.addScannedStoreAdditionalBarcode(clean)
+        ? await window.addScannedStoreAdditionalBarcode(clean)
         : false;
       if (!added) scanLocked = false;
       return;
