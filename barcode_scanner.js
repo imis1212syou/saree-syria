@@ -363,7 +363,33 @@ const searchButton =
     }
 
     try {
-      scanner = new window.Html5Qrcode('barcodeReader');
+      // تحسين القراءة على أجهزة Android الضعيفة/المختلفة:
+      // نحدد صيغ الباركود الشائعة في مشروعنا بدل تشغيل كل الصيغ،
+      // ونبقي BarcodeDetector مفعلاً كما توصي المكتبة عند توفره.
+      // هذا يقلل عبء فك الترميز، بينما تبقى الكاميرا وطريقة اختيارها
+      // كما هي تمامًا في نسخة V2.
+      const barcodeFormats = [
+        window.Html5QrcodeSupportedFormats?.EAN_13,
+        window.Html5QrcodeSupportedFormats?.EAN_8,
+        window.Html5QrcodeSupportedFormats?.UPC_A,
+        window.Html5QrcodeSupportedFormats?.UPC_E,
+        window.Html5QrcodeSupportedFormats?.CODE_128,
+        window.Html5QrcodeSupportedFormats?.CODE_39,
+        window.Html5QrcodeSupportedFormats?.ITF,
+        window.Html5QrcodeSupportedFormats?.QR_CODE
+      ].filter(function (value) {
+        return Number.isInteger(value);
+      });
+
+      scanner = new window.Html5Qrcode(
+        'barcodeReader',
+        barcodeFormats.length
+          ? {
+              formatsToSupport: barcodeFormats,
+              useBarCodeDetectorIfSupported: true
+            }
+          : undefined
+      );
     } catch (error) {
       console.error('Scanner constructor error:', error);
       setStatus('تعذر تشغيل قارئ الباركود.');
@@ -371,29 +397,13 @@ const searchButton =
     }
 
     const config = {
-      // رفع عدد محاولات القراءة يساعد الأجهزة الأبطأ في التقاط الباركود
-      // من دون تقليل مساحة المعاينة.
-      fps: 15,
-
-      // اجعل منطقة القراءة هي كامل الفيديو فعليًا. لا يوجد مربع صغير
-      // في المنتصف، وبالتالي يمكن قراءة الباركود من أي مكان داخل الصورة.
-      qrbox: function (viewfinderWidth, viewfinderHeight) {
-        return {
-          width: Math.floor(viewfinderWidth),
-          height: Math.floor(viewfinderHeight)
-        };
-      },
-
-      // لا نفرض aspectRatio ثابتًا؛ بعض أجهزة Android تعطي نسبًا مختلفة.
-      // نطلب دقة مناسبة للباركود مع التركيز المستمر إن كان مدعومًا.
-      videoConstraints: {
-        width: { ideal: 1280, min: 640 },
-        height: { ideal: 720, min: 480 },
-        focusMode: { ideal: 'continuous' }
-      },
-
-      // السماح بقلب الصورة في حال كان اتجاه الكاميرا مختلفًا على الجهاز.
-      disableFlip: false
+      // في تقارير التوافق مع Android، خفض fps إلى 5 أعطى وقتًا أطول
+      // للكاميرا كي تضبط التركيز على الباركود 1D.
+      fps: 5,
+      // لا نضع qrbox ثابتًا في المنتصف. بهذه الطريقة تكون مساحة
+      // القراءة هي كامل إطار الكاميرا، وليس مستطيلًا صغيرًا فقط.
+      // لا نفرض aspectRatio ثابت 16:9 لأن بعض أجهزة Android/Samsung
+      // ترجع أبعاد فيديو مختلفة وتعرض معاينة سوداء أو مشوهة.
     };
 
     const onSuccess = function (decodedText) {
@@ -410,67 +420,35 @@ const searchButton =
       // تجاهل أخطاء عدم وجود باركود في الإطار الحالي.
     };
 
-    // نبدأ بـ ideal بدل exact لأن بعض أجهزة Android تعتبر exact غير مدعوم
-    // رغم أن الكاميرا الخلفية موجودة، فينتقل الكود بالخطأ إلى الكاميرا الأمامية.
+    // نبدأ أولًا بالكاميرا الخلفية عبر facingMode. هذا أكثر أمانًا على
+    // الأجهزة التي تعرض عدة كاميرات لكن لا تعطي labels صحيحة.
     try {
       await scanner.start(
-        { facingMode: { ideal: 'environment' } },
+        { facingMode: { exact: 'environment' } },
         config,
         onSuccess,
         onError
       );
-      setStatus('الكاميرا الخلفية تعمل — وجّهها نحو الباركود');
+      setStatus('الكاميرا تعمل — وجّهها نحو الباركود');
       return;
     } catch (environmentError) {
       console.warn('Environment camera start failed:', environmentError);
     }
 
-    // fallback: ابحث عن الكاميرا الخلفية بالاسم، ولا تستخدم آخر كاميرا
-    // بشكل أعمى لأن بعض الأجهزة ترتب الكاميرا الأمامية في آخر القائمة.
+    // fallback: اختيار الكاميرا الخلفية من قائمة deviceId إذا كان الجهاز
+    // لا يدعم exact facingMode أو لا يطبقه بشكل صحيح.
     try {
       const cameras = await window.Html5Qrcode.getCameras();
       if (Array.isArray(cameras) && cameras.length) {
-        const rear = cameras.filter(function (camera) {
+        const backCamera = cameras.find(function (camera) {
           const label = String(camera?.label || '').toLowerCase();
-          return /back|rear|environment|ultra.?wide|wide|tele|خلف|خلفية/.test(label);
+          return /back|rear|environment|خلف|خلفية/.test(label);
         });
 
-        const unknown = cameras.filter(function (camera) {
-          return rear.indexOf(camera) === -1;
-        });
-
-        // نعطي الكاميرات المسماة خلفية الأولوية، ثم نجرب بقية الكاميرات
-        // واحدًا واحدًا بدل اختيار كاميرا عشوائية.
-        const candidates = rear.concat(unknown);
-
-        for (const camera of candidates) {
-          try {
-            await scanner.start(camera.id, config, onSuccess, onError);
-
-            // إذا كانت المكتبة/المتصفح يعيد facingMode، نرفض الأمامية.
-            let settings = {};
-            try {
-              settings = scanner.getRunningTrackSettings?.() || {};
-            } catch (_) {}
-
-            const facing = String(settings.facingMode || '').toLowerCase();
-            const label = String(camera?.label || '').toLowerCase();
-            const looksRear = /back|rear|environment|ultra.?wide|wide|tele|خلف|خلفية/.test(label);
-
-            if (facing === 'user' && !looksRear) {
-              await scanner.stop().catch(() => {});
-              continue;
-            }
-
-            setStatus('الكاميرا الخلفية تعمل — وجّهها نحو الباركود');
-            return;
-          } catch (candidateError) {
-            console.warn('Camera candidate failed:', candidateError);
-            try {
-              await scanner.stop();
-            } catch (_) {}
-          }
-        }
+        const selected = backCamera || cameras[cameras.length - 1];
+        await scanner.start(selected.id, config, onSuccess, onError);
+        setStatus('الكاميرا تعمل — وجّهها نحو الباركود');
+        return;
       }
     } catch (cameraListError) {
       console.warn('Camera list/deviceId start failed:', cameraListError);
@@ -485,7 +463,6 @@ const searchButton =
         onError
       );
       setStatus('الكاميرا تعمل — وجّهها نحو الباركود');
-      return;
     } catch (error) {
       console.error('Camera start error:', error);
       setStatus('لم تفتح الكاميرا. اسمح بالوصول للكاميرا أو أعد المحاولة.');
