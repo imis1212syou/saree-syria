@@ -371,11 +371,29 @@ const searchButton =
     }
 
     const config = {
-      fps: 10,
-      // لا نضع qrbox ثابتًا في المنتصف. بهذه الطريقة تكون مساحة
-      // القراءة هي كامل إطار الكاميرا، وليس مستطيلًا صغيرًا فقط.
-      // لا نفرض aspectRatio ثابت 16:9 لأن بعض أجهزة Android/Samsung
-      // ترجع أبعاد فيديو مختلفة وتعرض معاينة سوداء أو مشوهة.
+      // رفع عدد محاولات القراءة يساعد الأجهزة الأبطأ في التقاط الباركود
+      // من دون تقليل مساحة المعاينة.
+      fps: 15,
+
+      // اجعل منطقة القراءة هي كامل الفيديو فعليًا. لا يوجد مربع صغير
+      // في المنتصف، وبالتالي يمكن قراءة الباركود من أي مكان داخل الصورة.
+      qrbox: function (viewfinderWidth, viewfinderHeight) {
+        return {
+          width: Math.floor(viewfinderWidth),
+          height: Math.floor(viewfinderHeight)
+        };
+      },
+
+      // لا نفرض aspectRatio ثابتًا؛ بعض أجهزة Android تعطي نسبًا مختلفة.
+      // نطلب دقة مناسبة للباركود مع التركيز المستمر إن كان مدعومًا.
+      videoConstraints: {
+        width: { ideal: 1280, min: 640 },
+        height: { ideal: 720, min: 480 },
+        focusMode: { ideal: 'continuous' }
+      },
+
+      // السماح بقلب الصورة في حال كان اتجاه الكاميرا مختلفًا على الجهاز.
+      disableFlip: false
     };
 
     const onSuccess = function (decodedText) {
