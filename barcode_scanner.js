@@ -215,10 +215,12 @@
           id="barcodeReader"
           style="
             width:100%;
-            min-height:280px;
+            height:min(58vh, 520px);
+            min-height:230px;
             background:#000;
             border-radius:15px;
             overflow:hidden;
+            position:relative;
           ">
         </div>
 
@@ -271,6 +273,26 @@
     `;
 
     document.body.appendChild(modal);
+
+    // اجعل فيديو الكاميرا يملأ مساحة المعاينة بدون هوامش سوداء داخلية.
+    const cameraVideoStyle = document.createElement('style');
+    cameraVideoStyle.id = 'barcodeCameraVideoStyle';
+    cameraVideoStyle.textContent = `
+      #barcodeReader video {
+        width:100% !important;
+        height:100% !important;
+        object-fit:cover !important;
+        display:block !important;
+      }
+      #barcodeReader__scan_region {
+        width:100% !important;
+        height:100% !important;
+      }
+      #barcodeReader__dashboard_section_csr {
+        display:none !important;
+      }
+    `;
+    document.head.appendChild(cameraVideoStyle);
 
     const manualInput =
       el('barcodeManualModal');
@@ -350,7 +372,8 @@ const searchButton =
 
     const config = {
       fps: 10,
-      qrbox: { width: 280, height: 140 }
+      // لا نضع qrbox ثابتًا في المنتصف. بهذه الطريقة تكون مساحة
+      // القراءة هي كامل إطار الكاميرا، وليس مستطيلًا صغيرًا فقط.
       // لا نفرض aspectRatio ثابت 16:9 لأن بعض أجهزة Android/Samsung
       // ترجع أبعاد فيديو مختلفة وتعرض معاينة سوداء أو مشوهة.
     };
@@ -369,8 +392,23 @@ const searchButton =
       // تجاهل أخطاء عدم وجود باركود في الإطار الحالي.
     };
 
-    // على Android، اختيار deviceId الفعلي أكثر ثباتًا من الاعتماد على
-    // facingMode فقط، خصوصًا على الأجهزة متعددة الكاميرات.
+    // نبدأ أولًا بالكاميرا الخلفية عبر facingMode. هذا أكثر أمانًا على
+    // الأجهزة التي تعرض عدة كاميرات لكن لا تعطي labels صحيحة.
+    try {
+      await scanner.start(
+        { facingMode: { exact: 'environment' } },
+        config,
+        onSuccess,
+        onError
+      );
+      setStatus('الكاميرا تعمل — وجّهها نحو الباركود');
+      return;
+    } catch (environmentError) {
+      console.warn('Environment camera start failed:', environmentError);
+    }
+
+    // fallback: اختيار الكاميرا الخلفية من قائمة deviceId إذا كان الجهاز
+    // لا يدعم exact facingMode أو لا يطبقه بشكل صحيح.
     try {
       const cameras = await window.Html5Qrcode.getCameras();
       if (Array.isArray(cameras) && cameras.length) {
@@ -379,8 +417,7 @@ const searchButton =
           return /back|rear|environment|خلف|خلفية/.test(label);
         });
 
-        const selected = backCamera || cameras[0];
-
+        const selected = backCamera || cameras[cameras.length - 1];
         await scanner.start(selected.id, config, onSuccess, onError);
         setStatus('الكاميرا تعمل — وجّهها نحو الباركود');
         return;
@@ -389,7 +426,7 @@ const searchButton =
       console.warn('Camera list/deviceId start failed:', cameraListError);
     }
 
-    // fallback للأجهزة التي لا تسمح بالحصول على قائمة الكاميرات.
+    // fallback أخير للأجهزة التي لا تسمح إلا بـ ideal.
     try {
       await scanner.start(
         { facingMode: { ideal: 'environment' } },
