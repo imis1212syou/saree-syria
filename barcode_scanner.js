@@ -368,27 +368,16 @@ const searchButton =
       // ونبقي BarcodeDetector مفعلاً كما توصي المكتبة عند توفره.
       // هذا يقلل عبء فك الترميز، بينما تبقى الكاميرا وطريقة اختيارها
       // كما هي تمامًا في نسخة V2.
-      const barcodeFormats = [
-        window.Html5QrcodeSupportedFormats?.EAN_13,
-        window.Html5QrcodeSupportedFormats?.EAN_8,
-        window.Html5QrcodeSupportedFormats?.UPC_A,
-        window.Html5QrcodeSupportedFormats?.UPC_E,
-        window.Html5QrcodeSupportedFormats?.CODE_128,
-        window.Html5QrcodeSupportedFormats?.CODE_39,
-        window.Html5QrcodeSupportedFormats?.ITF,
-        window.Html5QrcodeSupportedFormats?.QR_CODE
-      ].filter(function (value) {
-        return Number.isInteger(value);
-      });
-
+      // نعود لأساس V2 في اختيار الكاميرا، لكن نُجبر المكتبة على استخدام
+      // ZXing بدل BarcodeDetector الأصلي للمتصفح. هذا مهم لأن html5-qrcode
+      // يبدّل بين BarcodeDetector وZXing عند دعم المتصفح لهما، بينما دعم
+      // BarcodeDetector وجودة التعرف فيه تعتمد على المنصة والجهاز.
+      // بهذه الطريقة يصبح محرك فك الباركود نفسه ثابتًا على الأجهزة المختلفة.
       scanner = new window.Html5Qrcode(
         'barcodeReader',
-        barcodeFormats.length
-          ? {
-              formatsToSupport: barcodeFormats,
-              useBarCodeDetectorIfSupported: true
-            }
-          : undefined
+        {
+          useBarCodeDetectorIfSupported: false
+        }
       );
     } catch (error) {
       console.error('Scanner constructor error:', error);
@@ -420,48 +409,50 @@ const searchButton =
       // تجاهل أخطاء عدم وجود باركود في الإطار الحالي.
     };
 
-    // نبدأ أولًا بالكاميرا الخلفية عبر facingMode. هذا أكثر أمانًا على
-    // الأجهزة التي تعرض عدة كاميرات لكن لا تعطي labels صحيحة.
+    // مهم جدًا: نستخدم نفس طريقة V2 التي كانت تفتح الكاميرا الخلفية عندك.
+    // لا نغيّر اختيار الكاميرا هنا.
     try {
       await scanner.start(
-        { facingMode: { exact: 'environment' } },
+        { facingMode: 'environment' },
         config,
         onSuccess,
         onError
       );
-      setStatus('الكاميرا تعمل — وجّهها نحو الباركود');
-      return;
-    } catch (environmentError) {
-      console.warn('Environment camera start failed:', environmentError);
-    }
 
-    // fallback: اختيار الكاميرا الخلفية من قائمة deviceId إذا كان الجهاز
-    // لا يدعم exact facingMode أو لا يطبقه بشكل صحيح.
-    try {
-      const cameras = await window.Html5Qrcode.getCameras();
-      if (Array.isArray(cameras) && cameras.length) {
-        const backCamera = cameras.find(function (camera) {
-          const label = String(camera?.label || '').toLowerCase();
-          return /back|rear|environment|خلف|خلفية/.test(label);
-        });
+      // بعد نجاح فتح الكاميرا، نُحسن التركيز والدقة على نفس مسار الكاميرا
+      // فقط إذا كانت هذه القدرات موجودة على الجهاز. إذا رفض الجهاز أي
+      // constraint نترك إعداداته الأصلية حتى لا تتأثر الأجهزة التي تعمل.
+      try {
+        const capabilities = scanner.getRunningTrackCapabilities();
+        const settings = scanner.getRunningTrackSettings();
+        const constraints = {};
 
-        const selected = backCamera || cameras[cameras.length - 1];
-        await scanner.start(selected.id, config, onSuccess, onError);
-        setStatus('الكاميرا تعمل — وجّهها نحو الباركود');
-        return;
+        if (Array.isArray(capabilities?.focusMode) && capabilities.focusMode.includes('continuous')) {
+          constraints.focusMode = 'continuous';
+        }
+
+        if (Array.isArray(capabilities?.exposureMode) && capabilities.exposureMode.includes('continuous')) {
+          constraints.exposureMode = 'continuous';
+        }
+
+        const width = Number(settings?.width || 0);
+        const height = Number(settings?.height || 0);
+
+        // بعض أجهزة Android تبدأ بدقة معاينة منخفضة، ما يجعل خطوط 1D
+        // صغيرة جدًا على ZXing. نحاول رفعها على نفس الـtrack فقط، مع catch
+        // حتى لا نفشل الكاميرا إذا لم يقبل الجهاز هذه الدقة.
+        if (width && height && (width < 1000 || height < 700)) {
+          constraints.width = { ideal: 1280 };
+          constraints.height = { ideal: 720 };
+        }
+
+        if (Object.keys(constraints).length) {
+          await scanner.applyVideoConstraints(constraints);
+        }
+      } catch (tuningError) {
+        console.warn('Camera tuning skipped:', tuningError);
       }
-    } catch (cameraListError) {
-      console.warn('Camera list/deviceId start failed:', cameraListError);
-    }
 
-    // fallback أخير للأجهزة التي لا تسمح إلا بـ ideal.
-    try {
-      await scanner.start(
-        { facingMode: { ideal: 'environment' } },
-        config,
-        onSuccess,
-        onError
-      );
       setStatus('الكاميرا تعمل — وجّهها نحو الباركود');
     } catch (error) {
       console.error('Camera start error:', error);
