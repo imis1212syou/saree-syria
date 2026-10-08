@@ -153,8 +153,15 @@
     openScanner();
   };
 
-  function openScanner() {
-    window.closeBarcodeScanner();
+  async function openScanner() {
+    // مهم: انتظر إيقاف أي كاميرا سابقة قبل إنشاء قارئ جديد.
+    // بعض أجهزة Android/Samsung تعطي شاشة سوداء إذا تم فتح كاميرتين
+    // خلال لحظة واحدة.
+    try {
+      await window.closeBarcodeScanner();
+    } catch (error) {
+      console.warn('Previous scanner cleanup failed:', error);
+    }
 
     const modal = document.createElement('div');
 
@@ -319,90 +326,82 @@ const searchButton =
     loadScannerLibrary(startScanner);
   }
 
-  function startScanner() {
+  async function startScanner() {
     if (!window.Html5Qrcode) {
-      setStatus(
-        'تعذر تحميل قارئ الباركود.'
-      );
-
+      setStatus('تعذر تحميل قارئ الباركود.');
       return;
     }
 
-    const reader =
-      el('barcodeReader');
+    const reader = el('barcodeReader');
+    if (!reader) return;
 
-    if (!reader) {
+    if (!window.isSecureContext && location.hostname !== 'localhost') {
+      setStatus('الكاميرا تحتاج فتح الموقع عبر HTTPS.');
       return;
     }
 
     try {
-      scanner =
-        new window.Html5Qrcode(
-          'barcodeReader'
-        );
+      scanner = new window.Html5Qrcode('barcodeReader');
     } catch (error) {
-      console.error(error);
-
-      setStatus(
-        'تعذر تشغيل قارئ الباركود.'
-      );
-
+      console.error('Scanner constructor error:', error);
+      setStatus('تعذر تشغيل قارئ الباركود.');
       return;
     }
 
     const config = {
       fps: 10,
-      qrbox: {
-        width: 280,
-        height: 140
-      },
-      aspectRatio: 1.777
+      qrbox: { width: 280, height: 140 }
+      // لا نفرض aspectRatio ثابت 16:9 لأن بعض أجهزة Android/Samsung
+      // ترجع أبعاد فيديو مختلفة وتعرض معاينة سوداء أو مشوهة.
     };
 
-    scanner.start(
-      {
-        facingMode: 'environment'
-      },
-      config,
-      function (decodedText) {
+    const onSuccess = function (decodedText) {
+      if (scanLocked) return;
 
-        if (scanLocked) {
-          return;
-        }
+      const barcode = cleanBarcode(decodedText);
+      if (!barcode) return;
 
-        const barcode =
-          cleanBarcode(decodedText);
+      scanLocked = true;
+      handleBarcode(barcode);
+    };
 
-        if (!barcode) {
-          return;
-        }
+    const onError = function () {
+      // تجاهل أخطاء عدم وجود باركود في الإطار الحالي.
+    };
 
-        scanLocked = true;
+    // على Android، اختيار deviceId الفعلي أكثر ثباتًا من الاعتماد على
+    // facingMode فقط، خصوصًا على الأجهزة متعددة الكاميرات.
+    try {
+      const cameras = await window.Html5Qrcode.getCameras();
+      if (Array.isArray(cameras) && cameras.length) {
+        const backCamera = cameras.find(function (camera) {
+          const label = String(camera?.label || '').toLowerCase();
+          return /back|rear|environment|خلف|خلفية/.test(label);
+        });
 
-        handleBarcode(barcode);
-      },
-      function () {
-        // أخطاء القراءة أثناء تحريك الكاميرا يتم تجاهلها.
+        const selected = backCamera || cameras[0];
+
+        await scanner.start(selected.id, config, onSuccess, onError);
+        setStatus('الكاميرا تعمل — وجّهها نحو الباركود');
+        return;
       }
-    )
-    .then(function () {
+    } catch (cameraListError) {
+      console.warn('Camera list/deviceId start failed:', cameraListError);
+    }
 
-      setStatus(
-        'الكاميرا تعمل — وجّهها نحو الباركود'
+    // fallback للأجهزة التي لا تسمح بالحصول على قائمة الكاميرات.
+    try {
+      await scanner.start(
+        { facingMode: { ideal: 'environment' } },
+        config,
+        onSuccess,
+        onError
       );
-
-    })
-    .catch(function (error) {
-
-      console.error(
-        'Camera start error:',
-        error
-      );
-
-      setStatus(
-        'لم تفتح الكاميرا. اسمح بالوصول للكاميرا.'
-      );
-    });
+      setStatus('الكاميرا تعمل — وجّهها نحو الباركود');
+    } catch (error) {
+      console.error('Camera start error:', error);
+      setStatus('لم تفتح الكاميرا. اسمح بالوصول للكاميرا أو أعد المحاولة.');
+    }
   }
 async function handleBarcode(barcode) {
 
