@@ -1025,45 +1025,8 @@
     ensureAdditionalBarcodeUI();
     bindExistingProductBarcodeLoader();
 
-    const barcodeInput=$('barcode');
-    if(barcodeInput && barcodeInput.dataset.autoFillBound!=='1'){
-      barcodeInput.dataset.autoFillBound='1';
-      let timer=null;
-      let lastFilledCode='';
-
-      const triggerBarcodeAutofill=()=>{
-        const code=normBarcode(barcodeInput.value);
-        barcodeInput.value=code;
-        if(!code || code.length<8 || code===lastFilledCode) return;
-        const storeId=activeStoreIdForMaterialForm();
-        if(!storeId || !barcodeInput || normBarcode(barcodeInput.value)!==code) return;
-        if(typeof window.fillStoreMaterialFromBarcode!=='function') return;
-        lastFilledCode=code;
-        window.fillStoreMaterialFromBarcode(code,storeId)
-          .catch(err=>{ lastFilledCode=''; console.warn('barcode autofill:',err); });
-      };
-
-      barcodeInput.addEventListener('input',()=>{
-        const code=normBarcode(barcodeInput.value);
-        barcodeInput.value=code;
-        if(timer) clearTimeout(timer);
-        if(!code || code.length<8) { lastFilledCode=''; return; }
-        timer=setTimeout(triggerBarcodeAutofill,600);
-      });
-
-      barcodeInput.addEventListener('change',triggerBarcodeAutofill);
-      barcodeInput.addEventListener('blur',()=>{
-        if(timer) clearTimeout(timer);
-        triggerBarcodeAutofill();
-      });
-      barcodeInput.addEventListener('keydown',event=>{
-        if(event.key==='Enter'){
-          event.preventDefault();
-          if(timer) clearTimeout(timer);
-          triggerBarcodeAutofill();
-        }
-      });
-    }
+    // لا يوجد تعبئة تلقائية للباركود الأساسي هنا. هذا يحافظ على مسار 62،
+    // ويمنع إدخال/مسح باركود جديد من تشغيل بحث عن مادة قديمة أو تعديل الحقل الأساسي.
 
     $('merchantStoreSelect')?.addEventListener('change',async()=>{
       const pid=$('existingProduct')?.value;
