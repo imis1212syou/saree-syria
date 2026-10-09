@@ -16,7 +16,7 @@
   function registerSW() {
     if (!("serviceWorker" in navigator)) return;
 
-    const swUrl = new URL("saree_sw.js?v=20261009-global-safe-offline-v6", base).href;
+    const swUrl = new URL("saree_sw.js?v=20261009-v74-compatible-safe-offline", base).href;
     window.sareePwaRegistrationPromise = new Promise(resolve => {
       const register = async () => {
         try {
