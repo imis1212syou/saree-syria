@@ -551,7 +551,6 @@
     const {error}=await supabaseClient.rpc('company_delete_product',{p_id:id});
     if(error) return alert(error.message);
     await loadCompanyDashboardData(ctx);
-    try{await window.refreshSareeProductsCounter?.();}catch(err){console.warn('refresh product counter:',err);}
   };
   window.companyToggleCategory=async function(id,active){
     const ctx=window.companyContext;
@@ -910,7 +909,6 @@
     if(r.error)return alert('تعذر حذف المادة: '+r.error.message);
     const manager=$('adminCompanyProductModal');
     if(manager){const c=await supabaseClient.from('companies').select('*').eq('id',companyId).maybeSingle();await adminReloadCompanyProducts(companyId,c.data);}
-    try{await window.refreshSareeProductsCounter?.();}catch(err){console.warn('refresh product counter:',err);}
     alert('تم حذف المادة ✅');
   };
 

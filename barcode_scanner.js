@@ -153,15 +153,8 @@
     openScanner();
   };
 
-  async function openScanner() {
-    // مهم: انتظر إيقاف أي كاميرا سابقة قبل إنشاء قارئ جديد.
-    // بعض أجهزة Android/Samsung تعطي شاشة سوداء إذا تم فتح كاميرتين
-    // خلال لحظة واحدة.
-    try {
-      await window.closeBarcodeScanner();
-    } catch (error) {
-      console.warn('Previous scanner cleanup failed:', error);
-    }
+  function openScanner() {
+    window.closeBarcodeScanner();
 
     const modal = document.createElement('div');
 
@@ -215,12 +208,10 @@
           id="barcodeReader"
           style="
             width:100%;
-            height:min(58vh, 520px);
-            min-height:230px;
+            min-height:280px;
             background:#000;
             border-radius:15px;
             overflow:hidden;
-            position:relative;
           ">
         </div>
 
@@ -273,26 +264,6 @@
     `;
 
     document.body.appendChild(modal);
-
-    // اجعل فيديو الكاميرا يملأ مساحة المعاينة بدون هوامش سوداء داخلية.
-    const cameraVideoStyle = document.createElement('style');
-    cameraVideoStyle.id = 'barcodeCameraVideoStyle';
-    cameraVideoStyle.textContent = `
-      #barcodeReader video {
-        width:100% !important;
-        height:100% !important;
-        object-fit:cover !important;
-        display:block !important;
-      }
-      #barcodeReader__scan_region {
-        width:100% !important;
-        height:100% !important;
-      }
-      #barcodeReader__dashboard_section_csr {
-        display:none !important;
-      }
-    `;
-    document.head.appendChild(cameraVideoStyle);
 
     const manualInput =
       el('barcodeManualModal');
@@ -348,125 +319,90 @@ const searchButton =
     loadScannerLibrary(startScanner);
   }
 
-  async function startScanner() {
+  function startScanner() {
     if (!window.Html5Qrcode) {
-      setStatus('تعذر تحميل قارئ الباركود.');
+      setStatus(
+        'تعذر تحميل قارئ الباركود.'
+      );
+
       return;
     }
 
-    const reader = el('barcodeReader');
-    if (!reader) return;
+    const reader =
+      el('barcodeReader');
 
-    if (!window.isSecureContext && location.hostname !== 'localhost') {
-      setStatus('الكاميرا تحتاج فتح الموقع عبر HTTPS.');
+    if (!reader) {
       return;
     }
 
     try {
-      // تحسين القراءة على أجهزة Android الضعيفة/المختلفة:
-      // نحدد صيغ الباركود الشائعة في مشروعنا بدل تشغيل كل الصيغ،
-      // ونبقي BarcodeDetector مفعلاً كما توصي المكتبة عند توفره.
-      // هذا يقلل عبء فك الترميز، بينما تبقى الكاميرا وطريقة اختيارها
-      // كما هي تمامًا في نسخة V2.
-      const barcodeFormats = [
-        window.Html5QrcodeSupportedFormats?.EAN_13,
-        window.Html5QrcodeSupportedFormats?.EAN_8,
-        window.Html5QrcodeSupportedFormats?.UPC_A,
-        window.Html5QrcodeSupportedFormats?.UPC_E,
-        window.Html5QrcodeSupportedFormats?.CODE_128,
-        window.Html5QrcodeSupportedFormats?.CODE_39,
-        window.Html5QrcodeSupportedFormats?.ITF,
-        window.Html5QrcodeSupportedFormats?.QR_CODE
-      ].filter(function (value) {
-        return Number.isInteger(value);
-      });
-
-      scanner = new window.Html5Qrcode(
-        'barcodeReader',
-        barcodeFormats.length
-          ? {
-              formatsToSupport: barcodeFormats,
-              useBarCodeDetectorIfSupported: true
-            }
-          : undefined
-      );
+      scanner =
+        new window.Html5Qrcode(
+          'barcodeReader'
+        );
     } catch (error) {
-      console.error('Scanner constructor error:', error);
-      setStatus('تعذر تشغيل قارئ الباركود.');
+      console.error(error);
+
+      setStatus(
+        'تعذر تشغيل قارئ الباركود.'
+      );
+
       return;
     }
 
     const config = {
-      // في تقارير التوافق مع Android، خفض fps إلى 5 أعطى وقتًا أطول
-      // للكاميرا كي تضبط التركيز على الباركود 1D.
-      fps: 5,
-      // لا نضع qrbox ثابتًا في المنتصف. بهذه الطريقة تكون مساحة
-      // القراءة هي كامل إطار الكاميرا، وليس مستطيلًا صغيرًا فقط.
-      // لا نفرض aspectRatio ثابت 16:9 لأن بعض أجهزة Android/Samsung
-      // ترجع أبعاد فيديو مختلفة وتعرض معاينة سوداء أو مشوهة.
+      fps: 10,
+      qrbox: {
+        width: 280,
+        height: 140
+      },
+      aspectRatio: 1.777
     };
 
-    const onSuccess = function (decodedText) {
-      if (scanLocked) return;
+    scanner.start(
+      {
+        facingMode: 'environment'
+      },
+      config,
+      function (decodedText) {
 
-      const barcode = cleanBarcode(decodedText);
-      if (!barcode) return;
+        if (scanLocked) {
+          return;
+        }
 
-      scanLocked = true;
-      handleBarcode(barcode);
-    };
+        const barcode =
+          cleanBarcode(decodedText);
 
-    const onError = function () {
-      // تجاهل أخطاء عدم وجود باركود في الإطار الحالي.
-    };
+        if (!barcode) {
+          return;
+        }
 
-    // نبدأ أولًا بالكاميرا الخلفية عبر facingMode. هذا أكثر أمانًا على
-    // الأجهزة التي تعرض عدة كاميرات لكن لا تعطي labels صحيحة.
-    try {
-      await scanner.start(
-        { facingMode: { exact: 'environment' } },
-        config,
-        onSuccess,
-        onError
-      );
-      setStatus('الكاميرا تعمل — وجّهها نحو الباركود');
-      return;
-    } catch (environmentError) {
-      console.warn('Environment camera start failed:', environmentError);
-    }
+        scanLocked = true;
 
-    // fallback: اختيار الكاميرا الخلفية من قائمة deviceId إذا كان الجهاز
-    // لا يدعم exact facingMode أو لا يطبقه بشكل صحيح.
-    try {
-      const cameras = await window.Html5Qrcode.getCameras();
-      if (Array.isArray(cameras) && cameras.length) {
-        const backCamera = cameras.find(function (camera) {
-          const label = String(camera?.label || '').toLowerCase();
-          return /back|rear|environment|خلف|خلفية/.test(label);
-        });
-
-        const selected = backCamera || cameras[cameras.length - 1];
-        await scanner.start(selected.id, config, onSuccess, onError);
-        setStatus('الكاميرا تعمل — وجّهها نحو الباركود');
-        return;
+        handleBarcode(barcode);
+      },
+      function () {
+        // أخطاء القراءة أثناء تحريك الكاميرا يتم تجاهلها.
       }
-    } catch (cameraListError) {
-      console.warn('Camera list/deviceId start failed:', cameraListError);
-    }
+    )
+    .then(function () {
 
-    // fallback أخير للأجهزة التي لا تسمح إلا بـ ideal.
-    try {
-      await scanner.start(
-        { facingMode: { ideal: 'environment' } },
-        config,
-        onSuccess,
-        onError
+      setStatus(
+        'الكاميرا تعمل — وجّهها نحو الباركود'
       );
-      setStatus('الكاميرا تعمل — وجّهها نحو الباركود');
-    } catch (error) {
-      console.error('Camera start error:', error);
-      setStatus('لم تفتح الكاميرا. اسمح بالوصول للكاميرا أو أعد المحاولة.');
-    }
+
+    })
+    .catch(function (error) {
+
+      console.error(
+        'Camera start error:',
+        error
+      );
+
+      setStatus(
+        'لم تفتح الكاميرا. اسمح بالوصول للكاميرا.'
+      );
+    });
   }
 async function handleBarcode(barcode) {
 
