@@ -655,20 +655,33 @@ async function loadProfileIfNeeded(){
 }
 async function loadPublicData(){
   try{
-    const [p,s,l,c]=await Promise.all([
+    const [p,s,l,c,cp]=await Promise.all([
       supabaseClient.from('products').select('*').eq('active',true).order('name'),
       supabaseClient.from('stores').select('*').eq('active',true).order('name'),
       supabaseClient.from('price_listings').select('*,stores(id,name,city,area,address,phone,image_url,verified,company_id,companies(id,name,verified,active))').eq('approved',true).order('price_new'),
-      supabaseClient.from('companies').select('id,name,active,verified').eq('active',true)
+      supabaseClient.from('companies').select('id,name,active,verified').eq('active',true),
+      supabaseClient.from('company_products').select('id').eq('active',true)
     ]);
     if(p.error||s.error||l.error) throw(p.error||s.error||l.error);
     products=p.data||[];stores=s.data||[];prices=l.data||[];companies=c.data||[];
-    $('pc').textContent=products.length;$('sc').textContent=stores.length;$('cc').textContent=(c.data||[]).length;
+    $('pc').textContent=products.length+(cp.data||[]).length;$('sc').textContent=stores.length;$('cc').textContent=(c.data||[]).length;
     if(c.error) console.warn('loadPublicData companies:',c.error);
+    if(cp.error) console.warn('loadPublicData company products:',cp.error);
     if($('approvedCount')) $('approvedCount').textContent=prices.length;if($('basketCount')) $('basketCount').textContent=basket.length;
     fillFilters();
   }catch(err){console.warn('loadPublicData:',err)}
 }
+window.refreshHomeProductCount = async function(){
+  try{
+    const [p,cp]=await Promise.all([
+      supabaseClient.from('products').select('id').eq('active',true),
+      supabaseClient.from('company_products').select('id').eq('active',true)
+    ]);
+    if(p.error||cp.error) throw(p.error||cp.error);
+    const node=$('pc');
+    if(node) node.textContent=(p.data||[]).length+(cp.data||[]).length;
+  }catch(err){console.warn('refreshHomeProductCount:',err)}
+};
 function fillFilters(){
  const cities=[...new Set(stores.flatMap(s=>[s.city,s.area]).filter(Boolean))].sort(),cats=[...new Set(products.map(p=>p.category).filter(Boolean))].sort();
  const cf=$('cityFilter'),kt=$('catFilter'),cv=cf.value,kv=kt.value;
