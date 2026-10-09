@@ -916,6 +916,9 @@
       if(barcodeError) throw barcodeError;
       const {error}=await supabaseClient.from('price_listings').delete().eq('id',listingId).eq('store_id',storeId);
       if(error) throw error;
+      // حدّث نسخة الأسعار الموجودة في الذاكرة فور نجاح الحذف، حتى لا يبقى المنتج ظاهرًا في الرئيسية بسبب بيانات قديمة.
+      prices = (Array.isArray(prices) ? prices : []).filter(row=>String(row?.id)!==String(listingId));
+      if(typeof window.renderProducts==='function') window.renderProducts();
       alert('تم حذف المادة من المتجر ✅');
       await window.renderStoreDetail(storeId);
     }catch(err){ console.error(err); alert('تعذر حذف المادة: '+(err.message||'خطأ غير معروف')); }
