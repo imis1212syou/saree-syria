@@ -526,7 +526,6 @@
         }
         if(r.error) throw r.error;
         modal.remove();
-        await window.refreshHomeProductCount?.();
         if(editContext) await loadCompanyDashboardData(editContext);
         if(!existing && window.companyContext?.can_manage_products){companyProductEditor();return;}
         if(currentCompany) await window.openCompanyById(currentCompany.id);
@@ -552,7 +551,6 @@
     const {error}=await supabaseClient.rpc('company_delete_product',{p_id:id});
     if(error) return alert(error.message);
     await loadCompanyDashboardData(ctx);
-    await window.refreshHomeProductCount?.();
   };
   window.companyToggleCategory=async function(id,active){
     const ctx=window.companyContext;
@@ -897,7 +895,6 @@
         else r=await supabaseClient.from('company_products').insert({...payload,company_id:companyId}).select('id').single();
         if(r.error)throw r.error;
         modal.remove();
-        await window.refreshHomeProductCount?.();
         const manager=$('adminCompanyProductModal');
         if(manager){const cc=await supabaseClient.from('companies').select('*').eq('id',companyId).maybeSingle();await adminReloadCompanyProducts(companyId,cc.data||company);}
         alert(existing?'تم تعديل مادة الشركة بنجاح ✅':'تمت إضافة مادة للشركة بنجاح ✅');
@@ -910,7 +907,6 @@
     if(!confirm('حذف هذه المادة من الشركة؟'))return;
     const r=await supabaseClient.from('company_products').delete().eq('id',productId).eq('company_id',companyId);
     if(r.error)return alert('تعذر حذف المادة: '+r.error.message);
-    await window.refreshHomeProductCount?.();
     const manager=$('adminCompanyProductModal');
     if(manager){const c=await supabaseClient.from('companies').select('*').eq('id',companyId).maybeSingle();await adminReloadCompanyProducts(companyId,c.data);}
     alert('تم حذف المادة ✅');
