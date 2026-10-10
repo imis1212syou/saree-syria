@@ -78,39 +78,243 @@
     }
   }
 
-  function loadScannerLibrary(callback) {
-    if (window.Html5Qrcode) {
-      callback();
+  // محركان للقراءة: النسخة الأصلية التي يعتمد عليها Android حاليًا،
+  // ونسخة أحدث تستخدم zxing-wasm كخيار أساسي لـ iPhone/كخيار احتياطي.
+  const SCANNER_LIBRARIES = {
+    legacy: {
+      scriptId: 'html5QrLegacyScript',
+      src: 'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js'
+    },
+    zxing: {
+      scriptId: 'html5QrZxingWasmScript',
+      src: 'https://cdn.jsdelivr.net/npm/@taluks/html5-qrcode@2.4.0/minified/html5-qrcode.min.js'
+    }
+  };
+
+  const loadedScannerLibraries = Object.create(null);
+  const scannerLibraryPromises = Object.create(null);
+  let scannerLibraryOrder = [];
+  let scannerLibraryIndex = 0;
+  let activeScannerLibrary = null;
+  let scannerAttemptToken = 0;
+  let scannerFallbackTimer = null;
+  let pendingBarcode = '';
+  let pendingBarcodeHits = 0;
+  let pendingBarcodeAt = 0;
+  let invalidReadReported = false;
+
+  function isIOSDevice() {
+    const ua = String(navigator.userAgent || '');
+    return /iPad|iPhone|iPod/i.test(ua) ||
+      (navigator.platform === 'MacIntel' && Number(navigator.maxTouchPoints) > 1);
+  }
+
+  function clearScannerFallbackTimer() {
+    if (scannerFallbackTimer) {
+      clearTimeout(scannerFallbackTimer);
+      scannerFallbackTimer = null;
+    }
+  }
+
+  function loadScannerLibrary(name) {
+    if (loadedScannerLibraries[name]) {
+      return Promise.resolve(loadedScannerLibraries[name]);
+    }
+    if (scannerLibraryPromises[name]) {
+      return scannerLibraryPromises[name];
+    }
+
+    const definition = SCANNER_LIBRARIES[name];
+    if (!definition) {
+      return Promise.reject(new Error('Unknown barcode scanner library: ' + name));
+    }
+
+    const promise = new Promise(function (resolve, reject) {
+      let script = document.getElementById(definition.scriptId);
+      if (script) script.remove();
+
+      script = document.createElement('script');
+      script.id = definition.scriptId;
+      script.src = definition.src;
+      script.async = true;
+
+      let finished = false;
+      const timeoutId = setTimeout(function () {
+        if (finished) return;
+        finished = true;
+        script.onerror = null;
+        script.onload = null;
+        script.remove();
+        reject(new Error('Barcode library load timed out: ' + name));
+      }, 15000);
+
+      script.onload = function () {
+        if (finished) return;
+        finished = true;
+        clearTimeout(timeoutId);
+
+        if (typeof window.Html5Qrcode !== 'function') {
+          script.remove();
+          reject(new Error('Barcode library did not expose Html5Qrcode: ' + name));
+          return;
+        }
+
+        loadedScannerLibraries[name] = {
+          Html5Qrcode: window.Html5Qrcode,
+          formats: window.Html5QrcodeSupportedFormats || null
+        };
+        resolve(loadedScannerLibraries[name]);
+      };
+
+      script.onerror = function () {
+        if (finished) return;
+        finished = true;
+        clearTimeout(timeoutId);
+        script.remove();
+        reject(new Error('Barcode library failed to load: ' + name));
+      };
+
+      document.head.appendChild(script);
+    });
+
+    scannerLibraryPromises[name] = promise.catch(function (error) {
+      delete scannerLibraryPromises[name];
+      throw error;
+    });
+    return scannerLibraryPromises[name];
+  }
+
+  function restoreScannerLibraryGlobals(library) {
+    // المكتبتان تعرضان الواجهة العامة نفسها؛ نعيد مرجع المحرك المطلوب
+    // قبل إنشاء القارئ حتى لا تختلط الفئات بين الإصدارين.
+    window.Html5Qrcode = library.Html5Qrcode;
+    if (library.formats) window.Html5QrcodeSupportedFormats = library.formats;
+  }
+
+  function hasValidRetailCheckDigit(value) {
+    const code = cleanBarcode(value);
+    if (!/^\d+$/.test(code) || ![8, 12, 13].includes(code.length)) return false;
+
+    const digits = code.split('').map(Number);
+    const checkDigit = digits.pop();
+    let sum = 0;
+    // EAN-8 وEAN-13 وUPC-A تستخدم وزن 3 ثم 1 بالتناوب
+    // ابتداءً من آخر رقم قبل خانة التدقيق.
+    for (let i = digits.length - 1, weight = 3; i >= 0; i--, weight = weight === 3 ? 1 : 3) {
+      sum += digits[i] * weight;
+    }
+    return ((10 - (sum % 10)) % 10) === checkDigit;
+  }
+
+  function isValidUpcE(code) {
+    // UPC-E يتكون من رقم نظام (0 أو 1)، وستة أرقام مضغوطة، ورقم تدقيق.
+    if (!/^\d{8}$/.test(code) || !/^[01]/.test(code)) return false;
+
+    const numberSystem = code[0];
+    const x1 = code[1];
+    const x2 = code[2];
+    const x3 = code[3];
+    const x4 = code[4];
+    const x5 = code[5];
+    const x6 = code[6];
+    const checkDigit = code[7];
+    let upcABody;
+
+    // فك ضغط أصفار UPC-E إلى جسم UPC-A ذي 11 رقمًا قبل رقم التدقيق.
+    if (x6 >= '0' && x6 <= '2') {
+      upcABody = numberSystem + x1 + x2 + x6 + '0000' + x3 + x4 + x5;
+    } else if (x6 === '3') {
+      upcABody = numberSystem + x1 + x2 + x3 + '00000' + x4 + x5;
+    } else if (x6 === '4') {
+      upcABody = numberSystem + x1 + x2 + x3 + x4 + '00000' + x5;
+    } else {
+      upcABody = numberSystem + x1 + x2 + x3 + x4 + x5 + '0000' + x6;
+    }
+
+    return hasValidRetailCheckDigit(upcABody + checkDigit);
+  }
+
+  function getDecodedBarcodeFormat(decodedResult) {
+    const format = decodedResult?.result?.format?.formatName ||
+      decodedResult?.format?.formatName ||
+      decodedResult?.result?.formatName || '';
+    return String(format).toUpperCase().replace(/[^A-Z0-9]/g, '');
+  }
+
+  function getValidRetailBarcode(value, decodedResult) {
+    const code = cleanBarcode(value);
+    if (!/^\d+$/.test(code)) return '';
+
+    const format = getDecodedBarcodeFormat(decodedResult);
+
+    // بعض المحركات قد تُرجع UPC-A ذا 12 رقمًا بصيغة 13 رقمًا تبدأ بصفر.
+    // نحذف الصفر فقط عندما يصرّح المحرك بأن الصيغة UPC-A ويصحّ رقم التدقيق.
+    if (format === 'UPCA') {
+      if (code.length === 12 && hasValidRetailCheckDigit(code)) return code;
+      if (code.length === 13 && code[0] === '0' && hasValidRetailCheckDigit(code.slice(1))) {
+        return code.slice(1);
+      }
+      return '';
+    }
+
+    if (format === 'UPCE') {
+      return code.length === 8 && isValidUpcE(code) ? code : '';
+    }
+    if (format === 'EAN8') {
+      return code.length === 8 && hasValidRetailCheckDigit(code) ? code : '';
+    }
+    if (format === 'EAN13') {
+      return code.length === 13 && hasValidRetailCheckDigit(code) ? code : '';
+    }
+
+    // توافق مع بعض المتصفحات/إصدارات المكتبات التي لا تعيد اسم الصيغة.
+    if (code.length === 8) {
+      return (hasValidRetailCheckDigit(code) || isValidUpcE(code)) ? code : '';
+    }
+    if (code.length === 12 || code.length === 13) {
+      return hasValidRetailCheckDigit(code) ? code : '';
+    }
+    return '';
+  }
+
+  async function disposeScannerInstance() {
+    const oldScanner = scanner;
+    scanner = null;
+    activeScannerLibrary = null;
+    if (!oldScanner) return;
+
+    try {
+      await oldScanner.stop();
+    } catch (_) {
+      // قد يكون المحرك لم يبدأ الكاميرا بعد أو أوقفها عند فشل التشغيل.
+    }
+    try {
+      oldScanner.clear();
+    } catch (_) {
+      // لا نوقف الانتقال إلى المحرك الاحتياطي بسبب خطأ تنظيف غير مؤثر.
+    }
+  }
+
+  function startScannerWithFallback(nextIndex, token, reason) {
+    if (token !== scannerAttemptToken || scanLocked) return;
+    clearScannerFallbackTimer();
+
+    if (nextIndex >= scannerLibraryOrder.length) {
+      setStatus(reason || 'تعذرت قراءة الباركود. قرّب الكاميرا وثبّت الصورة أو أدخل الرقم يدويًا.');
       return;
     }
 
-    const old = document.getElementById('html5QrScript');
+    scannerLibraryIndex = nextIndex;
+    const nextName = scannerLibraryOrder[nextIndex];
+    setStatus(nextIndex === 0
+      ? 'جاري تحميل قارئ الباركود وتشغيل الكاميرا...'
+      : 'لم تكتمل القراءة بالمحرك الأول؛ جارٍ تجربة قارئ احتياطي...');
 
-    if (old) {
-      old.addEventListener(
-        'load',
-        callback,
-        { once: true }
-      );
-      return;
-    }
-
-    const script = document.createElement('script');
-
-    script.id = 'html5QrScript';
-
-    script.src =
-      'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js';
-
-    script.onload = callback;
-
-    script.onerror = function () {
-      setStatus(
-        'تعذر تحميل قارئ الباركود. تحقق من اتصال الإنترنت.'
-      );
-    };
-
-   document.head.appendChild(script);
+    startScannerWithLibrary(nextName, nextIndex, token).catch(function (error) {
+      console.error('Barcode scanner fallback error:', error);
+      startScannerWithFallback(nextIndex + 1, token,
+        'تعذر تشغيل قارئ الباركود. تحقق من إذن الكاميرا واتصال الإنترنت.');
+    });
   }
 
   window.openBarcodeScannerForAdd = function (storeId) {
@@ -345,15 +549,10 @@ const searchButton =
         window.closeBarcodeScanner;
     }
 
-    loadScannerLibrary(startScanner);
+    startScanner();
   }
 
   async function startScanner() {
-    if (!window.Html5Qrcode) {
-      setStatus('تعذر تحميل قارئ الباركود.');
-      return;
-    }
-
     const reader = el('barcodeReader');
     if (!reader) return;
 
@@ -362,112 +561,184 @@ const searchButton =
       return;
     }
 
-    try {
-      // تحسين القراءة على أجهزة Android الضعيفة/المختلفة:
-      // نحدد صيغ الباركود الشائعة في مشروعنا بدل تشغيل كل الصيغ،
-      // ونبقي BarcodeDetector مفعلاً كما توصي المكتبة عند توفره.
-      // هذا يقلل عبء فك الترميز، بينما تبقى الكاميرا وطريقة اختيارها
-      // كما هي تمامًا في نسخة V2.
-      const barcodeFormats = [
-        window.Html5QrcodeSupportedFormats?.EAN_13,
-        window.Html5QrcodeSupportedFormats?.EAN_8,
-        window.Html5QrcodeSupportedFormats?.UPC_A,
-        window.Html5QrcodeSupportedFormats?.UPC_E,
-        window.Html5QrcodeSupportedFormats?.CODE_128,
-        window.Html5QrcodeSupportedFormats?.CODE_39,
-        window.Html5QrcodeSupportedFormats?.ITF,
-        window.Html5QrcodeSupportedFormats?.QR_CODE
-      ].filter(function (value) {
-        return Number.isInteger(value);
-      });
+    clearScannerFallbackTimer();
+    const token = ++scannerAttemptToken;
+    const ios = isIOSDevice();
+    // iPhone يبدأ بالمحرك المبني على zxing-wasm؛ Android يبقى على
+    // المحرك الحالي أولًا. لكل نظام محرك ثانٍ يُجرّب عند الفشل أو عدم القراءة.
+    scannerLibraryOrder = ios ? ['zxing', 'legacy'] : ['legacy', 'zxing'];
+    scannerLibraryIndex = 0;
+    pendingBarcode = '';
+    pendingBarcodeHits = 0;
+    pendingBarcodeAt = 0;
+    invalidReadReported = false;
 
-      scanner = new window.Html5Qrcode(
-        'barcodeReader',
-        barcodeFormats.length
-          ? {
-              formatsToSupport: barcodeFormats,
-              useBarCodeDetectorIfSupported: true
-            }
-          : undefined
-      );
+    startScannerWithFallback(0, token);
+  }
+
+  async function startScannerWithLibrary(libraryName, attemptIndex, token) {
+    clearScannerFallbackTimer();
+    await disposeScannerInstance();
+    if (token !== scannerAttemptToken || !el('barcodeReader')) return;
+
+    let library;
+    try {
+      library = await loadScannerLibrary(libraryName);
     } catch (error) {
-      console.error('Scanner constructor error:', error);
-      setStatus('تعذر تشغيل قارئ الباركود.');
+      console.warn('Barcode library load failed:', libraryName, error);
+      if (token === scannerAttemptToken) {
+        startScannerWithFallback(attemptIndex + 1, token,
+          'تعذر تحميل قارئ الباركود. تحقق من اتصال الإنترنت.');
+      }
       return;
     }
 
-    const config = {
-      // في تقارير التوافق مع Android، خفض fps إلى 5 أعطى وقتًا أطول
-      // للكاميرا كي تضبط التركيز على الباركود 1D.
-      fps: 5,
-      // لا نضع qrbox ثابتًا في المنتصف. بهذه الطريقة تكون مساحة
-      // القراءة هي كامل إطار الكاميرا، وليس مستطيلًا صغيرًا فقط.
-      // لا نفرض aspectRatio ثابت 16:9 لأن بعض أجهزة Android/Samsung
-      // ترجع أبعاد فيديو مختلفة وتعرض معاينة سوداء أو مشوهة.
-    };
+    if (token !== scannerAttemptToken || !el('barcodeReader')) return;
+    restoreScannerLibraryGlobals(library);
+    const ios = isIOSDevice();
 
-    const onSuccess = function (decodedText) {
-      if (scanLocked) return;
+    const formats = library.formats || window.Html5QrcodeSupportedFormats || {};
+    const retailFormats = [formats.EAN_13, formats.EAN_8, formats.UPC_A, formats.UPC_E].filter(function (value) {
+      return Number.isInteger(value);
+    });
 
-      const barcode = cleanBarcode(decodedText);
-      if (!barcode) return;
+    if (retailFormats.length !== 4) {
+      startScannerWithFallback(attemptIndex + 1, token,
+        'نسخة قارئ الباركود لا تدعم الأنواع الأربعة المطلوبة: EAN-13 وEAN-8 وUPC-A وUPC-E.');
+      return;
+    }
+
+    try {
+      scanner = new library.Html5Qrcode('barcodeReader', {
+        formatsToSupport: retailFormats,
+        // أبقِ مسار BarcodeDetector الحالي على Android فقط عند استخدام
+        // النسخة الأصلية. على iPhone والنسخة الاحتياطية نستخدم فك الترميز JS/WASM.
+        useBarCodeDetectorIfSupported: libraryName === 'legacy' && !ios
+      });
+    } catch (error) {
+      console.error('Scanner constructor error:', libraryName, error);
+      startScannerWithFallback(attemptIndex + 1, token,
+        'تعذر تهيئة قارئ الباركود؛ جارٍ تجربة القارئ الاحتياطي...');
+      return;
+    }
+
+    const thisScanner = scanner;
+    const onSuccess = function (decodedText, decodedResult) {
+      if (token !== scannerAttemptToken || scanLocked || scanner !== thisScanner) return;
+
+      const barcode = getValidRetailBarcode(decodedText, decodedResult);
+      if (!barcode) {
+        if (!invalidReadReported) {
+          invalidReadReported = true;
+          setStatus('تم التقاط قراءة غير مكتملة أو غير صحيحة؛ ثبّت الكاميرا على باركود EAN-13 أو EAN-8 أو UPC-A أو UPC-E.');
+        }
+        return;
+      }
+
+      // لا نعتمد نتيجة منفردة: نطلب ظهور الرقم الصحيح مرتين خلال فترة قصيرة
+      // لتقليل قبول قراءة عابرة أو مشوشة من إطار واحد.
+      const now = Date.now();
+      if (pendingBarcode === barcode && now - pendingBarcodeAt <= 2200) {
+        pendingBarcodeHits += 1;
+      } else {
+        pendingBarcode = barcode;
+        pendingBarcodeHits = 1;
+      }
+      pendingBarcodeAt = now;
+
+      if (pendingBarcodeHits < 2) {
+        setStatus('تم التقاط الباركود؛ جارٍ تأكيد الرقم...');
+        return;
+      }
 
       scanLocked = true;
+      clearScannerFallbackTimer();
+      setStatus('تم تأكيد الباركود، جارٍ البحث...');
       handleBarcode(barcode);
     };
 
     const onError = function () {
-      // تجاهل أخطاء عدم وجود باركود في الإطار الحالي.
+      // عدم وجود باركود في الإطار الحالي أمر طبيعي أثناء المسح.
     };
 
-    // نبدأ أولًا بالكاميرا الخلفية عبر facingMode. هذا أكثر أمانًا على
-    // الأجهزة التي تعرض عدة كاميرات لكن لا تعطي labels صحيحة.
+    const config = {
+      fps: 5
+      // لا نحدد qrbox صغيرًا؛ تُفحص مساحة المعاينة كاملة لزيادة فرصة قراءة
+      // الباركودات الخطية الطويلة EAN-13 والقصيرة EAN-8.
+    };
+
+    let started = false;
     try {
-      await scanner.start(
+      await thisScanner.start(
         { facingMode: { exact: 'environment' } },
         config,
         onSuccess,
         onError
       );
-      setStatus('الكاميرا تعمل — وجّهها نحو الباركود');
-      return;
+      started = true;
     } catch (environmentError) {
       console.warn('Environment camera start failed:', environmentError);
     }
 
-    // fallback: اختيار الكاميرا الخلفية من قائمة deviceId إذا كان الجهاز
-    // لا يدعم exact facingMode أو لا يطبقه بشكل صحيح.
-    try {
-      const cameras = await window.Html5Qrcode.getCameras();
-      if (Array.isArray(cameras) && cameras.length) {
-        const backCamera = cameras.find(function (camera) {
-          const label = String(camera?.label || '').toLowerCase();
-          return /back|rear|environment|خلف|خلفية/.test(label);
-        });
-
-        const selected = backCamera || cameras[cameras.length - 1];
-        await scanner.start(selected.id, config, onSuccess, onError);
-        setStatus('الكاميرا تعمل — وجّهها نحو الباركود');
-        return;
+    if (!started) {
+      try {
+        const cameras = await library.Html5Qrcode.getCameras();
+        if (Array.isArray(cameras) && cameras.length) {
+          const backCamera = cameras.find(function (camera) {
+            const label = String(camera?.label || '').toLowerCase();
+            return /back|rear|environment|خلف|خلفية/.test(label);
+          });
+          const selected = backCamera || cameras[cameras.length - 1];
+          await thisScanner.start(selected.id, config, onSuccess, onError);
+          started = true;
+        }
+      } catch (cameraListError) {
+        console.warn('Camera list/deviceId start failed:', cameraListError);
       }
-    } catch (cameraListError) {
-      console.warn('Camera list/deviceId start failed:', cameraListError);
     }
 
-    // fallback أخير للأجهزة التي لا تسمح إلا بـ ideal.
-    try {
-      await scanner.start(
-        { facingMode: { ideal: 'environment' } },
-        config,
-        onSuccess,
-        onError
-      );
-      setStatus('الكاميرا تعمل — وجّهها نحو الباركود');
-    } catch (error) {
-      console.error('Camera start error:', error);
-      setStatus('لم تفتح الكاميرا. اسمح بالوصول للكاميرا أو أعد المحاولة.');
+    if (!started) {
+      try {
+        await thisScanner.start(
+          { facingMode: { ideal: 'environment' } },
+          config,
+          onSuccess,
+          onError
+        );
+        started = true;
+      } catch (error) {
+        console.error('Camera start error:', libraryName, error);
+      }
     }
+
+    if (token !== scannerAttemptToken) {
+      await disposeScannerInstance();
+      return;
+    }
+
+    if (!started) {
+      await disposeScannerInstance();
+      startScannerWithFallback(attemptIndex + 1, token,
+        'لم تفتح الكاميرا. اسمح بالوصول للكاميرا ثم أعد المحاولة.');
+      return;
+    }
+
+    activeScannerLibrary = libraryName;
+    setStatus(ios && libraryName === 'zxing'
+      ? 'الكاميرا تعمل على iPhone — وجّهها نحو EAN-13 أو EAN-8 أو UPC-A أو UPC-E'
+      : 'الكاميرا تعمل — وجّهها نحو EAN-13 أو EAN-8 أو UPC-A أو UPC-E');
+
+    // إذا لم تُعتمد قراءة سليمة خلال 12 ثانية، ننتقل تلقائيًا للمحرك الآخر.
+    scannerFallbackTimer = setTimeout(function () {
+      if (token !== scannerAttemptToken || scanLocked || activeScannerLibrary !== libraryName) return;
+      if (attemptIndex + 1 < scannerLibraryOrder.length) {
+        startScannerWithFallback(attemptIndex + 1, token);
+      } else {
+        setStatus('لم تُقرأ العبوة بعد. اجعل الباركود مستقيمًا وواضحًا أو أدخل رقمه يدويًا.');
+      }
+    }, 12000);
   }
+
 async function handleBarcode(barcode) {
 
     const clean = cleanBarcode(barcode);
@@ -1164,6 +1435,9 @@ async function handleBarcode(barcode) {
 
   window.closeBarcodeScanner =
     async function () {
+
+      scannerAttemptToken += 1;
+      clearScannerFallbackTimer();
 
       if (scanner) {
 
