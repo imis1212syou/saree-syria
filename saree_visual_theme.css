@@ -114,3 +114,331 @@ label{color:#55717f}
 .barcode-product-image-empty{display:flex;align-items:center;justify-content:center;color:#66808e;font-weight:700;object-fit:initial}
 .barcode-product-name{margin:0 !important;color:#173042 !important;font-size:21px !important;line-height:1.5}
 .storeProductCard .name{background:#fff !important;color:#173042 !important;border-radius:10px;padding:6px 8px}
+
+/* تحسينات محدودة للشاشة الرئيسية فقط — لا تغيّر وظائف الصفحات الأخرى */
+#home .homeHero{padding:14px 16px 12px;margin-bottom:10px}
+#home .homeHero h1{font-size:clamp(21px,4.5vw,25px);line-height:1.35;margin-bottom:6px}
+#home .homeHero>p{margin:0;line-height:1.65}
+#home .homeHero #roleActions{gap:8px;margin-top:10px}
+#home .homeHero #roleActions .btn{padding:9px 12px !important;min-height:39px}
+#home .homeSearch{position:relative;top:auto;z-index:1;margin:0 0 10px;padding:0 0 8px;background:transparent !important;border:0;backdrop-filter:none;-webkit-backdrop-filter:none}
+#home .homeSearch>input{margin-top:0}
+#home .homeSearch .two{gap:8px}
+#home .homeSearch select{margin-top:8px}
+#home .homeStatsGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-bottom:12px}
+#home .homeStatsGrid .stat{display:flex;align-items:center;justify-content:center;gap:5px;min-width:0;padding:10px 8px;font-size:13px;white-space:nowrap;text-align:center}
+#home .homeStatsGrid .stat b{margin:0;font-size:21px}
+#home .homeProductsHeading{margin:2px 0 10px}
+@media(max-width:650px){
+  #home .homeStatsGrid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  #home .homeStatsGrid .stat{padding:10px 8px}
+  #home .homeHero #roleActions .btn{padding:9px 10px !important}
+}
+
+/* إبراز السعر داخل بطاقات منتجات الصفحة الرئيسية فقط؛ بقية التصميم والوظائف كما هي */
+#home #products > .card{
+  display:flex;
+  flex-direction:column;
+  align-items:stretch;
+  gap:7px;
+}
+#home #products > .card > .img{
+  width:100%;
+  max-height:150px;
+  object-fit:contain;
+  margin-bottom:3px;
+}
+#home #products > .card > .name{
+  font-size:18px;
+  font-weight:800;
+  line-height:1.45;
+  margin:2px 0 0;
+}
+#home #products > .card > .price{
+  display:block;
+  margin:7px 0 0;
+  padding:11px 8px;
+  border-radius:14px;
+  background:linear-gradient(135deg,#e8f8f1,#f2fbf7);
+  border:1px solid #ccefe1;
+  color:#118260 !important;
+  font-size:clamp(23px,5.3vw,29px);
+  font-weight:900;
+  line-height:1.35;
+  text-align:center;
+  letter-spacing:0;
+  overflow-wrap:anywhere;
+}
+#home #products > .card > .old{
+  margin-top:-3px;
+  font-size:13px;
+  text-align:center;
+  color:#82949d !important;
+}
+#home #products > .card > .meta{
+  display:flex;
+  justify-content:space-between;
+  gap:7px;
+  font-size:12px;
+  line-height:1.6;
+}
+#home #products > .card > .actions{
+  display:flex;
+  flex-direction:column;
+  gap:7px;
+  margin-top:7px;
+}
+#home #products > .card > .actions .btn{
+  width:100%;
+  min-height:39px;
+  padding:9px 10px !important;
+  margin:0;
+}
+@media(max-width:380px){
+  #home #products > .card > .price{font-size:22px;padding:9px 5px}
+  #home #products > .card > .meta{font-size:11px}
+}
+
+/* تحسين بصري لصفحة المتاجر فقط — يحافظ على وظائف المتاجر وبقية الصفحات كما هي */
+#stores #storesList > .card{
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+  padding:13px;
+  min-width:0;
+  overflow:hidden;
+  background:linear-gradient(180deg,#fff 0%,#fbfdff 100%) !important;
+  border-color:#d9eaf1 !important;
+  box-shadow:0 8px 22px rgba(36,92,117,.08);
+}
+#stores #storesList > .card > div[onclick]{
+  display:block;
+  min-width:0;
+  border-radius:14px;
+}
+#stores #storesList .img{
+  display:block;
+  width:100%;
+  height:118px;
+  margin:0 0 10px;
+  padding:8px;
+  object-fit:contain !important;
+  background:linear-gradient(135deg,#f1f9fc,#f7fcfb) !important;
+  border:1px solid #e1edf2 !important;
+  border-radius:14px !important;
+}
+/* مساحة شعار لطيفة للمتاجر التي لا تملك صورة */
+#stores #storesList > .card > div[onclick]:not(:has(.img))::before{
+  content:"";
+  display:block;
+  width:100%;
+  height:88px;
+  margin:0 0 10px;
+  border:1px dashed #c9e1e9;
+  border-radius:14px;
+  background:url("store.svg") center/38px 38px no-repeat,linear-gradient(135deg,#edf8fc,#f0faf7);
+}
+#stores #storesList .name{
+  margin:0 0 7px;
+  font-size:17px;
+  font-weight:800;
+  line-height:1.55;
+  overflow-wrap:anywhere;
+  color:#173b50 !important;
+}
+#stores #storesList .companyBadge{
+  display:inline-flex;
+  align-items:center;
+  max-width:100%;
+  margin:0 0 8px;
+  padding:5px 9px;
+  font-size:11px;
+  line-height:1.5;
+  white-space:normal;
+}
+#stores #storesList .muted{
+  font-size:12.5px;
+  line-height:1.8;
+  overflow-wrap:anywhere;
+}
+#stores #storesList .actions{
+  display:flex;
+  gap:8px;
+  margin:9px 0 0;
+}
+#stores #storesList .actions .btn{
+  flex:1 1 auto;
+  justify-content:center;
+  min-height:38px;
+  padding:9px 12px !important;
+  box-shadow:none;
+}
+#stores #storesList > .card > .btn{
+  width:100%;
+  min-height:42px;
+  margin-top:auto;
+  padding:10px 12px !important;
+  font-size:14px;
+  box-shadow:0 5px 13px rgba(36,92,117,.08);
+}
+#stores #storesList > .card > .btn.secondary{
+  background:linear-gradient(135deg,#edf7fc,#e9f8f4) !important;
+  border-color:#d3e8ef !important;
+  color:#22627e !important;
+}
+@media(max-width:650px){
+  #stores #storesList > .card{padding:12px;gap:9px}
+  #stores #storesList .img{height:108px}
+  #stores #storesList > .card > div[onclick]:not(:has(.img))::before{height:78px}
+  #stores #storesList .name{font-size:16px}
+}
+
+/* تحسين صفحة التصنيفات فقط — مع الحفاظ على بقية الواجهات كما هي */
+#categories > .hero{
+  padding:22px 18px !important;
+  margin-bottom:16px !important;
+  background:linear-gradient(135deg,#ffffff 0%,#f0f9fc 58%,#e8f7f2 100%) !important;
+  border-color:#d6eaf1 !important;
+}
+#categories > .hero h1{margin:0;font-size:27px !important;line-height:1.5}
+#categories > .hero h1:after{
+  content:"تصفّح المنتجات حسب النوع";
+  display:block;
+  margin-top:5px;
+  color:#6a8795;
+  font-size:13px;
+  font-weight:500;
+}
+#categories #cats{
+  display:grid !important;
+  grid-template-columns:repeat(2,minmax(0,1fr)) !important;
+  gap:12px !important;
+  align-items:stretch;
+}
+#categories #cats > .card{
+  position:relative;
+  display:flex !important;
+  flex-direction:column;
+  align-items:flex-start;
+  justify-content:center;
+  gap:12px;
+  min-width:0;
+  min-height:126px;
+  padding:17px 14px !important;
+  overflow:hidden;
+  border:1px solid #d8eaf1 !important;
+  border-radius:19px !important;
+  background:linear-gradient(155deg,#fff 0%,#f8fcfe 72%,#eff9f6 100%) !important;
+  box-shadow:0 7px 20px rgba(36,92,117,.075) !important;
+  transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease;
+}
+#categories #cats > .card:before{
+  content:"";
+  display:block;
+  width:38px;height:38px;flex:none;
+  border-radius:13px;
+  background:#e5f4f9 url("categories.svg") center/23px 23px no-repeat;
+  border:1px solid #d5eaf2;
+}
+#categories #cats > .card:after{
+  content:"";
+  position:absolute;
+  width:82px;height:82px;
+  inset:auto -32px -36px auto;
+  border-radius:50%;
+  background:rgba(39,173,151,.07);
+  pointer-events:none;
+}
+#categories #cats .pill{
+  max-width:100%;
+  padding:7px 11px !important;
+  border-radius:11px !important;
+  font-size:14px !important;
+  font-weight:800;
+  line-height:1.5;
+  white-space:normal;
+  overflow-wrap:anywhere;
+}
+#categories #cats .name{
+  margin:0 !important;
+  color:#587584 !important;
+  font-size:12px !important;
+  font-weight:700;
+}
+#categories #cats > .card:hover{
+  transform:translateY(-2px);
+  border-color:#b8dce8 !important;
+  box-shadow:0 12px 25px rgba(36,92,117,.12) !important;
+}
+#categories #cats > .card.muted{grid-column:1/-1;min-height:90px;align-items:center;text-align:center}
+@media(min-width:600px){#categories #cats{grid-template-columns:repeat(3,minmax(0,1fr)) !important}#categories #cats > .card{min-height:138px;padding:19px !important}}
+@media(max-width:360px){#categories #cats{gap:9px !important}#categories #cats > .card{padding:13px 10px !important;min-height:116px}#categories #cats .pill{font-size:12px !important}}
+@media(prefers-reduced-motion:reduce){#categories #cats > .card{transition:none}}
+
+
+/* Admin dashboard refinement — scoped only to the manager panel */
+#admin { padding-bottom: 26px; }
+#admin > .btn:first-child {
+  width: 100%; min-height: 48px; justify-content: center; border-radius: 15px;
+  margin: 0 0 14px; font-weight: 800; box-shadow: 0 7px 18px rgba(26, 96, 128, .12);
+}
+#adminPanel { display: flex; flex-direction: column; gap: 14px; }
+#adminPanel > .grid {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px;
+  margin: 0;
+}
+#adminPanel > .grid > .card {
+  min-width: 0; margin: 0; padding: 15px 10px; text-align: center;
+  border: 1px solid #dce9ef; border-radius: 17px;
+  background: linear-gradient(155deg, #fff 0%, #f5fafc 100%);
+  box-shadow: 0 6px 18px rgba(28, 67, 87, .055);
+}
+#adminPanel > .grid > .card .name {
+  font-size: clamp(22px, 5vw, 30px); line-height: 1.2; font-weight: 900;
+  color: #176b85; margin-bottom: 6px; overflow-wrap: anywhere;
+}
+#adminPanel > .grid > .card .muted { font-size: 12px; line-height: 1.5; }
+#adminPanel > .card, #adminPanel > #companyFullAdminBox {
+  margin: 0; padding: 16px; border: 1px solid #dce8ee; border-radius: 18px;
+  background: #fff; box-shadow: 0 7px 22px rgba(28, 67, 87, .055);
+}
+#adminPanel > .card > h2, #adminPanel .accordionHead h2 {
+  margin: 0; font-size: 18px; line-height: 1.45; font-weight: 850; color: #183e50;
+}
+#adminPanel > .card > h2 { padding-bottom: 10px; margin-bottom: 12px; border-bottom: 1px solid #edf2f5; }
+#adminPanel .accordionHead {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 12px 13px; border-radius: 13px; background: #f3f8fa;
+  border: 1px solid #e1edf1; cursor: pointer;
+}
+#adminPanel .accordionHead > span { flex: 0 0 auto; color: #28788d; font-size: 18px; }
+#adminPanel .accordionBody { padding: 12px 2px 2px; }
+#adminPanel .priceRow, #adminPanel .admin-store-row, #adminPanel .admin-company-row,
+#adminPanel .company-account-row {
+  min-width: 0; padding: 13px; margin: 9px 0; border: 1px solid #e1ebef;
+  border-radius: 14px; background: #fbfdfe;
+}
+#adminPanel input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+#adminPanel select, #adminPanel textarea {
+  width: 100%; min-width: 0; min-height: 44px; margin: 5px 0 9px;
+  border: 1px solid #d5e3e9; border-radius: 11px; background: #fff;
+  padding: 10px 12px; font: inherit; box-sizing: border-box;
+}
+#adminPanel input[type="file"] { max-width: 100%; margin: 7px 0 12px; }
+#adminPanel label { line-height: 1.7; }
+#adminPanel .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+#adminPanel .actions .btn, #adminPanel .priceRow > .btn {
+  min-height: 42px; border-radius: 11px; font-weight: 750; flex: 1 1 145px;
+  margin: 0; white-space: normal;
+}
+#adminPanel .pill { display: inline-flex; align-items: center; padding: 5px 9px; border-radius: 999px; font-size: 12px; }
+#adminPanel .qrbox, #adminPanel .company-qr-box { margin: 12px auto; max-width: 180px; }
+#adminPanel .muted { line-height: 1.7; overflow-wrap: anywhere; }
+@media (max-width: 520px) {
+  #adminPanel > .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  #adminPanel > .grid > .card { padding: 13px 8px; border-radius: 14px; }
+  #adminPanel > .card, #adminPanel > #companyFullAdminBox { padding: 12px; border-radius: 15px; }
+  #adminPanel > .card > h2, #adminPanel .accordionHead h2 { font-size: 16px; }
+  #adminPanel .accordionHead { padding: 11px; }
+  #adminPanel .actions .btn, #adminPanel .priceRow > .btn { flex-basis: 100%; width: 100%; }
+}

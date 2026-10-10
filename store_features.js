@@ -916,8 +916,15 @@
       if(barcodeError) throw barcodeError;
       const {error}=await supabaseClient.from('price_listings').delete().eq('id',listingId).eq('store_id',storeId);
       if(error) throw error;
+      // Keep the shared product active while any store still lists it; otherwise hide it from the home count/catalog.
+      const {data:remainingListings,error:remainingError}=await supabaseClient.from('price_listings').select('id').eq('product_id',listing.product_id).limit(1);
+      if(remainingError) throw remainingError;
+      if(!remainingListings?.length){
+        const {error:productError}=await supabaseClient.from('products').update({active:false}).eq('id',listing.product_id);
+        if(productError) throw productError;
+      }
       alert('تم حذف المادة من المتجر ✅');
-      await window.renderStoreDetail(storeId);
+      await window.refreshAll?.();
     }catch(err){ console.error(err); alert('تعذر حذف المادة: '+(err.message||'خطأ غير معروف')); }
   };
 

@@ -16,7 +16,7 @@
 .storeLogo{height:150px;object-fit:cover}.storeDetailLogo{height:220px;object-fit:cover}.storeLogoPlaceholder{height:150px;border-radius:12px;background:#0d1418;border:1px dashed #303b40;display:flex;align-items:center;justify-content:center;color:#6f7c82}.companyButton{border:0;cursor:pointer}.companyButton:hover{filter:brightness(1.1)}.merchantStoreOption{display:flex;gap:8px;align-items:center;margin-top:10px}.merchantStoreOption input{width:20px;height:20px;margin:0}.storeProductCard{background:#fff;color:#111}.storeProductCard .muted{color:#4a555b}.storeProductCard .materialImage{height:170px;object-fit:contain;background:#f4f4f4}
 .sareeEmailNotice{position:fixed;top:14px;left:50%;transform:translateX(-50%);width:min(92vw,520px);z-index:1000;background:#12191d;border:1px solid #35d07f;border-radius:14px;padding:12px 14px;box-shadow:0 10px 30px rgba(0,0,0,.35)}.sareeEmailNotice .noticeText{margin:0;color:#f1f4f5!important}.sareeEmailNotice .noticeClose{margin-top:8px;padding:8px 12px;font-size:12px}.forgotPasswordOverlay{position:fixed;inset:0;z-index:1200;background:rgba(0,0,0,.62);display:flex;align-items:center;justify-content:center;padding:16px}.forgotPasswordBox{width:min(92vw,430px);background:#12191d;border:1px solid #303b40;border-radius:18px;padding:16px;box-shadow:0 16px 50px rgba(0,0,0,.45)}.forgotPasswordBox h2{margin:0 0 8px}.forgotPasswordBox .actions{justify-content:flex-start}.forgotPasswordBox input{margin-top:12px}
 </style>
-<link rel="stylesheet" href="saree_visual_theme.css?v=icons-fix-20261007-name-autofill">
+<link rel="stylesheet" href="saree_visual_theme.css?v=admin-panel-1">
 </head>
 <body>
 <div class="app">
@@ -27,10 +27,10 @@
 </section>
 
 <section id="home" class="page active">
-<div class="hero"><h1>مقارنة أسعار المنتجات في سوريا</h1><p class="muted">الأرخص يظهر أولاً. التاجر المرتبط بمتجره ينشر المواد والأسعار مباشرة بعد الحفظ.</p><div id="roleActions" class="actions"></div></div><div id="adsHome" class="adSlot hidden"></div>
-<div class="grid"><div class="stat"><b id="pc">0</b> منتجات</div><div class="stat" role="button" tabindex="0" onclick="openNav('stores')" onkeydown="if(event.key==='Enter'||event.key===' ')openNav('stores')" style="cursor:pointer"><b id="sc">0</b> متاجر</div><div class="stat" role="button" tabindex="0" onclick="openNav('companies')" onkeydown="if(event.key==='Enter'||event.key===' ')openNav('companies')" style="cursor:pointer"><b id="cc">0</b> شركات</div><div class="stat"><b id="basketCount">0</b> في السلة</div></div>
-<div class="searchbar"><input id="search" placeholder="ابحث عن منتج أو علامة أو تصنيف أو مدينة..." oninput="renderProducts()"><div class="two"><select id="cityFilter" onchange="renderProducts()"><option value="">كل المدن</option></select><select id="catFilter" onchange="renderProducts()"><option value="">كل التصنيفات</option></select></div></div>
-<h2>أفضل الأسعار حالياً</h2><div id="products" class="grid"></div>
+<div class="hero homeHero"><h1>مقارنة أسعار المنتجات في سوريا</h1><p class="muted">الأرخص يظهر أولاً. التاجر المرتبط بمتجره ينشر المواد والأسعار مباشرة بعد الحفظ.</p><div id="roleActions" class="actions"></div></div><div id="adsHome" class="adSlot hidden"></div>
+<div class="searchbar homeSearch"><input id="search" placeholder="ابحث عن منتج أو علامة أو تصنيف أو مدينة..." oninput="renderProducts()"><div class="two"><select id="cityFilter" onchange="renderProducts()"><option value="">كل المدن</option></select><select id="catFilter" onchange="renderProducts()"><option value="">كل التصنيفات</option></select></div></div>
+<div class="grid homeStatsGrid"><div class="stat"><b id="pc">0</b> منتجات</div><div class="stat" role="button" tabindex="0" onclick="openNav('stores')" onkeydown="if(event.key==='Enter'||event.key===' ')openNav('stores')" style="cursor:pointer"><b id="sc">0</b> متاجر</div><div class="stat" role="button" tabindex="0" onclick="openNav('companies')" onkeydown="if(event.key==='Enter'||event.key===' ')openNav('companies')" style="cursor:pointer"><b id="cc">0</b> شركات</div><div class="stat"><b id="basketCount">0</b> في السلة</div></div>
+<h2 class="homeProductsHeading">أفضل الأسعار حالياً</h2><div id="products" class="grid"></div>
 </section>
 
 <section id="basket" class="page"><div class="hero"><h1>سلة المشتريات</h1><p class="muted">أرخص سعر لكل مادة.</p></div><div id="basketList"></div></section>
@@ -655,20 +655,33 @@ async function loadProfileIfNeeded(){
 }
 async function loadPublicData(){
   try{
-    const [p,s,l,c]=await Promise.all([
+    const [p,s,l,c,cp]=await Promise.all([
       supabaseClient.from('products').select('*').eq('active',true).order('name'),
       supabaseClient.from('stores').select('*').eq('active',true).order('name'),
       supabaseClient.from('price_listings').select('*,stores(id,name,city,area,address,phone,image_url,verified,company_id,companies(id,name,verified,active))').eq('approved',true).order('price_new'),
-      supabaseClient.from('companies').select('id,name,active,verified').eq('active',true)
+      supabaseClient.from('companies').select('id,name,active,verified').eq('active',true),
+      supabaseClient.from('company_products').select('id').eq('active',true)
     ]);
     if(p.error||s.error||l.error) throw(p.error||s.error||l.error);
     products=p.data||[];stores=s.data||[];prices=l.data||[];companies=c.data||[];
-    $('pc').textContent=products.length;$('sc').textContent=stores.length;$('cc').textContent=(c.data||[]).length;
+    $('pc').textContent=products.length+(cp.data||[]).length;$('sc').textContent=stores.length;$('cc').textContent=(c.data||[]).length;
     if(c.error) console.warn('loadPublicData companies:',c.error);
+    if(cp.error) console.warn('loadPublicData company products:',cp.error);
     if($('approvedCount')) $('approvedCount').textContent=prices.length;if($('basketCount')) $('basketCount').textContent=basket.length;
     fillFilters();
   }catch(err){console.warn('loadPublicData:',err)}
 }
+window.refreshHomeProductCount = async function(){
+  try{
+    const [p,cp]=await Promise.all([
+      supabaseClient.from('products').select('id').eq('active',true),
+      supabaseClient.from('company_products').select('id').eq('active',true)
+    ]);
+    if(p.error||cp.error) throw(p.error||cp.error);
+    const node=$('pc');
+    if(node) node.textContent=(p.data||[]).length+(cp.data||[]).length;
+  }catch(err){console.warn('refreshHomeProductCount:',err)}
+};
 function fillFilters(){
  const cities=[...new Set(stores.flatMap(s=>[s.city,s.area]).filter(Boolean))].sort(),cats=[...new Set(products.map(p=>p.category).filter(Boolean))].sort();
  const cf=$('cityFilter'),kt=$('catFilter'),cv=cf.value,kv=kt.value;
@@ -1153,7 +1166,7 @@ supabaseClient.auth.onAuthStateChange((event)=>{
 // يحافظ التطبيق على الصفحة الحالية بعد تحديث الصفحة.
 </script>
 
-<script src="barcode_scanner.js?v=20261007-barcode-autofill-v8"></script>
+<script src="barcode_scanner.js?v=20261009-camera-fix-v2-reading1"></script>
 
 <script src="store_admin_controls.js?v=7"></script>
 <script src="ads.js?v=1"></script>
