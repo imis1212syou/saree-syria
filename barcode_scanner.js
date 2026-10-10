@@ -78,16 +78,24 @@
     }
   }
 
-  // محركان للقراءة: النسخة الأصلية التي يعتمد عليها Android حاليًا،
-  // ونسخة أحدث تستخدم zxing-wasm كخيار أساسي لـ iPhone/كخيار احتياطي.
+  // محركان للقراءة. لكل محرك عدة مصادر مستقلة لتقليل فشل التحميل
+  // عند تعذر الوصول إلى CDN واحد على بعض الأجهزة أو الشبكات.
   const SCANNER_LIBRARIES = {
     legacy: {
       scriptId: 'html5QrLegacyScript',
-      src: 'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js'
+      sources: [
+        'https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js',
+        'https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js',
+        'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js'
+      ]
     },
     zxing: {
       scriptId: 'html5QrZxingWasmScript',
-      src: 'https://cdn.jsdelivr.net/npm/@taluks/html5-qrcode@2.4.0/minified/html5-qrcode.min.js'
+      sources: [
+        'https://cdn.jsdelivr.net/npm/@taluks/html5-qrcode@2.4.0/minified/html5-qrcode.min.js',
+        'https://unpkg.com/@taluks/html5-qrcode@2.4.0/minified/html5-qrcode.min.js',
+        'https://fastly.jsdelivr.net/npm/@taluks/html5-qrcode@2.4.0/minified/html5-qrcode.min.js'
+      ]
     }
   };
 
@@ -125,56 +133,80 @@
     }
 
     const definition = SCANNER_LIBRARIES[name];
-    if (!definition) {
+    if (!definition || !Array.isArray(definition.sources) || !definition.sources.length) {
       return Promise.reject(new Error('Unknown barcode scanner library: ' + name));
     }
 
     const promise = new Promise(function (resolve, reject) {
-      let script = document.getElementById(definition.scriptId);
-      if (script) script.remove();
-
-      script = document.createElement('script');
-      script.id = definition.scriptId;
-      script.src = definition.src;
-      script.async = true;
-
-      let finished = false;
-      const timeoutId = setTimeout(function () {
-        if (finished) return;
-        finished = true;
-        script.onerror = null;
-        script.onload = null;
-        script.remove();
-        reject(new Error('Barcode library load timed out: ' + name));
-      }, 15000);
-
-      script.onload = function () {
-        if (finished) return;
-        finished = true;
-        clearTimeout(timeoutId);
-
-        if (typeof window.Html5Qrcode !== 'function') {
-          script.remove();
-          reject(new Error('Barcode library did not expose Html5Qrcode: ' + name));
+      function trySource(sourceIndex, lastError) {
+        if (sourceIndex >= definition.sources.length) {
+          reject(lastError || new Error('All barcode library sources failed: ' + name));
           return;
         }
 
-        loadedScannerLibraries[name] = {
-          Html5Qrcode: window.Html5Qrcode,
-          formats: window.Html5QrcodeSupportedFormats || null
+        const sourceUrl = definition.sources[sourceIndex];
+        let script = document.getElementById(definition.scriptId);
+        if (script) script.remove();
+
+        // إزالة مراجع المحرك السابق تمنع اعتبار ملف HTML أو استجابة ناقصة
+        // ناجحة لمجرد أن مكتبة المحرك السابق ما زالت معرفة في window.
+        window.Html5Qrcode = undefined;
+        window.Html5QrcodeSupportedFormats = undefined;
+
+        script = document.createElement('script');
+        script.id = definition.scriptId;
+        script.src = sourceUrl;
+        script.async = true;
+
+        let finished = false;
+        const timeoutId = setTimeout(function () {
+          if (finished) return;
+          finished = true;
+          script.onerror = null;
+          script.onload = null;
+          script.remove();
+          trySource(sourceIndex + 1, new Error('Barcode library load timed out: ' + sourceUrl));
+        }, 7000);
+
+        script.onload = function () {
+          if (finished) return;
+          finished = true;
+          clearTimeout(timeoutId);
+
+          if (typeof window.Html5Qrcode !== 'function') {
+            script.remove();
+            trySource(sourceIndex + 1, new Error('Barcode library did not expose Html5Qrcode: ' + sourceUrl));
+            return;
+          }
+
+          // اربط ملف WASM بمصدر JavaScript الناجح نفسه، كي لا يعتمد محرك
+          // ZXing دائمًا على jsDelivr إذا كانت المكتبة قد حُمّلت من unpkg.
+          let wasmUrl = null;
+          if (name === 'zxing') {
+            wasmUrl = sourceUrl.replace(/html5-qrcode\.min\.js(?:\?.*)?$/, 'zxing_reader.wasm');
+          }
+
+          loadedScannerLibraries[name] = {
+            Html5Qrcode: window.Html5Qrcode,
+            formats: window.Html5QrcodeSupportedFormats || null,
+            wasmUrl: wasmUrl,
+            sourceUrl: sourceUrl
+          };
+          resolve(loadedScannerLibraries[name]);
         };
-        resolve(loadedScannerLibraries[name]);
-      };
 
-      script.onerror = function () {
-        if (finished) return;
-        finished = true;
-        clearTimeout(timeoutId);
-        script.remove();
-        reject(new Error('Barcode library failed to load: ' + name));
-      };
+        script.onerror = function () {
+          if (finished) return;
+          finished = true;
+          clearTimeout(timeoutId);
+          script.remove();
+          trySource(sourceIndex + 1, new Error('Barcode library failed to load: ' + sourceUrl));
+        };
 
-      document.head.appendChild(script);
+        document.head.appendChild(script);
+      }
+
+      trySource(0);
     });
 
     scannerLibraryPromises[name] = promise.catch(function (error) {
@@ -611,6 +643,11 @@ const searchButton =
     try {
       scanner = new library.Html5Qrcode('barcodeReader', {
         formatsToSupport: retailFormats,
+        // عند استخدام نسخة ZXing، حمّل WASM من نفس مصدر ملف JS الناجح
+        // بدل الارتباط بمصدر CDN واحد ثابت.
+        ...(libraryName === 'zxing' && library.wasmUrl ? {
+          zxingWasm: { loadMode: 'custom', wasmUrl: library.wasmUrl }
+        } : {}),
         // أبقِ مسار BarcodeDetector الحالي على Android فقط عند استخدام
         // النسخة الأصلية. على iPhone والنسخة الاحتياطية نستخدم فك الترميز JS/WASM.
         useBarCodeDetectorIfSupported: libraryName === 'legacy' && !ios
