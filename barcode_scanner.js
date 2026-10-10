@@ -110,6 +110,11 @@
   let pendingBarcodeHits = 0;
   let pendingBarcodeAt = 0;
   let invalidReadReported = false;
+  let nativeCameraStream = null;
+  let nativeCameraVideo = null;
+  let nativeDetectionFrame = null;
+  let nativeDetectionBusy = false;
+  let nativeDetectorActive = false;
 
   function isIOSDevice() {
     const ua = String(navigator.userAgent || '');
@@ -310,6 +315,7 @@
   }
 
   async function disposeScannerInstance() {
+    stopNativeBarcodeScanner();
     const oldScanner = scanner;
     scanner = null;
     activeScannerLibrary = null;
@@ -327,12 +333,125 @@
     }
   }
 
+  function stopNativeBarcodeScanner() {
+    nativeDetectorActive = false;
+    nativeDetectionBusy = false;
+    if (nativeDetectionFrame !== null) {
+      cancelAnimationFrame(nativeDetectionFrame);
+      nativeDetectionFrame = null;
+    }
+    if (nativeCameraStream) {
+      nativeCameraStream.getTracks().forEach(function (track) {
+        try { track.stop(); } catch (_) {}
+      });
+      nativeCameraStream = null;
+    }
+    if (nativeCameraVideo) {
+      try { nativeCameraVideo.pause(); } catch (_) {}
+      nativeCameraVideo.srcObject = null;
+      nativeCameraVideo.remove();
+      nativeCameraVideo = null;
+    }
+  }
+
+  async function startNativeBarcodeFallback(token) {
+    const reader = el('barcodeReader');
+    const Detector = window.BarcodeDetector;
+    if (!reader || !Detector || !navigator.mediaDevices?.getUserMedia) {
+      setStatus('تعذر تحميل قارئ الباركود. تحقق من الإنترنت أو أدخل الرقم يدويًا.');
+      return;
+    }
+
+    try {
+      setStatus('جارٍ تجربة قارئ الكاميرا المدمج في الجهاز...');
+      let supported = ['ean_13', 'ean_8', 'upc_a', 'upc_e'];
+      if (typeof Detector.getSupportedFormats === 'function') {
+        const deviceFormats = await Detector.getSupportedFormats();
+        supported = supported.filter(function (format) { return deviceFormats.includes(format); });
+      }
+      if (!supported.length) {
+        setStatus('هذا المتصفح لا يدعم صيغ الباركود المطلوبة. أدخل الرقم يدويًا.');
+        return;
+      }
+      const detector = new Detector({ formats: supported });
+      if (token !== scannerAttemptToken || !el('barcodeReader')) return;
+
+      stopNativeBarcodeScanner();
+      const video = document.createElement('video');
+      video.setAttribute('playsinline', 'true');
+      video.setAttribute('autoplay', 'true');
+      video.muted = true;
+      video.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block;';
+      reader.replaceChildren(video);
+      nativeCameraVideo = video;
+      nativeCameraStream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: { facingMode: { ideal: 'environment' } }
+      });
+      if (token !== scannerAttemptToken || !el('barcodeReader')) {
+        stopNativeBarcodeScanner();
+        return;
+      }
+      video.srcObject = nativeCameraStream;
+      await video.play();
+      nativeDetectorActive = true;
+      setStatus('الكاميرا تعمل — وجّهها نحو EAN-13 أو EAN-8 أو UPC-A أو UPC-E');
+
+      async function detectFrame() {
+        if (!nativeDetectorActive || token !== scannerAttemptToken || scanLocked) return;
+        if (video.readyState >= 2 && !nativeDetectionBusy) {
+          nativeDetectionBusy = true;
+          try {
+            const results = await detector.detect(video);
+            for (const result of results || []) {
+              const formatName = String(result.format || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+              const barcode = getValidRetailBarcode(result.rawValue, { format: { formatName: formatName } });
+              if (!barcode) continue;
+              const now = Date.now();
+              if (pendingBarcode === barcode && now - pendingBarcodeAt <= 2200) {
+                pendingBarcodeHits += 1;
+              } else {
+                pendingBarcode = barcode;
+                pendingBarcodeHits = 1;
+              }
+              pendingBarcodeAt = now;
+              if (pendingBarcodeHits >= 2) {
+                scanLocked = true;
+                nativeDetectorActive = false;
+                setStatus('تم تأكيد الباركود، جارٍ البحث...');
+                stopNativeBarcodeScanner();
+                handleBarcode(barcode);
+                return;
+              }
+              setStatus('تم التقاط الباركود؛ جارٍ تأكيد الرقم...');
+              break;
+            }
+          } catch (detectError) {
+            console.warn('Native BarcodeDetector read error:', detectError);
+          } finally {
+            nativeDetectionBusy = false;
+          }
+        }
+        if (nativeDetectorActive && token === scannerAttemptToken) {
+          nativeDetectionFrame = requestAnimationFrame(detectFrame);
+        }
+      }
+      nativeDetectionFrame = requestAnimationFrame(detectFrame);
+    } catch (error) {
+      console.warn('Native BarcodeDetector fallback failed:', error);
+      stopNativeBarcodeScanner();
+      if (token === scannerAttemptToken) {
+        setStatus('لم يتمكن المتصفح من فتح الكاميرا. اسمح بإذن الكاميرا أو أدخل رقم الباركود يدويًا.');
+      }
+    }
+  }
+
   function startScannerWithFallback(nextIndex, token, reason) {
     if (token !== scannerAttemptToken || scanLocked) return;
     clearScannerFallbackTimer();
 
     if (nextIndex >= scannerLibraryOrder.length) {
-      setStatus(reason || 'تعذرت قراءة الباركود. قرّب الكاميرا وثبّت الصورة أو أدخل الرقم يدويًا.');
+      startNativeBarcodeFallback(token);
       return;
     }
 
@@ -1475,6 +1594,7 @@ async function handleBarcode(barcode) {
 
       scannerAttemptToken += 1;
       clearScannerFallbackTimer();
+      stopNativeBarcodeScanner();
 
       if (scanner) {
 
