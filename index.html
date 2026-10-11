@@ -1041,7 +1041,7 @@ async function loadSiteLinks(){
  if(!(await sareeCheckAdmin()))return;
  try{const {data}=await supabaseClient.from('site_settings').select('whatsapp_url,telegram_url').eq('key','site_contact_links').maybeSingle();if(data){if($('siteWhatsapp'))$('siteWhatsapp').value=data.whatsapp_url||'';if($('siteTelegram'))$('siteTelegram').value=data.telegram_url||'';}}catch(e){console.warn('site links:',e)}
 }
-// ماسح الباركود موجود في barcode_scanner.js لتجنب تعارض BarcodeDetector مع المتصفح.
+// قارئ الباركود يُحمَّل بملف واحد حسب نظام الجهاز: Android أو iPhone.
 // لا نعرّف scanBarcode هنا.
 async function renderAdmin(){
  show('admin');
@@ -1166,7 +1166,15 @@ supabaseClient.auth.onAuthStateChange((event)=>{
 // يحافظ التطبيق على الصفحة الحالية بعد تحديث الصفحة.
 </script>
 
-<script src="barcode_scanner.js?v=20261010-native-barcode-fallback-v4"></script>
+<script>
+(function () {
+  const ua = String(navigator.userAgent || '');
+  const isIOS = /iPhone|iPad|iPod/i.test(ua) ||
+    (navigator.platform === 'MacIntel' && Number(navigator.maxTouchPoints) > 1);
+  const scannerFile = isIOS ? 'barcode_scanner_iphone.js' : 'barcode_scanner_android.js';
+  document.write('<script src="' + scannerFile + '?v=20261011-zxing-wasm-3-1-5"><\/script>');
+})();
+</script>
 
 <script src="store_admin_controls.js?v=7"></script>
 <script src="ads.js?v=1"></script>
