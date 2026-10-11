@@ -112,7 +112,11 @@
   let invalidReadReported = false;
   let nativeCameraStream = null;
   let nativeCameraVideo = null;
+  let nativeCameraCanvas = null;
+  let nativeCameraOverlay = null;
   let nativeDetectionFrame = null;
+  let nativeDetectionErrorCount = 0;
+  let nativeNoReadTimer = null;
   let nativeDetectionBusy = false;
   let nativeDetectorActive = false;
 
@@ -346,12 +350,21 @@
       });
       nativeCameraStream = null;
     }
+    if (nativeNoReadTimer !== null) {
+      clearTimeout(nativeNoReadTimer);
+      nativeNoReadTimer = null;
+    }
     if (nativeCameraVideo) {
       try { nativeCameraVideo.pause(); } catch (_) {}
       nativeCameraVideo.srcObject = null;
       nativeCameraVideo.remove();
       nativeCameraVideo = null;
     }
+    if (nativeCameraOverlay) {
+      nativeCameraOverlay.remove();
+      nativeCameraOverlay = null;
+    }
+    nativeCameraCanvas = null;
   }
 
   async function startNativeBarcodeFallback(token) {
@@ -380,13 +393,38 @@
       const video = document.createElement('video');
       video.setAttribute('playsinline', 'true');
       video.setAttribute('autoplay', 'true');
+      video.setAttribute('aria-label', 'معاينة كاميرا قارئ الباركود');
       video.muted = true;
-      video.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block;';
+      video.style.cssText = 'width:100%;height:100%;object-fit:contain;display:block;background:#000;';
+      reader.style.position = 'relative';
       reader.replaceChildren(video);
       nativeCameraVideo = video;
+
+      // إطار واضح يميز وضع المسح عن عرض كاميرا عادي.
+      const overlay = document.createElement('div');
+      overlay.setAttribute('aria-hidden', 'true');
+      overlay.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;';
+      const frame = document.createElement('div');
+      frame.style.cssText = 'position:relative;width:88%;height:22%;min-height:64px;max-height:135px;border:2px solid #ffd54f;border-radius:12px;box-shadow:0 0 0 9999px rgba(0,0,0,.14);';
+      const line = document.createElement('div');
+      line.style.cssText = 'position:absolute;left:3%;right:3%;top:50%;height:2px;background:#ff5252;box-shadow:0 0 8px rgba(255,82,82,.9);';
+      frame.appendChild(line);
+      overlay.appendChild(frame);
+      reader.appendChild(overlay);
+      nativeCameraOverlay = overlay;
+
+      nativeCameraCanvas = document.createElement('canvas');
+      nativeCameraCanvas.width = 1;
+      nativeCameraCanvas.height = 1;
+      nativeDetectionErrorCount = 0;
+
       nativeCameraStream = await navigator.mediaDevices.getUserMedia({
         audio: false,
-        video: { facingMode: { ideal: 'environment' } }
+        video: {
+          facingMode: { ideal: 'environment' },
+          width: { ideal: 1920 },
+          height: { ideal: 1080 }
+        }
       });
       if (token !== scannerAttemptToken || !el('barcodeReader')) {
         stopNativeBarcodeScanner();
@@ -395,14 +433,29 @@
       video.srcObject = nativeCameraStream;
       await video.play();
       nativeDetectorActive = true;
-      setStatus('الكاميرا تعمل — وجّهها نحو EAN-13 أو EAN-8 أو UPC-A أو UPC-E');
+      setStatus('وضع مسح الباركود يعمل — ضع الخطوط داخل الإطار الأصفر وثبّت الهاتف');
+      nativeNoReadTimer = setTimeout(function () {
+        if (nativeDetectorActive && token === scannerAttemptToken && !scanLocked) {
+          setStatus('لم يُقرأ الباركود بعد. قرّب العبوة، اجعل الخطوط داخل الإطار الأصفر، وتجنب اللمعان.');
+        }
+      }, 12000);
 
       async function detectFrame() {
         if (!nativeDetectorActive || token !== scannerAttemptToken || scanLocked) return;
-        if (video.readyState >= 2 && !nativeDetectionBusy) {
+        if (video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0 && !nativeDetectionBusy) {
           nativeDetectionBusy = true;
           try {
-            const results = await detector.detect(video);
+            // تمرير إطار Canvas بدل عنصر الفيديو مباشرة يحسّن التوافق مع
+            // بعض إصدارات Chromium/WebView على أجهزة Android القديمة.
+            const canvas = nativeCameraCanvas;
+            const width = video.videoWidth;
+            const height = video.videoHeight;
+            if (canvas.width !== width) canvas.width = width;
+            if (canvas.height !== height) canvas.height = height;
+            const context = canvas.getContext('2d', { willReadFrequently: true });
+            context.drawImage(video, 0, 0, width, height);
+            const results = await detector.detect(canvas);
+            nativeDetectionErrorCount = 0;
             for (const result of results || []) {
               const formatName = String(result.format || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
               const barcode = getValidRetailBarcode(result.rawValue, { format: { formatName: formatName } });
@@ -427,7 +480,15 @@
               break;
             }
           } catch (detectError) {
+            nativeDetectionErrorCount += 1;
             console.warn('Native BarcodeDetector read error:', detectError);
+            if (nativeDetectionErrorCount >= 3) {
+              nativeDetectorActive = false;
+              stopNativeBarcodeScanner();
+              if (token === scannerAttemptToken) {
+                setStatus('الكاميرا فتحت لكن قارئ الباركود غير مدعوم في هذا المتصفح. افتح الموقع في Chrome المحدّث أو استخدم الإدخال اليدوي.');
+              }
+            }
           } finally {
             nativeDetectionBusy = false;
           }
@@ -767,9 +828,10 @@ const searchButton =
         ...(libraryName === 'zxing' && library.wasmUrl ? {
           zxingWasm: { loadMode: 'custom', wasmUrl: library.wasmUrl }
         } : {}),
-        // أبقِ مسار BarcodeDetector الحالي على Android فقط عند استخدام
-        // النسخة الأصلية. على iPhone والنسخة الاحتياطية نستخدم فك الترميز JS/WASM.
-        useBarCodeDetectorIfSupported: libraryName === 'legacy' && !ios
+        // عطّل تكامل BarcodeDetector التجريبي داخل المحرك القديم؛ بعض أجهزة
+        // Android تفتح المعاينة لكن لا تعيد قراءات صحيحة. استخدم مفكك الشيفرات
+        // الداخلي للمكتبة، واترك المحرك الأصلي المدمج خيارًا احتياطيًا أخيرًا فقط.
+        useBarCodeDetectorIfSupported: false
       });
     } catch (error) {
       console.error('Scanner constructor error:', libraryName, error);
