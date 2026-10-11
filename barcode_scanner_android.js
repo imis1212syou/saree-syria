@@ -719,10 +719,10 @@
       .barcode-viewfinder {
         position:absolute;
         z-index:4;
-        left:3%;
-        top:24%;
-        width:94%;
-        height:52%;
+        left:1%;
+        top:14%;
+        width:98%;
+        height:72%;
         box-sizing:border-box;
         border:3px solid #ffd400;
         border-radius:8px;
