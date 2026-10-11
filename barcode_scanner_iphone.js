@@ -472,10 +472,10 @@
         const sourceWidth = cameraVideo.videoWidth;
         const sourceHeight = cameraVideo.videoHeight;
         // نفحص الحيز داخل الإطار فقط: يقلل الضجيج ويمنح خطوط الباركود حجمًا أكبر.
-        const cropX = Math.floor(sourceWidth * 0.04);
-        const cropY = Math.floor(sourceHeight * 0.31);
-        const cropWidth = Math.max(1, Math.floor(sourceWidth * 0.92));
-        const cropHeight = Math.max(1, Math.floor(sourceHeight * 0.38));
+        const cropX = Math.floor(sourceWidth * 0.02);
+        const cropY = Math.floor(sourceHeight * 0.24);
+        const cropWidth = Math.max(1, Math.floor(sourceWidth * 0.96));
+        const cropHeight = Math.max(1, Math.floor(sourceHeight * 0.52));
         const outputWidth = Math.min(BARCODE_PROFILE.maxProcessingWidth, cropWidth);
         const outputHeight = Math.max(120, Math.round(outputWidth * cropHeight / cropWidth));
         if (scanCanvas.width !== outputWidth || scanCanvas.height !== outputHeight) {
@@ -719,10 +719,10 @@
       .barcode-viewfinder {
         position:absolute;
         z-index:4;
-        left:5%;
-        top:31%;
-        width:90%;
-        height:38%;
+        left:3%;
+        top:24%;
+        width:94%;
+        height:52%;
         box-sizing:border-box;
         border:3px solid #ffd400;
         border-radius:8px;
