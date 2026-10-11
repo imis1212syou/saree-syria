@@ -110,15 +110,6 @@
   let pendingBarcodeHits = 0;
   let pendingBarcodeAt = 0;
   let invalidReadReported = false;
-  let nativeCameraStream = null;
-  let nativeCameraVideo = null;
-  let nativeCameraCanvas = null;
-  let nativeCameraOverlay = null;
-  let nativeDetectionFrame = null;
-  let nativeDetectionErrorCount = 0;
-  let nativeNoReadTimer = null;
-  let nativeDetectionBusy = false;
-  let nativeDetectorActive = false;
 
   function isIOSDevice() {
     const ua = String(navigator.userAgent || '');
@@ -319,7 +310,6 @@
   }
 
   async function disposeScannerInstance() {
-    stopNativeBarcodeScanner();
     const oldScanner = scanner;
     scanner = null;
     activeScannerLibrary = null;
@@ -337,182 +327,12 @@
     }
   }
 
-  function stopNativeBarcodeScanner() {
-    nativeDetectorActive = false;
-    nativeDetectionBusy = false;
-    if (nativeDetectionFrame !== null) {
-      cancelAnimationFrame(nativeDetectionFrame);
-      nativeDetectionFrame = null;
-    }
-    if (nativeCameraStream) {
-      nativeCameraStream.getTracks().forEach(function (track) {
-        try { track.stop(); } catch (_) {}
-      });
-      nativeCameraStream = null;
-    }
-    if (nativeNoReadTimer !== null) {
-      clearTimeout(nativeNoReadTimer);
-      nativeNoReadTimer = null;
-    }
-    if (nativeCameraVideo) {
-      try { nativeCameraVideo.pause(); } catch (_) {}
-      nativeCameraVideo.srcObject = null;
-      nativeCameraVideo.remove();
-      nativeCameraVideo = null;
-    }
-    if (nativeCameraOverlay) {
-      nativeCameraOverlay.remove();
-      nativeCameraOverlay = null;
-    }
-    nativeCameraCanvas = null;
-  }
-
-  async function startNativeBarcodeFallback(token) {
-    const reader = el('barcodeReader');
-    const Detector = window.BarcodeDetector;
-    if (!reader || !Detector || !navigator.mediaDevices?.getUserMedia) {
-      setStatus('تعذر تحميل قارئ الباركود. تحقق من الإنترنت أو أدخل الرقم يدويًا.');
-      return;
-    }
-
-    try {
-      setStatus('جارٍ تجربة قارئ الكاميرا المدمج في الجهاز...');
-      let supported = ['ean_13', 'ean_8', 'upc_a', 'upc_e'];
-      if (typeof Detector.getSupportedFormats === 'function') {
-        const deviceFormats = await Detector.getSupportedFormats();
-        supported = supported.filter(function (format) { return deviceFormats.includes(format); });
-      }
-      if (!supported.length) {
-        setStatus('هذا المتصفح لا يدعم صيغ الباركود المطلوبة. أدخل الرقم يدويًا.');
-        return;
-      }
-      const detector = new Detector({ formats: supported });
-      if (token !== scannerAttemptToken || !el('barcodeReader')) return;
-
-      stopNativeBarcodeScanner();
-      const video = document.createElement('video');
-      video.setAttribute('playsinline', 'true');
-      video.setAttribute('autoplay', 'true');
-      video.setAttribute('aria-label', 'معاينة كاميرا قارئ الباركود');
-      video.muted = true;
-      video.style.cssText = 'width:100%;height:100%;object-fit:contain;display:block;background:#000;';
-      reader.style.position = 'relative';
-      reader.replaceChildren(video);
-      nativeCameraVideo = video;
-
-      // إطار واضح يميز وضع المسح عن عرض كاميرا عادي.
-      const overlay = document.createElement('div');
-      overlay.setAttribute('aria-hidden', 'true');
-      overlay.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;';
-      const frame = document.createElement('div');
-      frame.style.cssText = 'position:relative;width:88%;height:22%;min-height:64px;max-height:135px;border:2px solid #ffd54f;border-radius:12px;box-shadow:0 0 0 9999px rgba(0,0,0,.14);';
-      const line = document.createElement('div');
-      line.style.cssText = 'position:absolute;left:3%;right:3%;top:50%;height:2px;background:#ff5252;box-shadow:0 0 8px rgba(255,82,82,.9);';
-      frame.appendChild(line);
-      overlay.appendChild(frame);
-      reader.appendChild(overlay);
-      nativeCameraOverlay = overlay;
-
-      nativeCameraCanvas = document.createElement('canvas');
-      nativeCameraCanvas.width = 1;
-      nativeCameraCanvas.height = 1;
-      nativeDetectionErrorCount = 0;
-
-      nativeCameraStream = await navigator.mediaDevices.getUserMedia({
-        audio: false,
-        video: {
-          facingMode: { ideal: 'environment' },
-          width: { ideal: 1920 },
-          height: { ideal: 1080 }
-        }
-      });
-      if (token !== scannerAttemptToken || !el('barcodeReader')) {
-        stopNativeBarcodeScanner();
-        return;
-      }
-      video.srcObject = nativeCameraStream;
-      await video.play();
-      nativeDetectorActive = true;
-      setStatus('وضع مسح الباركود يعمل — ضع الخطوط داخل الإطار الأصفر وثبّت الهاتف');
-      nativeNoReadTimer = setTimeout(function () {
-        if (nativeDetectorActive && token === scannerAttemptToken && !scanLocked) {
-          setStatus('لم يُقرأ الباركود بعد. قرّب العبوة، اجعل الخطوط داخل الإطار الأصفر، وتجنب اللمعان.');
-        }
-      }, 12000);
-
-      async function detectFrame() {
-        if (!nativeDetectorActive || token !== scannerAttemptToken || scanLocked) return;
-        if (video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0 && !nativeDetectionBusy) {
-          nativeDetectionBusy = true;
-          try {
-            // تمرير إطار Canvas بدل عنصر الفيديو مباشرة يحسّن التوافق مع
-            // بعض إصدارات Chromium/WebView على أجهزة Android القديمة.
-            const canvas = nativeCameraCanvas;
-            const width = video.videoWidth;
-            const height = video.videoHeight;
-            if (canvas.width !== width) canvas.width = width;
-            if (canvas.height !== height) canvas.height = height;
-            const context = canvas.getContext('2d', { willReadFrequently: true });
-            context.drawImage(video, 0, 0, width, height);
-            const results = await detector.detect(canvas);
-            nativeDetectionErrorCount = 0;
-            for (const result of results || []) {
-              const formatName = String(result.format || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-              const barcode = getValidRetailBarcode(result.rawValue, { format: { formatName: formatName } });
-              if (!barcode) continue;
-              const now = Date.now();
-              if (pendingBarcode === barcode && now - pendingBarcodeAt <= 2200) {
-                pendingBarcodeHits += 1;
-              } else {
-                pendingBarcode = barcode;
-                pendingBarcodeHits = 1;
-              }
-              pendingBarcodeAt = now;
-              if (pendingBarcodeHits >= 2) {
-                scanLocked = true;
-                nativeDetectorActive = false;
-                setStatus('تم تأكيد الباركود، جارٍ البحث...');
-                stopNativeBarcodeScanner();
-                handleBarcode(barcode);
-                return;
-              }
-              setStatus('تم التقاط الباركود؛ جارٍ تأكيد الرقم...');
-              break;
-            }
-          } catch (detectError) {
-            nativeDetectionErrorCount += 1;
-            console.warn('Native BarcodeDetector read error:', detectError);
-            if (nativeDetectionErrorCount >= 3) {
-              nativeDetectorActive = false;
-              stopNativeBarcodeScanner();
-              if (token === scannerAttemptToken) {
-                setStatus('الكاميرا فتحت لكن قارئ الباركود غير مدعوم في هذا المتصفح. افتح الموقع في Chrome المحدّث أو استخدم الإدخال اليدوي.');
-              }
-            }
-          } finally {
-            nativeDetectionBusy = false;
-          }
-        }
-        if (nativeDetectorActive && token === scannerAttemptToken) {
-          nativeDetectionFrame = requestAnimationFrame(detectFrame);
-        }
-      }
-      nativeDetectionFrame = requestAnimationFrame(detectFrame);
-    } catch (error) {
-      console.warn('Native BarcodeDetector fallback failed:', error);
-      stopNativeBarcodeScanner();
-      if (token === scannerAttemptToken) {
-        setStatus('لم يتمكن المتصفح من فتح الكاميرا. اسمح بإذن الكاميرا أو أدخل رقم الباركود يدويًا.');
-      }
-    }
-  }
-
   function startScannerWithFallback(nextIndex, token, reason) {
     if (token !== scannerAttemptToken || scanLocked) return;
     clearScannerFallbackTimer();
 
     if (nextIndex >= scannerLibraryOrder.length) {
-      startNativeBarcodeFallback(token);
+      setStatus(reason || 'تعذرت قراءة الباركود. قرّب الكاميرا وثبّت الصورة أو أدخل الرقم يدويًا.');
       return;
     }
 
@@ -828,9 +648,8 @@ const searchButton =
         ...(libraryName === 'zxing' && library.wasmUrl ? {
           zxingWasm: { loadMode: 'custom', wasmUrl: library.wasmUrl }
         } : {}),
-        // عطّل تكامل BarcodeDetector التجريبي داخل المحرك القديم؛ بعض أجهزة
-        // Android تفتح المعاينة لكن لا تعيد قراءات صحيحة. استخدم مفكك الشيفرات
-        // الداخلي للمكتبة، واترك المحرك الأصلي المدمج خيارًا احتياطيًا أخيرًا فقط.
+        // أبقِ مسار BarcodeDetector الحالي على Android فقط عند استخدام
+        // النسخة الأصلية. على iPhone والنسخة الاحتياطية نستخدم فك الترميز JS/WASM.
         useBarCodeDetectorIfSupported: false
       });
     } catch (error) {
@@ -1656,7 +1475,6 @@ async function handleBarcode(barcode) {
 
       scannerAttemptToken += 1;
       clearScannerFallbackTimer();
-      stopNativeBarcodeScanner();
 
       if (scanner) {
 
