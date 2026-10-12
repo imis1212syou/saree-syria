@@ -187,10 +187,17 @@
   function companyDetailCardProduct(p){
     const hasPrice=p.price_new!==null && p.price_new!==undefined && p.price_new!=='';
     const canOrder=companyWhatsappOrdersEnabled(currentCompany) && hasPrice;
-    const canEdit=companyCanEditProducts(currentCompany?.id,window.__companyEditContext);
-    const favoriteIds=(()=>{try{return JSON.parse(localStorage.getItem('saree_favorites')||'[]')}catch(_){return []}})();
-    const fav=favoriteIds.map(String).includes(String(p.id));
-    return `<article class="card company-card" data-company-product-id="${attr(p.id)}"><div onclick="window.openCompanyProduct('${attr(p.id)}')" style="cursor:pointer">${p.image_url?`<img class="company-logo" style="height:145px;object-fit:contain" src="${attr(p.image_url)}" alt="${attr(p.name)}" loading="lazy">`:''}<span class="pill">${esc(p.category||'عام')}</span><div class="name">${esc(p.name)}</div>${p.brand?`<div class="muted">${esc(p.brand)}</div>`:''}${p.unit?`<div class="muted">${esc(p.unit)}</div>`:''}${p.barcode?`<div class="muted">باركود: ${esc(p.barcode)}</div>`:''}${hasPrice?`<div class="company-price">${money(p.price_new)} ل.س</div>`:'<div class="company-no-price">السعر غير محدد</div>'}</div><div class="actions"><button class="btn primary" onclick="window.openCompanyProduct('${attr(p.id)}')">تفاصيل</button>${canOrder?`<button class="btn primary" onclick="window.companyCartAdd('${attr(currentCompany.id)}','${attr(p.id)}')">أضف للسلة</button>`:''}<button class="btn secondary" onclick="window.toggleCompanyFavorite('${attr(p.id)}')">${fav?'★ من المفضلة':'☆ أضف للمفضلة'}</button>${canEdit?`<button class="btn secondary" onclick="window.companyEditProduct('${attr(p.id)}')">✏️ تعديل</button>`:''}</div></article>`;
+    const ctx=window.__companyEditContext;
+    const isAdmin=role()==='admin';
+    const isOwnCompany=Boolean(ctx && String(ctx.company_id)===String(currentCompany?.id));
+    const canEdit=isAdmin || (isOwnCompany && Boolean(ctx.can_manage_products||ctx.can_edit_products||ctx.can_edit_prices));
+    const canDelete=isAdmin || (isOwnCompany && Boolean(ctx.can_manage_products||ctx.can_delete_products));
+    const whatsapp=currentCompany?.whatsapp_url||'';
+    const companyId=attr(currentCompany?.id||'');
+    const productId=attr(p.id);
+    const editButton=canEdit?`<button class="btn secondary" onclick="${isAdmin?`window.adminEditCompanyProduct('${companyId}','${productId}')`:`window.companyEditProduct('${productId}')`}">✏️ تعديل</button>`:'';
+    const deleteButton=canDelete?`<button class="btn danger" onclick="${isAdmin?`window.adminDeleteCompanyProduct('${companyId}','${productId}').then(ok=>{if(ok)window.openCompanyById('${companyId}')})`:`window.companyDeleteProduct('${productId}')`}">حذف</button>`:'';
+    return `<article class="card company-card" data-company-product-id="${productId}"><div onclick="window.openCompanyProduct('${productId}')" style="cursor:pointer">${p.image_url?`<img class="company-logo" style="height:145px;object-fit:contain" src="${attr(p.image_url)}" alt="${attr(p.name)}" loading="lazy">`:''}<span class="pill">${esc(p.category||'عام')}</span><div class="name">${esc(p.name)}</div>${p.brand?`<div class="muted">${esc(p.brand)}</div>`:''}${p.unit?`<div class="muted">${esc(p.unit)}</div>`:''}${p.barcode?`<div class="muted">باركود: ${esc(p.barcode)}</div>`:''}${hasPrice?`<div class="company-price">${money(p.price_new)} ل.س</div>`:'<div class="company-no-price">السعر غير محدد</div>'}</div><div class="actions"><button class="btn primary" onclick="window.openCompanyProduct('${productId}')">تفاصيل المادة</button>${canOrder?`<button class="btn primary" onclick="window.companyCartAdd('${companyId}','${productId}')">أضف للسلة</button>`:''}${whatsapp?`<a class="btn secondary" href="${attr(whatsapp)}" target="_blank" rel="noopener">💬 واتساب</a>`:''}${editButton}${deleteButton}</div></article>`;
   }
 
   async function loadCompanyById(id){
@@ -310,12 +317,20 @@
     const p=companyProducts.find(x=>String(x.id)===String(id));if(!p)return;
     const has=p.price_new!==null&&p.price_new!==undefined&&p.price_new!=='';
     const canOrder=companyWhatsappOrdersEnabled(currentCompany)&&has;
-    const canEdit=companyCanEditProducts(currentCompany?.id,window.__companyEditContext);
+    const ctx=window.__companyEditContext;
+    const isAdmin=role()==='admin';
+    const isOwnCompany=Boolean(ctx&&String(ctx.company_id)===String(currentCompany?.id));
+    const canEdit=isAdmin||(isOwnCompany&&Boolean(ctx.can_manage_products||ctx.can_edit_products||ctx.can_edit_prices));
+    const canDelete=isAdmin||(isOwnCompany&&Boolean(ctx.can_manage_products||ctx.can_delete_products));
+    const companyId=attr(currentCompany?.id||'');const productId=attr(p.id);const whatsapp=currentCompany?.whatsapp_url||'';
+    const editButton=canEdit?`<button class="btn secondary" onclick="document.getElementById('companyProductModal')?.remove();${isAdmin?`window.adminEditCompanyProduct('${companyId}','${productId}')`:`window.companyEditProduct('${productId}')`}">✏️ تعديل المادة</button>`:'';
+    const deleteButton=canDelete?`<button class="btn danger" onclick="document.getElementById('companyProductModal')?.remove();${isAdmin?`window.adminDeleteCompanyProduct('${companyId}','${productId}').then(ok=>{if(ok)window.openCompanyById('${companyId}')})`:`window.companyDeleteProduct('${productId}')`}">حذف المادة</button>`:'';
     const old=$('companyProductModal');if(old)old.remove();
     const m=document.createElement('div');m.id='companyProductModal';m.className='company-modal';
-    m.innerHTML=`<div class="company-modal-inner"><div class="row" style="justify-content:space-between;align-items:center"><h2>${esc(p.name)}</h2><button class="btn secondary" id="closeCompanyProduct">×</button></div>${p.image_url?`<img class="img" style="height:230px;object-fit:contain" src="${attr(p.image_url)}">`:''}<div class="muted">${esc(p.category||'عام')}${p.brand?' • '+esc(p.brand):''}${p.unit?' • '+esc(p.unit):''}</div>${p.barcode?`<div class="muted">الباركود: ${esc(p.barcode)}</div>`:''}${has?`<div class="company-price" style="margin-top:12px">${money(p.price_new)} ل.س</div>`:'<div class="company-no-price" style="margin-top:12px">السعر غير محدد حالياً</div>'}<p class="muted">${esc(p.description||'')}</p><div class="actions">${canOrder?`<button class="btn primary" onclick="window.companyCartAdd('${attr(currentCompany.id)}','${attr(p.id)}');document.getElementById('companyProductModal')?.remove()">أضف للسلة</button>`:''}${canEdit?`<button class="btn secondary" onclick="document.getElementById('companyProductModal')?.remove();window.companyEditProduct('${attr(p.id)}')">✏️ تعديل المادة</button>`:''}<button class="btn secondary" onclick="window.toggleCompanyFavorite('${attr(p.id)}');document.getElementById('companyProductModal')?.remove()">إدارة المفضلة</button></div></div>`;
+    m.innerHTML=`<div class="company-modal-inner"><div class="row" style="justify-content:space-between;align-items:center"><h2>${esc(p.name)}</h2><button class="btn secondary" id="closeCompanyProduct">×</button></div>${p.image_url?`<img class="img" style="height:230px;object-fit:contain" src="${attr(p.image_url)}">`:''}<div class="muted">${esc(p.category||'عام')}${p.brand?' • '+esc(p.brand):''}${p.unit?' • '+esc(p.unit):''}</div>${p.barcode?`<div class="muted">الباركود: ${esc(p.barcode)}</div>`:''}${has?`<div class="company-price" style="margin-top:12px">${money(p.price_new)} ل.س</div>`:'<div class="company-no-price" style="margin-top:12px">السعر غير محدد حالياً</div>'}<p class="muted">${esc(p.description||'')}</p><div class="actions">${canOrder?`<button class="btn primary" onclick="window.companyCartAdd('${companyId}','${productId}')">أضف للسلة</button>`:''}${whatsapp?`<a class="btn secondary" href="${attr(whatsapp)}" target="_blank" rel="noopener">💬 واتساب</a>`:''}${editButton}${deleteButton}</div></div>`;
     document.body.appendChild(m);$('closeCompanyProduct').onclick=()=>m.remove();m.onclick=e=>{if(e.target===m)m.remove()};
   };
+
 
   window.openCompanyEdit=async function(id){
     const ctx=await resolveCompanyEditContext(id);
@@ -549,13 +564,24 @@
     if(data){currentCompany=currentCompany&&String(currentCompany.id)===String(companyId)?currentCompany:(await supabaseClient.from('companies').select('*').eq('id',companyId).maybeSingle()).data;window.__companyEditContext=ctx;companyProductEditor(data,ctx);}
   };
   window.companyDeleteProduct=async function(id){
-    const ctx=window.companyContext;
-    if(!ctx||(!ctx.can_delete_products&&!ctx.can_manage_products)) return alert('لا توجد لديك صلاحية حذف المنتجات.');
-    if(!confirm('إخفاء هذه المادة عن الزوار؟')) return;
+    const product=companyProducts.find(x=>String(x.id)===String(id));
+    const companyId=product?.company_id||currentCompany?.id||window.companyContext?.company_id;
+    if(!companyId)return alert('تعذر تحديد الشركة المرتبطة بهذه المادة.');
+    const ctx=await resolveCompanyEditContext(companyId);
+    const isAdmin=role()==='admin';
+    const allowed=isAdmin||Boolean(ctx&&String(ctx.company_id)===String(companyId)&&(ctx.can_delete_products||ctx.can_manage_products));
+    if(!allowed)return alert('لا توجد لديك صلاحية حذف هذه المادة.');
+    if(isAdmin){
+      const deleted=await window.adminDeleteCompanyProduct(companyId,id);
+      if(deleted&&currentCompany&&String(currentCompany.id)===String(companyId))await window.openCompanyById(companyId);
+      return;
+    }
+    if(!confirm('إخفاء هذه المادة عن الزوار؟'))return;
     const {error}=await supabaseClient.rpc('company_delete_product',{p_id:id});
-    if(error) return alert(error.message);
-    await loadCompanyDashboardData(ctx);
+    if(error)return alert(error.message);
     await window.refreshHomeProductCount?.();
+    if(currentCompany&&String(currentCompany.id)===String(companyId))await window.openCompanyById(companyId);
+    else if(ctx)await loadCompanyDashboardData(ctx);
   };
   window.companyToggleCategory=async function(id,active){
     const ctx=window.companyContext;
@@ -909,14 +935,15 @@
   };
 
   window.adminDeleteCompanyProduct=async function(companyId,productId){
-    if(role()!=='admin')return alert('المدير فقط يستطيع حذف مواد الشركات.');
-    if(!confirm('حذف هذه المادة من الشركة؟'))return;
+    if(role()!=='admin'){alert('المدير فقط يستطيع حذف مواد الشركات.');return false;}
+    if(!confirm('حذف هذه المادة من الشركة؟'))return false;
     const r=await supabaseClient.from('company_products').delete().eq('id',productId).eq('company_id',companyId);
-    if(r.error)return alert('تعذر حذف المادة: '+r.error.message);
+    if(r.error){alert('تعذر حذف المادة: '+r.error.message);return false;}
     await window.refreshHomeProductCount?.();
     const manager=$('adminCompanyProductModal');
     if(manager){const c=await supabaseClient.from('companies').select('*').eq('id',companyId).maybeSingle();await adminReloadCompanyProducts(companyId,c.data);}
     alert('تم حذف المادة ✅');
+    return true;
   };
 
   window.adminSaveCompanyPermissions=async function(companyUserId){

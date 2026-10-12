@@ -26,6 +26,7 @@
   let barcodeValidationBusy = false;
   let barcodePrimaryUsed = false;
   let barcodeAdditionalUsed = false;
+  const storeMaterialDetails = new Map();
 
   function activeStoreIdForMaterialForm(){
     if(isAdmin()) return $('merchantStoreSelect')?.value || window.__editingMaterial?.storeId || null;
@@ -488,10 +489,9 @@
   function renderHomeNearbyStores(){
     const box=$('homeNearbyStores');if(!box)return;
     const all=Array.isArray(stores)?stores:[],sorted=sortStoresByProximity(all).slice(0,4),loc=window.__sareeLocation;
-    if(!all.length){box.innerHTML='<div class="homeNearbyEmpty homeNearbyEmptyCompact">لا توجد متاجر متاحة للعرض حاليًا.</div>';return;}
-    // حالة عدم اختيار الموقع موضّحة بالفعل في شريط الحالة وأزرار الاختيار أعلاه؛ لا نكرر بطاقة كبيرة.
+    if(!all.length){box.innerHTML='<div class="homeNearbyEmpty">ستظهر المتاجر هنا عند توفرها.</div>';return;}
     if(!loc?.ready||((loc.lat==null||loc.lng==null)&&!loc.city)){
-      box.innerHTML='';
+      box.innerHTML='<div class="homeNearbyEmpty"><span>📍</span><b>اعثر على المتاجر الأقرب إليك</b><p>حدّد موقعك مرة واحدة لنرتب المتاجر الأقرب فعليًا، مع حفظ اختيارك على هذا الجهاز.</p><button class="btn primary" type="button" onclick="window.requestSareeLocation(true)">تحديد موقعي</button></div>';
       return;
     }
     box.innerHTML=sorted.map(st=>{
@@ -668,23 +668,82 @@
   function renderStorePriceCards(list,storeId){
     const rows = uniqueListings(list);
     const canEdit = canManageStore(storeId);
+    const st = (stores || []).find(x=>String(x.id)===String(storeId)) || null;
+    const wa = storeWhatsapp(st);
     if(!rows.length) return '<div class="card muted">لا توجد أسعار معتمدة لهذا المتجر حالياً.</div>';
     return rows.map(row=>{
       const p = row.products || {};
+      const productId = p.id || row.product_id || '';
       const barcode = normBarcode(p.barcode || row.barcode || '');
-      return `<article class="card storeProductCard" data-product-id="${esc(p.id || row.product_id || '')}">
+      const category = p.category || 'عام';
+      const searchText = [p.name,p.description,p.brand,p.unit,p.category,barcode].filter(Boolean).join(' ').toLocaleLowerCase();
+      const canCart = Boolean(st && productId && window.sareeStoreWhatsappOrdersEnabled?.(st) && typeof window.sareeCartAdd==='function');
+      const key = `${String(storeId)}:${String(productId)}`;
+      storeMaterialDetails.set(key,{row,storeId,store:st});
+      return `<article class="card storeProductCard" data-product-id="${esc(productId)}" data-material-search="${esc(searchText)}" data-material-category="${esc(category)}">
         ${p.image_url ? `<img class="img materialImage" src="${esc(p.image_url)}" alt="${esc(p.name || 'مادة')}" loading="lazy">` : ''}
-        <span class="pill">${esc(p.category || 'عام')}</span>
+        <span class="pill">${esc(category)}</span>
         <div class="name">${esc(p.name || 'مادة')}</div>
         ${p.brand ? `<div class="muted">${esc(p.brand)}</div>` : ''}
         ${p.unit ? `<div class="muted">${esc(p.unit)}</div>` : ''}
         ${barcode ? `<div class="muted">باركود: ${esc(barcode)}</div>` : ''}
         <div class="price">${fmt(priceNumber(row))} ل.س جديدة</div>
         <div class="old">${priceOld(priceNumber(row))} ل.س قديمة</div>
+        ${p.description ? `<div class="muted storeProductDescription">${esc(p.description)}</div>` : ''}
         <div class="muted">آخر تحديث: ${row.updated_at ? esc(new Date(row.updated_at).toLocaleString('ar')) : '—'}</div>
-        ${canEdit ? `<div class="actions"><button type="button" class="btn secondary" data-edit-listing="${esc(row.id)}" data-store-id="${esc(storeId)}">تعديل المادة</button><button type="button" class="btn danger" data-delete-listing="${esc(row.id)}" data-store-id="${esc(storeId)}">حذف من المتجر</button></div>` : ''}
+        <div class="actions">
+          <button type="button" class="btn primary" data-material-detail="${esc(productId)}" data-store-id="${esc(storeId)}">تفاصيل المادة</button>
+          ${canCart ? `<button type="button" class="btn primary" data-saree-add="1" data-store-cart-add="${esc(productId)}" data-store-id="${esc(storeId)}">إضافة للسلة</button>` : ''}
+          ${wa ? `<a class="btn secondary" href="${esc(wa)}" target="_blank" rel="noopener">💬 واتساب</a>` : ''}
+          ${canEdit ? `<button type="button" class="btn secondary" data-edit-listing="${esc(row.id)}" data-store-id="${esc(storeId)}">تعديل المادة</button><button type="button" class="btn danger" data-delete-listing="${esc(row.id)}" data-store-id="${esc(storeId)}">حذف</button>` : ''}
+        </div>
       </article>`;
     }).join('');
+  }
+
+  function ensureStoreMaterialDetailsCss(){
+    if($('storeMaterialDetailsCss'))return;
+    const style=document.createElement('style');style.id='storeMaterialDetailsCss';
+    style.textContent=`.store-material-modal{position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.78);padding:12px;overflow:auto;display:block}.store-material-modal-inner{width:min(760px,100%);margin:20px auto;background:var(--card-bg,#10191e);border:1px solid var(--border-color,#303b40);border-radius:20px;padding:16px;color:inherit;box-shadow:0 18px 55px rgba(0,0,0,.35)}.store-material-modal-inner .actions{display:flex;gap:8px;flex-wrap:wrap}`;
+    document.head.appendChild(style);
+  }
+
+  window.openStoreMaterialDetails = function(storeId,productId){
+    const item=storeMaterialDetails.get(`${String(storeId)}:${String(productId)}`);
+    if(!item)return alert('تعذر العثور على تفاصيل هذه المادة. أعد فتح صفحة المتجر.');
+    const {row,store}=item;const p=row.products||{};const wa=storeWhatsapp(store);const canEdit=canManageStore(storeId);
+    const hasCart=Boolean(store && window.sareeStoreWhatsappOrdersEnabled?.(store) && typeof window.sareeCartAdd==='function' && p.id);
+    ensureStoreMaterialDetailsCss();
+    const existing=document.getElementById('storeMaterialDetailsModal');existing?.remove();
+    const modal=document.createElement('div');modal.id='storeMaterialDetailsModal';modal.className='store-material-modal';
+    modal.innerHTML=`<div class="store-material-modal-inner"><div class="row" style="justify-content:space-between;align-items:center"><h2 style="margin:0">${esc(p.name||'تفاصيل المادة')}</h2><button type="button" class="btn secondary" id="storeMaterialDetailsClose">إغلاق</button></div>${p.image_url?`<img class="img" style="height:220px;object-fit:contain" src="${esc(p.image_url)}" alt="${esc(p.name||'مادة')}">`:''}<span class="pill">${esc(p.category||'عام')}</span><div class="muted">${esc(p.brand||'')}${p.brand&&p.unit?' • ':''}${esc(p.unit||'')}</div>${normBarcode(p.barcode||row.barcode||'')?`<div class="muted">الباركود: ${esc(normBarcode(p.barcode||row.barcode||''))}</div>`:''}<div class="price">${fmt(priceNumber(row))} ل.س جديدة</div><div class="old">${priceOld(priceNumber(row))} ل.س قديمة</div>${p.description?`<p class="muted">${esc(p.description)}</p>`:''}<div class="muted">آخر تحديث: ${row.updated_at?esc(new Date(row.updated_at).toLocaleString('ar')):'—'}</div><div class="actions">${hasCart?`<button type="button" class="btn primary" id="storeMaterialDetailCart">إضافة إلى السلة</button>`:''}${wa?`<a class="btn secondary" href="${esc(wa)}" target="_blank" rel="noopener">💬 واتساب المتجر</a>`:''}${canEdit?`<button type="button" class="btn secondary" id="storeMaterialDetailEdit">تعديل المادة</button><button type="button" class="btn danger" id="storeMaterialDetailDelete">حذف المادة</button>`:''}</div></div>`;
+    document.body.appendChild(modal);
+    modal.querySelector('#storeMaterialDetailsClose').onclick=()=>modal.remove();
+    modal.onclick=ev=>{if(ev.target===modal)modal.remove()};
+    modal.querySelector('#storeMaterialDetailCart')?.addEventListener('click',()=>window.sareeCartAdd(storeId,p.id));
+    modal.querySelector('#storeMaterialDetailEdit')?.addEventListener('click',()=>{modal.remove();window.editStoreMaterial?.(row.id,storeId)});
+    modal.querySelector('#storeMaterialDetailDelete')?.addEventListener('click',()=>{modal.remove();window.deleteStoreMaterial?.(row.id,storeId)});
+  };
+
+  function filterStoreMaterials(){
+    const input=$('storeMaterialSearch');
+    const category=$('storeMaterialCategory');
+    const msg=$('storeMaterialSearchMsg');
+    const grid=$('storeProductsGrid');
+    if(!grid)return;
+    const q=String(input?.value||'').trim().toLocaleLowerCase();
+    const cat=String(category?.value||'');
+    let shown=0;const cards=[...grid.querySelectorAll('.storeProductCard')];
+    cards.forEach(card=>{
+      const txt=String(card.dataset.materialSearch||'').toLocaleLowerCase();
+      const categoryMatch=!cat||String(card.dataset.materialCategory||'')===cat;
+      const queryMatch=!q||txt.includes(q);
+      const visible=queryMatch&&categoryMatch;
+      card.classList.toggle('hidden',!visible);if(visible)shown++;
+    });
+    if(msg)msg.textContent=(q||cat)?`النتائج داخل هذا المتجر: ${shown}`:'';
+    let empty=grid.querySelector('[data-store-search-empty]');
+    if((q||cat)&&shown===0){if(!empty){empty=document.createElement('div');empty.className='card muted';empty.dataset.storeSearchEmpty='1';empty.textContent='لا توجد مواد مطابقة في هذا المتجر.';grid.appendChild(empty)}}else empty?.remove();
   }
 
   window.renderStoreDetail = async function(id){
@@ -721,6 +780,12 @@
         ${st.working_days ? `<p class="muted">📅 أيام العمل: ${esc(st.working_days)}</p>` : ''}
         ${maps ? `<button type="button" class="btn secondary" id="storeDirectionsBtn">موقع واتجاه المتجر</button>` : ''}
         ${canManageStore(st.id) ? `<div class="actions"><button type="button" class="btn secondary" id="storeOwnerEditBtn">✏️ تعديل المتجر</button><span class="notice" style="margin-top:0">👁️ إجمالي زوار المتجر: <b id="storeSiteTotalVisitCount">—</b></span><span class="notice" style="margin-top:0">📱 زوار QR: <b id="storeQrVisitCount">—</b></span></div>` : ''}
+      </div>
+      <div class="card">
+        <h3>البحث عن مادة في هذا المتجر</h3>
+        <input id="storeMaterialSearch" inputmode="search" autocomplete="off" placeholder="ابحث باسم المادة أو التصنيف أو العلامة التجارية">
+        <select id="storeMaterialCategory" aria-label="تصفية مواد المتجر حسب التصنيف"><option value="">كل التصنيفات</option>${[...new Set(uniqueListings(listings).map(r=>r.products?.category||'عام'))].sort((a,b)=>String(a).localeCompare(String(b),'ar')).map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('')}</select>
+        <p id="storeMaterialSearchMsg" class="muted" aria-live="polite"></p>
       </div>
       <div class="card">
         <h3>بحث بالباركود داخل هذا المتجر فقط</h3>
@@ -763,6 +828,8 @@
       loadStoreTotal();
     }
     if(canManageStore(st.id) && typeof window.getSareeQrVisitCount==='function') window.getSareeQrVisitCount('store',st.id).then(n=>{ if($('storeQrVisitCount')) $('storeQrVisitCount').textContent=n==null?'—':fmt(n); });
+    $('storeMaterialSearch')?.addEventListener('input',filterStoreMaterials);
+    $('storeMaterialCategory')?.addEventListener('change',filterStoreMaterials);
     $('storeBarcodeSearchBtn')?.addEventListener('click',()=>window.searchStoreBarcode(st.id));
     $('storeBarcodeSearch')?.addEventListener('keydown',ev=>{ if(ev.key==='Enter') window.searchStoreBarcode(st.id); });
     $('storeBarcodeCamera')?.addEventListener('click',()=>window.openBarcodeScannerForStore ? window.openBarcodeScannerForStore(st.id) : alert('ماسح الباركود غير محمّل.'));
@@ -772,6 +839,8 @@
   function bindMaterialActions(root){
     root.querySelectorAll('[data-edit-listing]').forEach(btn=>btn.onclick=()=>window.editStoreMaterial(btn.dataset.editListing,btn.dataset.storeId));
     root.querySelectorAll('[data-delete-listing]').forEach(btn=>btn.onclick=()=>window.deleteStoreMaterial(btn.dataset.deleteListing,btn.dataset.storeId));
+    root.querySelectorAll('[data-material-detail]').forEach(btn=>btn.onclick=()=>window.openStoreMaterialDetails(btn.dataset.storeId,btn.dataset.materialDetail));
+    root.querySelectorAll('[data-store-cart-add]').forEach(btn=>btn.onclick=()=>window.sareeCartAdd?.(btn.dataset.storeId,btn.dataset.storeCartAdd));
   }
 
   window.searchStoreBarcode = async function(storeId,value){
