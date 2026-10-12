@@ -212,9 +212,8 @@
     if(!items.length)return alert('السلة فارغة.');
     let subtotal=0;
     const lines=items.map(([pid,x],i)=>{const line=x.qty*x.price;subtotal+=line;return `${i+1}) ${x.name}${x.unit?' ('+x.unit+')':''} × ${x.qty} = ${money(line)} ل.س`});
-    const name=prompt('اسم العميل (اختياري):','')??'';
-    const phone=prompt('رقم هاتف العميل (اختياري):','')??'';
-    const notes=prompt('ملاحظات الطلب (اختياري):','')??'';
+    const customer=await window.sareeOpenCustomerOrderDetails?.({sellerType:'المتجر',sellerName:st.name,summary:`عدد الأصناف: ${items.length}. يمكنك ترك بيانات العميل والملاحظات فارغة.`});if(!customer)return;
+    const name=customer.name||'',phone=customer.phone||'',notes=customer.notes||'';
     const total=subtotal+settings.fee;
     const msg=`طلب من سعرلي سوريا\nالمتجر: ${st.name||''}\n\n${lines.join('\n')}\n\nالمجموع الفرعي: ${money(subtotal)} ل.س\nرسم الطلب: ${money(settings.fee)} ل.س\nالإجمالي: ${money(total)} ل.س\n\nاسم العميل: ${name||'—'}\nهاتف العميل: ${phone||'—'}\nملاحظات: ${notes||'—'}`;
     try{
@@ -376,6 +375,31 @@
   };
   window.updateUniversalCartCount=()=>{if($('basketCount'))$('basketCount').textContent=cartCount()};
 
+  /* نافذة بيانات العميل داخل الموقع بدلاً من prompt الخاص بالمتصفح. */
+  window.sareeOpenCustomerOrderDetails=function(meta={}){
+    return new Promise(resolve=>{
+      const old=$('sareeCustomerOrderModal');old?.remove();
+      const modal=document.createElement('div');modal.id='sareeCustomerOrderModal';modal.className='saree-customer-order-modal';
+      const seller=String(meta.sellerName||'');
+      const kind=String(meta.sellerType||'المتجر');
+      const summary=String(meta.summary||'بيانات الاتصال اختيارية ويمكن تركها فارغة.');
+      modal.innerHTML=`<section class="saree-customer-order-box" role="dialog" aria-modal="true" aria-labelledby="sareeOrderModalTitle"><div class="saree-customer-order-head"><div><h2 id="sareeOrderModalTitle">تأكيد الطلب عبر واتساب</h2><div class="muted">${esc(kind)}${seller?' • '+esc(seller):''}</div></div><button type="button" class="saree-customer-order-close" id="sareeOrderModalClose" aria-label="إغلاق">×</button></div><p class="muted">${esc(summary)}</p><form id="sareeCustomerOrderForm"><label for="sareeOrderCustomerName">اسم العميل (اختياري)</label><input id="sareeOrderCustomerName" name="customer_name" autocomplete="name" maxlength="100" placeholder="الاسم"><label for="sareeOrderCustomerPhone">رقم هاتف العميل (اختياري)</label><input id="sareeOrderCustomerPhone" name="customer_phone" type="tel" autocomplete="tel" inputmode="tel" maxlength="32" placeholder="رقم الهاتف"><label for="sareeOrderCustomerNotes">ملاحظات الطلب (اختياري)</label><textarea id="sareeOrderCustomerNotes" name="customer_notes" maxlength="1000" placeholder="العنوان أو أي ملاحظة إضافية"></textarea><div class="saree-customer-order-actions"><button type="button" class="btn secondary" id="sareeOrderCancel">إلغاء</button><button type="submit" class="btn primary saree-customer-order-submit">متابعة إلى واتساب</button></div></form></section>`;
+      document.body.appendChild(modal);
+      let settled=false;
+      const finish=value=>{if(settled)return;settled=true;modal.remove();document.removeEventListener('keydown',onKey);resolve(value)};
+      const onKey=e=>{if(e.key==='Escape')finish(null)};
+      modal.querySelector('#sareeOrderModalClose').onclick=()=>finish(null);
+      modal.querySelector('#sareeOrderCancel').onclick=()=>finish(null);
+      modal.addEventListener('click',e=>{if(e.target===modal)finish(null)});
+      modal.querySelector('#sareeCustomerOrderForm').addEventListener('submit',e=>{
+        e.preventDefault();
+        finish({name:modal.querySelector('#sareeOrderCustomerName').value.trim(),phone:modal.querySelector('#sareeOrderCustomerPhone').value.trim(),notes:modal.querySelector('#sareeOrderCustomerNotes').value.trim()});
+      });
+      document.addEventListener('keydown',onKey);
+      setTimeout(()=>modal.querySelector('#sareeOrderCustomerName')?.focus(),30);
+    });
+  };
+
   /* 1) التصنيفات: لا نعتمد على renderCategories الداخلي في index.html؛ نربط النقر مباشرة بكل بطاقة. */
   function openCategoryFinal(category){
     const list=getProducts().filter(p=>String(p.category||'عام').trim()===String(category).trim());
@@ -520,9 +544,8 @@
       if(!items.length)return alert('السلة فارغة.');
       let subtotal=0;
       const lines=items.map(([pid,x],i)=>{const line=Number(x.qty||0)*Number(x.price||0);subtotal+=line;return `${i+1}) ${x.name}${x.unit?' ('+x.unit+')':''} × ${x.qty} = ${money(line)} ل.س`});
-      const name=prompt('اسم العميل (اختياري):','')??'';
-      const phone=prompt('رقم هاتف العميل (اختياري):','')??'';
-      const notes=prompt('ملاحظات الطلب (اختياري):','')??'';
+      const customer=await window.sareeOpenCustomerOrderDetails?.({sellerType:'المتجر',sellerName:st.name,summary:`عدد الأصناف: ${items.length}. يمكنك ترك بيانات العميل والملاحظات فارغة.`});if(!customer)return;
+      const name=customer.name||'',phone=customer.phone||'',notes=customer.notes||'';
       const fee=Number(window.sareeWhatsappOrderFee||0),total=subtotal+fee;
       const msg=`طلب من سعرلي سوريا\nالمتجر: ${st.name||''}\n\n${lines.join('\n')}\n\nالمجموع الفرعي: ${money(subtotal)} ل.س\nرسم الطلب: ${money(fee)} ل.س\nالإجمالي: ${money(total)} ل.س\n\nاسم العميل: ${name||'—'}\nهاتف العميل: ${phone||'—'}\nملاحظات: ${notes||'—'}`;
       try{

@@ -16,7 +16,7 @@
 .storeLogo{height:150px;object-fit:cover}.storeDetailLogo{height:220px;object-fit:cover}.storeLogoPlaceholder{height:150px;border-radius:12px;background:#0d1418;border:1px dashed #303b40;display:flex;align-items:center;justify-content:center;color:#6f7c82}.companyButton{border:0;cursor:pointer}.companyButton:hover{filter:brightness(1.1)}.merchantStoreOption{display:flex;gap:8px;align-items:center;margin-top:10px}.merchantStoreOption input{width:20px;height:20px;margin:0}.storeProductCard{background:#fff;color:#111}.storeProductCard .muted{color:#4a555b}.storeProductCard .materialImage{height:170px;object-fit:contain;background:#f4f4f4}
 .sareeEmailNotice{position:fixed;top:14px;left:50%;transform:translateX(-50%);width:min(92vw,520px);z-index:1000;background:#12191d;border:1px solid #35d07f;border-radius:14px;padding:12px 14px;box-shadow:0 10px 30px rgba(0,0,0,.35)}.sareeEmailNotice .noticeText{margin:0;color:#f1f4f5!important}.sareeEmailNotice .noticeClose{margin-top:8px;padding:8px 12px;font-size:12px}.forgotPasswordOverlay{position:fixed;inset:0;z-index:1200;background:rgba(0,0,0,.62);display:flex;align-items:center;justify-content:center;padding:16px}.forgotPasswordBox{width:min(92vw,430px);background:#12191d;border:1px solid #303b40;border-radius:18px;padding:16px;box-shadow:0 16px 50px rgba(0,0,0,.45)}.forgotPasswordBox h2{margin:0 0 8px}.forgotPasswordBox .actions{justify-content:flex-start}.forgotPasswordBox input{margin-top:12px}
 </style>
-<link rel="stylesheet" href="saree_visual_theme.css?v=admin-panel-1">
+<link rel="stylesheet" href="saree_visual_theme.css?v=homepage-nearby-wa-video-20261012">
 </head>
 <body>
 <div class="app">
@@ -27,10 +27,35 @@
 </section>
 
 <section id="home" class="page active">
-<div class="hero homeHero"><h1>مقارنة أسعار المنتجات في سوريا</h1><p class="muted">الأرخص يظهر أولاً. التاجر المرتبط بمتجره ينشر المواد والأسعار مباشرة بعد الحفظ.</p><div id="roleActions" class="actions"></div></div><div id="adsHome" class="adSlot hidden"></div>
-<div class="searchbar homeSearch"><input id="search" placeholder="ابحث عن منتج أو علامة أو تصنيف أو مدينة..." oninput="renderProducts()"><div class="two"><select id="cityFilter" onchange="renderProducts()"><option value="">كل المدن</option></select><select id="catFilter" onchange="renderProducts()"><option value="">كل التصنيفات</option></select></div></div>
-<div class="grid homeStatsGrid"><div class="stat"><b id="pc">0</b> منتجات</div><div class="stat" role="button" tabindex="0" onclick="openNav('stores')" onkeydown="if(event.key==='Enter'||event.key===' ')openNav('stores')" style="cursor:pointer"><b id="sc">0</b> متاجر</div><div class="stat" role="button" tabindex="0" onclick="openNav('companies')" onkeydown="if(event.key==='Enter'||event.key===' ')openNav('companies')" style="cursor:pointer"><b id="cc">0</b> شركات</div><div class="stat"><b id="basketCount">0</b> في السلة</div></div>
-<h2 class="homeProductsHeading">أفضل الأسعار حالياً</h2><div id="products" class="grid"></div>
+  <div class="hero homeHero">
+    <div class="homeHeroBadge"><span class="homeHeroDot"></span> دليل الأسعار والمتاجر في سوريا</div>
+    <h1>اعرف السعر الأفضل، من المتجر الأقرب</h1>
+    <p class="muted">قارن الأسعار بسهولة، واكتشف المتاجر القريبة منك، وتواصل مباشرة مع المتجر عند الحاجة.</p>
+    <div id="roleActions" class="actions"></div>
+  </div>
+
+  <section class="homeSearchBlock" aria-labelledby="homeSearchTitle">
+    <div class="homeSectionTitle"><div><span class="homeSectionKicker">بحث سريع</span><h2 id="homeSearchTitle">ما المنتج الذي تبحث عنه؟</h2></div><span class="homeSectionIcon" aria-hidden="true">⌕</span></div>
+    <div class="searchbar homeSearch">
+      <div class="homeSearchInputWrap"><span class="homeSearchGlyph" aria-hidden="true">⌕</span><input id="search" aria-label="بحث عن منتج" placeholder="ابحث باسم المنتج أو العلامة التجارية..." oninput="renderProducts()"></div>
+      <div class="two"><select id="cityFilter" aria-label="تصفية حسب المدينة" onchange="renderProducts()"><option value="">كل المدن</option></select><select id="catFilter" aria-label="تصفية حسب التصنيف" onchange="renderProducts()"><option value="">كل التصنيفات</option></select></div>
+    </div>
+  </section>
+
+  <div id="adsHome" class="adSlot hidden" aria-label="الإعلانات الرئيسية"></div>
+
+  <section class="homeNearbySection" aria-labelledby="homeNearbyTitle">
+    <div class="homeSectionTitle"><div><span class="homeSectionKicker">حولك الآن</span><h2 id="homeNearbyTitle">متاجر قريبة منك</h2><p class="muted">نرتب المتاجر حسب المسافة الفعلية عندما تحدد موقعك.</p></div><span class="homeSectionIcon" aria-hidden="true">⌖</span></div>
+    <div class="homeLocationPanel">
+      <div class="homeLocationText"><span class="homeLocationPin" aria-hidden="true">📍</span><span id="homeLocationStatus" aria-live="polite">حدّد موقعك لعرض أقرب المتاجر إليك.</span></div>
+      <div class="homeLocationControls"><button class="btn primary" id="homeLocationBtn" type="button">تحديد موقعي</button><div class="homeManualLocation"><select id="homeLocationCity" aria-label="اختيار المحافظة أو المدينة"><option value="">اختر المدينة يدويًا</option></select><select id="homeLocationArea" aria-label="اختيار المنطقة"><option value="">كل مناطق المدينة</option></select><button class="btn secondary" id="homeLocationSaveBtn" type="button">حفظ المنطقة</button></div></div>
+    </div>
+    <div id="homeNearbyStores" class="homeNearbyGrid"></div>
+    <div class="homeNearbyFooter"><button class="btn secondary" id="homeAllStoresBtn" type="button">عرض جميع المتاجر <span aria-hidden="true">←</span></button></div>
+  </section>
+
+  <div class="grid homeStatsGrid"><div class="stat"><b id="pc">0</b> منتجات</div><div class="stat" role="button" tabindex="0" onclick="openNav('stores')" onkeydown="if(event.key==='Enter'||event.key===' ')openNav('stores')" style="cursor:pointer"><b id="sc">0</b> متاجر</div><div class="stat" role="button" tabindex="0" onclick="openNav('companies')" onkeydown="if(event.key==='Enter'||event.key===' ')openNav('companies')" style="cursor:pointer"><b id="cc">0</b> شركات</div><div class="stat"><b id="basketCount">0</b> في السلة</div></div>
+  <section class="homeProductsSection" aria-labelledby="homeProductsTitle"><div class="homeProductsTop"><div><span class="homeSectionKicker">تحديثات الأسعار</span><h2 id="homeProductsTitle" class="homeProductsHeading">المنتجات والأسعار</h2></div><span class="homeProductsBadge">الأرخص أولاً</span></div><div id="products" class="grid"></div></section>
 </section>
 
 <section id="basket" class="page"><div class="hero"><h1>سلة المشتريات</h1><p class="muted">أرخص سعر لكل مادة.</p></div><div id="basketList"></div></section>
@@ -1176,12 +1201,12 @@ supabaseClient.auth.onAuthStateChange((event)=>{
 })();
 </script>
 
-<script src="store_admin_controls.js?v=7"></script>
-<script src="ads.js?v=1"></script>
-  <script src="store_features.js?v=20261008-barcode-autofill-v9-final"></script>
+<script src="store_admin_controls.js?v=location-fields-20261012"></script>
+<script src="ads.js?v=admin-video-20261012"></script>
+  <script src="store_features.js?v=location-sort-20261012"></script>
 
 
-<script src="saree_all_features.js"></script>
+<script src="saree_all_features.js?v=whatsapp-modal-20261012"></script>
 
 <script src="saree_pwa.js?v=20261006-pwa-install-log-rpc-fix"></script>
 
@@ -1197,7 +1222,7 @@ supabaseClient.auth.onAuthStateChange((event)=>{
 <script src="saree_owner_contact_sponsors.js"></script>
 
   
-<script src="company_system.js"></script>
+<script src="company_system.js?v=whatsapp-location-20261012"></script>
 
 
   

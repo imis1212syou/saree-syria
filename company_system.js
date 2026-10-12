@@ -298,9 +298,10 @@
     const phone=companyPhoneFromTarget(currentCompany.whatsapp_url);if(!phone)return alert('رقم واتساب الشركة غير صالح.');
     let subtotal=0;
     const lines=items.map(([pid,x],i)=>{const line=Number(x.qty||0)*Number(x.price||0);subtotal+=line;return `${i+1}) ${x.name}${x.unit?' ('+x.unit+')':''} × ${x.qty} = ${money(line)} ل.س`});
-    const name=prompt('اسم العميل (اختياري):','')??'';const customerPhone=prompt('رقم هاتف العميل (اختياري):','')??'';const notes=prompt('ملاحظات الطلب (اختياري):','')??'';
+    const customer=await window.sareeOpenCustomerOrderDetails?.({sellerType:'الشركة',sellerName:currentCompany.name,summary:`عدد الأصناف: ${items.length}. يمكنك ترك بيانات العميل والملاحظات فارغة.`});if(!customer)return;
+    const name=customer.name||'',customerPhone=customer.phone||'',notes=customer.notes||'';
     const msg=`طلب من سعرلي سوريا\nالشركة: ${currentCompany.name||''}\n\n${lines.join('\n')}\n\nالمجموع: ${money(subtotal)} ل.س\nأجرة التوصيل: لا توجد\n\nاسم العميل: ${name||'—'}\nهاتف العميل: ${customerPhone||'—'}\nملاحظات: ${notes||'—'}`;
-    window.location.href=`whatsapp://send?phone=${phone}&text=${encodeURIComponent(msg)}`;
+    if(typeof window.sareeDirectWhatsapp==='function')window.sareeDirectWhatsapp(currentCompany.whatsapp_url,msg);else window.location.href=`whatsapp://send?phone=${phone}&text=${encodeURIComponent(msg)}`;
     setCompanyCart(companyId,{});
     renderCompanyCart(companyId);
   };
@@ -335,8 +336,10 @@
     $('cpe_save').onclick=async()=>{
       try{
         const name=$('cpe_name').value.trim();if(!name)return alert('اسم الشركة مطلوب.');
-        let image_url=c.image_url||null;const f=$('cpe_image').files?.[0];if(f&&window.uploadImage)image_url=await window.uploadImage(f,'companies');
         const yr=String($('cpe_established_year').value||'').trim();const lat=$('cpe_latitude').value.trim(),lng=$('cpe_longitude').value.trim();
+        if((lat==='')!==(lng===''))return alert('أدخل خط العرض وخط الطول معاً لتحديد موقع الشركة.');
+        if(lat!==''&&(!Number.isFinite(Number(lat))||Number(lat)<-90||Number(lat)>90||!Number.isFinite(Number(lng))||Number(lng)<-180||Number(lng)>180))return alert('إحداثيات موقع الشركة غير صحيحة.');
+        let image_url=c.image_url||null;const f=$('cpe_image').files?.[0];if(f&&window.uploadImage)image_url=await window.uploadImage(f,'companies');
         const patch={name,phone:$('cpe_phone').value.trim()||null,address:$('cpe_address').value.trim()||null,whatsapp_url:$('cpe_whatsapp').value.trim()||null,established_year:/^\d{4}$/.test(yr)?Number(yr):null,latitude:lat===''?null:Number(lat),longitude:lng===''?null:Number(lng),whatsapp_orders_enabled:$('cpe_whatsapp_orders_enabled').checked,image_url};
         const {error}=await supabaseClient.from('companies').update(patch).eq('id',id);if(error)throw error;
         m.remove();await openCompanyById(id);

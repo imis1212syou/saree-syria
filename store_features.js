@@ -369,50 +369,139 @@
     }
   };
 
-  window.__sareeLocation = window.__sareeLocation || {lat:null,lng:null,requested:false,ready:false};
-
+  const SAREE_LOCATION_KEY = 'saree_visitor_location_v1';
+  function readSavedLocation(){
+    try{
+      const v=JSON.parse(localStorage.getItem(SAREE_LOCATION_KEY)||'null');
+      if(!v || typeof v!=='object') return null;
+      const lat=v.lat==null?null:Number(v.lat),lng=v.lng==null?null:Number(v.lng);
+      const validCoords=Number.isFinite(lat)&&Number.isFinite(lng)&&lat>=-90&&lat<=90&&lng>=-180&&lng<=180;
+      if(validCoords) return {...v,lat,lng,ready:true,source:'gps'};
+      if(v.city) return {...v,lat:null,lng:null,ready:true,source:'area'};
+    }catch(_){}
+    return null;
+  }
+  const savedLocation=readSavedLocation();
+  window.__sareeLocation = Object.assign({lat:null,lng:null,city:'',area:'',requested:false,ready:false,source:null},savedLocation||{},window.__sareeLocation||{});
+  function saveLocation(){
+    const l=window.__sareeLocation;
+    try{localStorage.setItem(SAREE_LOCATION_KEY,JSON.stringify({lat:l.lat??null,lng:l.lng??null,city:l.city||'',area:l.area||'',source:l.source||'area',updated_at:new Date().toISOString()}));}catch(err){console.warn('save visitor location:',err)}
+  }
+  function hasCoords(v){return v?.latitude!==null&&v?.latitude!==undefined&&v?.longitude!==null&&v?.longitude!==undefined&&Number.isFinite(Number(v.latitude))&&Number.isFinite(Number(v.longitude))&&Number(v.latitude)>=-90&&Number(v.latitude)<=90&&Number(v.longitude)>=-180&&Number(v.longitude)<=180;}
   function haversine(lat1,lon1,lat2,lon2){
     const rad = n => Number(n) * Math.PI / 180;
     const R = 6371;
-    const dLat = rad(lat2-lat1);
-    const dLon = rad(lon2-lon1);
+    const dLat = rad(lat2-lat1), dLon = rad(lon2-lon1);
     const a = Math.sin(dLat/2)**2 + Math.cos(rad(lat1))*Math.cos(rad(lat2))*Math.sin(dLon/2)**2;
-    return 2 * R * Math.asin(Math.sqrt(a));
+    return 2 * R * Math.asin(Math.sqrt(Math.min(1,a)));
   }
-
+  function storeDistanceKm(st){
+    const loc=window.__sareeLocation;
+    if(!loc||loc.source!=='gps'||loc.lat==null||loc.lng==null||!hasCoords(st))return null;
+    return haversine(loc.lat,loc.lng,Number(st.latitude),Number(st.longitude));
+  }
   function distanceText(st){
-    const loc = window.__sareeLocation;
-    if(!loc || loc.lat == null || loc.lng == null || st?.latitude == null || st?.longitude == null) return '';
-    const km = haversine(loc.lat,loc.lng,Number(st.latitude),Number(st.longitude));
-    return km < 1 ? Math.round(km*1000) + ' م' : km.toFixed(1) + ' كم';
+    const km=storeDistanceKm(st); if(km===null)return '';
+    return km<1?Math.round(km*1000)+' م':km.toFixed(1)+' كم';
   }
-
-  function updateDistancesInPlace(){
-    document.querySelectorAll('[data-store-distance]').forEach(node => {
-      const st = (stores || []).find(s => String(s.id) === String(node.dataset.storeDistance));
-      if(!st) return;
-      const txt = distanceText(st);
-      node.textContent = txt ? '📏 ' + txt : '';
-      node.classList.toggle('hidden', !txt);
+  function localityRank(st){
+    const loc=window.__sareeLocation, city=String(loc?.city||'').trim(),area=String(loc?.area||'').trim();
+    if(!city)return 5;
+    if(area&&String(st?.area||'').trim()===area&&String(st?.city||'').trim()===city)return 0;
+    if(String(st?.city||'').trim()===city)return 1;
+    return 2;
+  }
+  function sortStoresByProximity(list){
+    const loc=window.__sareeLocation;
+    return [...(list||[])].sort((a,b)=>{
+      if(loc?.source==='gps'&&loc.lat!=null&&loc.lng!=null){
+        const da=storeDistanceKm(a),db=storeDistanceKm(b);
+        if(da!==null&&db!==null&&da!==db)return da-db;
+        if((da!==null)!==(db!==null))return da!==null?-1:1;
+      }else if(loc?.city){
+        const ra=localityRank(a),rb=localityRank(b);if(ra!==rb)return ra-rb;
+      }
+      return String(a?.name||'').localeCompare(String(b?.name||''),'ar');
     });
   }
-
-  window.requestSareeLocation = function(){
-    const state = window.__sareeLocation;
-    if(state.requested){ updateDistancesInPlace(); return; }
-    state.requested = true;
-    if(!navigator.geolocation){ return; }
-    navigator.geolocation.getCurrentPosition(
-      pos => {
-        state.lat = pos.coords.latitude;
-        state.lng = pos.coords.longitude;
-        state.ready = true;
-        updateDistancesInPlace();
-      },
-      () => { state.ready = false; },
-      {enableHighAccuracy:false,timeout:9000,maximumAge:300000}
-    );
+  function updateLocationStatus(){
+    const node=$('homeLocationStatus');if(!node)return;
+    const loc=window.__sareeLocation;
+    if(loc?.source==='gps'&&loc.lat!=null&&loc.lng!=null) node.textContent='تم حفظ موقعك على هذا الجهاز. المتاجر ذات المواقع المسجلة مرتبة حسب المسافة الفعلية.';
+    else if(loc?.city) node.textContent='الموقع المختار: '+[loc.city,loc.area].filter(Boolean).join(' — ')+'. الترتيب حسب المنطقة، والمسافة الدقيقة تحتاج تحديد الموقع الجغرافي.';
+    else node.textContent='حدّد موقعك لترتيب المتاجر حسب المسافة الفعلية.';
+    const btn=$('homeLocationBtn');if(btn)btn.textContent=loc?.source==='gps'?'تحديث موقعي':'تحديد موقعي';
+  }
+  function updateDistancesInPlace(){
+    document.querySelectorAll('[data-store-distance]').forEach(node=>{
+      const st=(stores||[]).find(s=>String(s.id)===String(node.dataset.storeDistance));if(!st)return;
+      const txt=distanceText(st);node.textContent=txt?'📏 '+txt:'';node.classList.toggle('hidden',!txt);
+    });
+  }
+  window.sareeLocateIntoFields=function(latId,lngId,msgId){
+    const msg=$(msgId);
+    if(!navigator.geolocation){if(msg)msg.textContent='تحديد الموقع غير مدعوم في هذا الجهاز.';return;}
+    if(msg)msg.textContent='جارٍ تحديد الموقع...';
+    navigator.geolocation.getCurrentPosition(pos=>{
+      if($(latId))$(latId).value=pos.coords.latitude.toFixed(7);
+      if($(lngId))$(lngId).value=pos.coords.longitude.toFixed(7);
+      if(msg)msg.textContent='تم تحديد الإحداثيات. اضغط حفظ لتسجيل الموقع.';
+    },err=>{if(msg)msg.textContent=err.code===1?'لم تسمح بالوصول إلى الموقع. يمكنك إدخال الإحداثيات يدويًا.':'تعذر تحديد الموقع. تحقق من إعدادات الموقع والاتصال.';},{enableHighAccuracy:true,timeout:15000,maximumAge:60000});
   };
+  window.requestSareeLocation=function(force=true){
+    const state=window.__sareeLocation;
+    if(!force&&state?.source==='gps'&&state.lat!=null&&state.lng!=null){updateLocationStatus();renderHomeNearbyStores();updateDistancesInPlace();return Promise.resolve(true);}
+    if(!navigator.geolocation){updateLocationStatus();return Promise.resolve(false);}
+    state.requested=true;const node=$('homeLocationStatus');if(node)node.textContent='جارٍ تحديد موقعك...';
+    return new Promise(resolve=>navigator.geolocation.getCurrentPosition(pos=>{
+      state.lat=pos.coords.latitude;state.lng=pos.coords.longitude;state.city='';state.area='';state.ready=true;state.source='gps';state.requested=false;saveLocation();
+      updateLocationStatus();renderHomeNearbyStores();updateDistancesInPlace();if(typeof window.renderStores==='function'&&$('stores')?.classList.contains('active'))window.renderStores();resolve(true);
+    },err=>{
+      state.requested=false;if(node)node.textContent=err.code===1?'لم يتم السماح بالموقع. اختر المدينة والمنطقة يدويًا.':'تعذر تحديد الموقع الآن. يمكنك اختيار منطقتك يدويًا.';
+      resolve(false);
+    },{enableHighAccuracy:true,timeout:15000,maximumAge:300000}));
+  };
+  function setupHomeLocationControls(){
+    const citySel=$('homeLocationCity'),areaSel=$('homeLocationArea');if(!citySel||!areaSel)return;
+    const rows=(stores||[]),cities=[...new Set(rows.map(st=>String(st.city||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ar'));
+    const oldCity=citySel.value||window.__sareeLocation.city||'';
+    citySel.innerHTML='<option value="">اختر المدينة يدويًا</option>'+cities.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
+    citySel.value=cities.includes(oldCity)?oldCity:'';
+    function syncAreas(){
+      const city=citySel.value,areas=[...new Set(rows.filter(st=>!city||String(st.city||'').trim()===city).map(st=>String(st.area||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ar'));
+      const oldArea=areaSel.value||window.__sareeLocation.area||'';
+      areaSel.innerHTML='<option value="">كل مناطق المدينة</option>'+areas.map(a=>`<option value="${esc(a)}">${esc(a)}</option>`).join('');
+      areaSel.value=areas.includes(oldArea)?oldArea:'';
+    }
+    citySel.onchange=()=>{syncAreas()};syncAreas();
+    const savedCity=window.__sareeLocation.city||'',savedArea=window.__sareeLocation.area||'';
+    if(savedCity&&cities.includes(savedCity)){citySel.value=savedCity;syncAreas();if(savedArea)areaSel.value=savedArea;}
+    if($('homeLocationBtn')&&!$('homeLocationBtn').dataset.locationBound){$('homeLocationBtn').dataset.locationBound='1';$('homeLocationBtn').addEventListener('click',()=>window.requestSareeLocation(true));}
+    if($('homeLocationSaveBtn')&&!$('homeLocationSaveBtn').dataset.locationBound){$('homeLocationSaveBtn').dataset.locationBound='1';$('homeLocationSaveBtn').addEventListener('click',()=>{
+      const city=citySel.value,area=areaSel.value;if(!city){alert('اختر المدينة أولاً.');return;}
+      const state=window.__sareeLocation;state.lat=null;state.lng=null;state.city=city;state.area=area;state.ready=true;state.source='area';state.requested=false;saveLocation();
+      updateLocationStatus();renderHomeNearbyStores();updateDistancesInPlace();if(typeof window.renderStores==='function'&&$('stores')?.classList.contains('active'))window.renderStores();
+    });}
+    if($('homeAllStoresBtn')&&!$('homeAllStoresBtn').dataset.locationBound){$('homeAllStoresBtn').dataset.locationBound='1';$('homeAllStoresBtn').addEventListener('click',()=>window.openNav?window.openNav('stores'):window.show('stores'));}
+    updateLocationStatus();
+  }
+  function renderHomeNearbyStores(){
+    const box=$('homeNearbyStores');if(!box)return;
+    const all=Array.isArray(stores)?stores:[],sorted=sortStoresByProximity(all).slice(0,4),loc=window.__sareeLocation;
+    if(!all.length){box.innerHTML='<div class="homeNearbyEmpty">ستظهر المتاجر هنا عند توفرها.</div>';return;}
+    if(!loc?.ready||((loc.lat==null||loc.lng==null)&&!loc.city)){
+      box.innerHTML='<div class="homeNearbyEmpty"><span>📍</span><b>اعثر على المتاجر الأقرب إليك</b><p>حدّد موقعك مرة واحدة لنرتب المتاجر الأقرب فعليًا، مع حفظ اختيارك على هذا الجهاز.</p><button class="btn primary" type="button" onclick="window.requestSareeLocation(true)">تحديد موقعي</button></div>';
+      return;
+    }
+    box.innerHTML=sorted.map(st=>{
+      const img=storeImage(st),dist=distanceText(st),company=storeCompany(st);
+      const local=!dist&&loc.source==='area'&&localityRank(st)<2?`<span class="homeNearDistance">${localityRank(st)===0?'في منطقتك':'في مدينتك'}</span>`:'';
+      return `<article class="homeNearCard"><button type="button" class="homeNearMain" data-home-store-open="${esc(st.id)}">${img?`<img class="homeNearImage" src="${esc(img)}" alt="${esc(st.name||'المتجر')}" loading="lazy">`:'<span class="homeNearImage homeNearPlaceholder" aria-hidden="true">🏪</span>'}<span class="homeNearInfo"><b>${esc(st.name||'متجر')}</b>${company?`<small>${esc(company)}</small>`:''}<small>${esc([st.city,st.area].filter(Boolean).join(' — ')||'الموقع غير مضاف')}</small>${dist?`<span class="homeNearDistance">📍 يبعد ${esc(dist)}</span>`:local}</span></button></article>`;
+    }).join('');
+    box.querySelectorAll('[data-home-store-open]').forEach(btn=>btn.addEventListener('click',()=>window.openStore?.(btn.dataset.homeStoreOpen)));
+  }
+  window.renderHomeNearbyStores=renderHomeNearbyStores;
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',setupHomeLocationControls);else setupHomeLocationControls();
 
   async function refreshStores(){
     const {data,error} = await supabaseClient.from('stores').select('*,companies(id,name)').eq('active',true).order('name');
@@ -486,7 +575,7 @@
     const box = $('storesList');
     if(!box) return;
     try{ await refreshStores(); }catch(err){ console.warn('stores:',err); }
-    const list = Array.isArray(stores) ? stores : [];
+    const list = sortStoresByProximity(Array.isArray(stores) ? stores : []);
     const companies = new Map();
     list.forEach(st => {
       const key = storeCompany(st).trim();
@@ -498,6 +587,9 @@
       companyBox.innerHTML = Array.from(companies.entries()).filter(([k])=>k).map(([k,v])=>companyCard(k,v)).join('') || '<div class="card muted">لا توجد شركات مسجلة بعد.</div>';
     }
     box.innerHTML = list.length ? list.map(renderStoreCard).join('') : '<div class="card muted">لا توجد متاجر حالياً.</div>';
+    setupHomeLocationControls();
+    renderHomeNearbyStores();
+    updateLocationStatus();
     bindStoreListEvents(box);
     if(companyBox) bindStoreListEvents(companyBox);
     updateDistancesInPlace();
@@ -526,7 +618,7 @@
       const txt=[p.name,p.description,p.brand,p.category,p.unit].join(' ').toLowerCase();
       const cityOk=!city || x.ps.some(row=>String(row.stores?.city||'')===String(city)||String(row.stores?.area||'')===String(city));
       return (!q||txt.includes(q)) && (!cat||p.category===cat) && cityOk;
-    });
+    }).sort((a,b)=>priceNumber(a.c)-priceNumber(b.c));
     const box=document.getElementById('products');
     if(!box) return;
     box.innerHTML=list.map(({p,ps,c})=>{
@@ -1566,7 +1658,7 @@
     $('adminPanel').innerHTML=`
       <div class="grid"><div class="card"><div class="name">${requests.length}</div><div class="muted">طلبات معلقة</div></div><div class="card"><div class="name">${(stores||[]).length}</div><div class="muted">متاجر</div></div><div class="card"><div class="name">${(products||[]).length}</div><div class="muted">منتجات</div></div><div class="card"><div class="name">${users.length}</div><div class="muted">حسابات</div></div><div class="card"><div class="name" id="visitorCount">—</div><div class="muted">إجمالي زيارات الموقع</div></div></div>
       <div class="card"><div class="accordionHead" data-toggle-id="adminRequestsBody"><h2>طلبات التجار</h2><span>▾</span></div><div id="adminRequestsBody" class="accordionBody hidden">${pending}</div></div>
-      <div class="card"><div class="accordionHead" data-toggle-id="adminAddStoreBody"><h2>إضافة متجر</h2><span>▾</span></div><div id="adminAddStoreBody" class="accordionBody hidden"><div class="two"><input id="sn" placeholder="اسم المتجر"><input id="scity" placeholder="المدينة"><input id="sarea" placeholder="المنطقة"><input id="saddr" placeholder="العنوان"><input id="sphone" placeholder="الهاتف"><input id="swhatsapp" placeholder="رابط واتساب المتجر"><select id="scompany"><option value="">بدون شركة</option>${companies.map(c=>`<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')}</select><input id="shours" placeholder="ساعات الدوام"><input id="sdays" placeholder="أيام العمل"><input id="simg" type="file" accept="image/*"></div><button class="btn primary" onclick="adminAddStore()">إضافة المتجر</button></div></div>
+      <div class="card"><div class="accordionHead" data-toggle-id="adminAddStoreBody"><h2>إضافة متجر</h2><span>▾</span></div><div id="adminAddStoreBody" class="accordionBody hidden"><div class="two"><input id="sn" placeholder="اسم المتجر"><input id="scity" placeholder="المدينة"><input id="sarea" placeholder="المنطقة"><input id="saddr" placeholder="العنوان"><input id="sphone" placeholder="الهاتف"><input id="swhatsapp" placeholder="رابط واتساب المتجر"><select id="scompany"><option value="">بدون شركة</option>${companies.map(c=>`<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')}</select><input id="shours" placeholder="ساعات الدوام"><input id="sdays" placeholder="أيام العمل"><input id="s_latitude" type="number" step="any" placeholder="خط العرض Latitude"><input id="s_longitude" type="number" step="any" placeholder="خط الطول Longitude"><input id="simg" type="file" accept="image/*"></div><div class="actions"><button type="button" class="btn secondary" onclick="window.sareeLocateIntoFields('s_latitude','s_longitude','s_location_msg')">📍 تحديد موقع المتجر</button><button class="btn primary" onclick="adminAddStore()">إضافة المتجر</button></div><p id="s_location_msg" class="muted"></p></div></div>
       <div id="adminMerchantPermissionsBox" class="card"><div class="accordionHead" data-toggle-id="adminMerchantsBody"><div><h2>إدارة وربط التجار</h2><div class="muted">كل تاجر يمكن ربطه بمتجر واحد، ويحصل تلقائياً على كامل الصلاحيات والنشر المباشر.</div></div><span>▾</span></div><div id="adminMerchantsBody" class="accordionBody hidden">${merchantHtml}</div></div>
       <div class="card"><div class="accordionHead" data-toggle-id="adminStoresBody"><h2>إدارة المتاجر</h2><span>▾</span></div><div id="adminStoresBody" class="accordionBody hidden">${storesHtml}</div></div>
       <div class="card"><div class="accordionHead" data-toggle-id="adminUsersBody"><h2>الحسابات</h2><span>▾</span></div><div id="adminUsersBody" class="accordionBody hidden">${usersHtml}</div></div>
@@ -1613,9 +1705,10 @@
     if(!isAdmin()) return alert('المدير فقط يستطيع إضافة متجر.');
     const name=$('sn')?.value.trim();
     if(!name) return alert('اكتب اسم المتجر.');
+    const lat=String($('s_latitude')?.value||'').trim(),lng=String($('s_longitude')?.value||'').trim();if((lat==='')!==(lng===''))return alert('أدخل خط العرض وخط الطول معاً لتحديد موقع المتجر.');if(lat!==''&&(!Number.isFinite(Number(lat))||Number(lat)<-90||Number(lat)>90||!Number.isFinite(Number(lng))||Number(lng)<-180||Number(lng)>180))return alert('إحداثيات موقع المتجر غير صحيحة.');
     let image=null;
     try{ image=await uploadImage($('simg')?.files?.[0]||null,'stores'); }catch(err){ return alert('فشل رفع صورة المتجر: '+err.message); }
-    const payload={name,city:$('scity').value.trim(),area:$('sarea').value.trim(),address:$('saddr').value.trim(),phone:$('sphone').value.trim(),opening_hours:$('shours').value.trim(),working_days:$('sdays').value.trim(),image_url:image,whatsapp_url:$('swhatsapp').value.trim()||null,verified:true,active:true,company_id:$('scompany')?.value||null};
+    const payload={name,city:$('scity').value.trim()||null,area:$('sarea').value.trim()||null,address:$('saddr').value.trim()||null,phone:$('sphone').value.trim()||null,opening_hours:$('shours').value.trim()||null,working_days:$('sdays').value.trim()||null,latitude:lat===''?null:Number(lat),longitude:lng===''?null:Number(lng),image_url:image,whatsapp_url:$('swhatsapp').value.trim()||null,verified:true,active:true,company_id:$('scompany')?.value||null};
     const {error}=await supabaseClient.from('stores').insert(payload);
     if(error) return alert(error.message);
     alert('تمت إضافة المتجر ✅');
