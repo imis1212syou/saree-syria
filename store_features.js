@@ -491,7 +491,7 @@
     const all=Array.isArray(stores)?stores:[],sorted=sortStoresByProximity(all).slice(0,4),loc=window.__sareeLocation;
     if(!all.length){box.innerHTML='<div class="homeNearbyEmpty">ستظهر المتاجر هنا عند توفرها.</div>';return;}
     if(!loc?.ready||((loc.lat==null||loc.lng==null)&&!loc.city)){
-      box.innerHTML='<div class="homeNearbyEmpty"><span>📍</span><b>اعثر على المتاجر الأقرب إليك</b><p>حدّد موقعك مرة واحدة لنرتب المتاجر الأقرب فعليًا، مع حفظ اختيارك على هذا الجهاز.</p><button class="btn primary" type="button" onclick="window.requestSareeLocation(true)">تحديد موقعي</button></div>';
+      box.innerHTML='<div class="homeNearbyEmpty homeNearbyEmptyCompact"><p>اختر موقعك من الخيارات أعلاه لعرض المتاجر الأقرب إليك.</p></div>';
       return;
     }
     box.innerHTML=sorted.map(st=>{
@@ -669,7 +669,6 @@
     const rows = uniqueListings(list);
     const canEdit = canManageStore(storeId);
     const st = (stores || []).find(x=>String(x.id)===String(storeId)) || null;
-    const wa = storeWhatsapp(st);
     if(!rows.length) return '<div class="card muted">لا توجد أسعار معتمدة لهذا المتجر حالياً.</div>';
     return rows.map(row=>{
       const p = row.products || {};
@@ -694,7 +693,6 @@
         <div class="actions">
           <button type="button" class="btn primary" data-material-detail="${esc(productId)}" data-store-id="${esc(storeId)}">تفاصيل المادة</button>
           ${canCart ? `<button type="button" class="btn primary" data-saree-add="1" data-store-cart-add="${esc(productId)}" data-store-id="${esc(storeId)}">إضافة للسلة</button>` : ''}
-          ${wa ? `<a class="btn secondary" href="${esc(wa)}" target="_blank" rel="noopener">💬 واتساب</a>` : ''}
           ${canEdit ? `<button type="button" class="btn secondary" data-edit-listing="${esc(row.id)}" data-store-id="${esc(storeId)}">تعديل المادة</button><button type="button" class="btn danger" data-delete-listing="${esc(row.id)}" data-store-id="${esc(storeId)}">حذف</button>` : ''}
         </div>
       </article>`;
@@ -783,7 +781,10 @@
       </div>
       <div class="card">
         <h3>البحث عن مادة في هذا المتجر</h3>
-        <input id="storeMaterialSearch" inputmode="search" autocomplete="off" placeholder="ابحث باسم المادة أو التصنيف أو العلامة التجارية">
+        <div class="storeMaterialSearchRow">
+          <input id="storeMaterialSearch" inputmode="search" autocomplete="off" placeholder="ابحث باسم المادة أو التصنيف أو العلامة التجارية">
+          <button type="button" class="btn primary" id="storeMaterialSearchBtn">بحث</button>
+        </div>
         <select id="storeMaterialCategory" aria-label="تصفية مواد المتجر حسب التصنيف"><option value="">كل التصنيفات</option>${[...new Set(uniqueListings(listings).map(r=>r.products?.category||'عام'))].sort((a,b)=>String(a).localeCompare(String(b),'ar')).map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('')}</select>
         <p id="storeMaterialSearchMsg" class="muted" aria-live="polite"></p>
       </div>
@@ -829,6 +830,8 @@
     }
     if(canManageStore(st.id) && typeof window.getSareeQrVisitCount==='function') window.getSareeQrVisitCount('store',st.id).then(n=>{ if($('storeQrVisitCount')) $('storeQrVisitCount').textContent=n==null?'—':fmt(n); });
     $('storeMaterialSearch')?.addEventListener('input',filterStoreMaterials);
+    $('storeMaterialSearch')?.addEventListener('keydown',ev=>{ if(ev.key==='Enter'){ev.preventDefault();filterStoreMaterials();} });
+    $('storeMaterialSearchBtn')?.addEventListener('click',filterStoreMaterials);
     $('storeMaterialCategory')?.addEventListener('change',filterStoreMaterials);
     $('storeBarcodeSearchBtn')?.addEventListener('click',()=>window.searchStoreBarcode(st.id));
     $('storeBarcodeSearch')?.addEventListener('keydown',ev=>{ if(ev.key==='Enter') window.searchStoreBarcode(st.id); });

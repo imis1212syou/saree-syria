@@ -532,6 +532,12 @@ label{color:#55717f}
 }
 @media(prefers-reduced-motion:reduce){#home .homeNearCard{transition:none}#home .homeNearCard:hover{transform:none}}
 
+/* زر البحث داخل صفحة المتجر فقط */
+.storeMaterialSearchRow{display:flex;align-items:center;gap:8px;margin-top:9px}
+.storeMaterialSearchRow input{flex:1;min-width:0;width:auto;margin-top:0}
+.storeMaterialSearchRow .btn{flex:none;min-width:68px;min-height:43px;white-space:nowrap}
+@media(max-width:480px){.storeMaterialSearchRow{gap:7px}.storeMaterialSearchRow .btn{min-width:62px;padding:11px 13px}}
+
 /* نافذة تفاصيل طلب واتساب داخل الموقع */
 .saree-customer-order-modal{position:fixed;inset:0;z-index:12000;display:flex;align-items:center;justify-content:center;padding:14px;background:rgba(14,44,59,.56);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px)}
 .saree-customer-order-box{width:min(100%,480px);max-height:92vh;max-height:min(92dvh,760px);overflow:auto;background:#fff;border:1px solid #d8e9ef;border-radius:23px;padding:20px;box-shadow:0 24px 70px rgba(18,69,92,.25);color:#173042}
@@ -552,3 +558,43 @@ label{color:#55717f}
 .adCardVideo{flex-wrap:wrap;align-items:flex-start}
 .adCardVideo video.adVideo{display:block;width:100%;max-width:680px;max-height:360px;aspect-ratio:16/9;object-fit:contain;background:#07131b;border-radius:13px;flex:1 1 100%;min-width:0}
 @media(max-width:600px){.adCardVideo video.adVideo{max-height:260px}}
+
+/* تقليل ارتفاع الترحيب والبحث والإحصائيات على الصفحة الرئيسية فقط؛ دون تغيير الألوان أو الوظائف أو قسم المتاجر القريبة */
+#home .homeHero{
+  padding:16px 16px 13px;
+  margin-bottom:11px;
+}
+#home .homeHeroBadge{padding:6px 10px;margin-bottom:9px}
+#home .homeHero h1{font-size:clamp(22px,4.7vw,29px);line-height:1.3;margin-bottom:7px}
+#home .homeHero>p{font-size:13px;line-height:1.65}
+#home .homeHero #roleActions{gap:7px;margin-top:11px}
+#home .homeHero #roleActions .btn{min-height:39px;padding:9px 11px !important}
+#home .homeSearchBlock{padding:12px;margin:12px 0 14px}
+#home .homeSearchBlock .homeSectionTitle{gap:8px;margin-bottom:8px}
+#home .homeSearchBlock .homeSectionTitle h2{font-size:clamp(18px,3.5vw,21px);line-height:1.35}
+#home .homeSearchBlock .homeSectionIcon{width:40px;height:40px;border-radius:13px;font-size:27px}
+#home .homeSearchInputWrap input{height:49px;padding-top:10px;padding-bottom:10px}
+#home .homeSearch .two{gap:7px;margin-top:7px}
+#home .homeSearch select{min-height:39px;padding-top:8px;padding-bottom:8px}
+#home .homeStatsGrid{margin-top:12px;margin-bottom:9px;gap:8px}
+#home .homeStatsGrid .stat{min-height:59px;padding:8px;font-size:12px}
+#home .homeStatsGrid .stat b{font-size:20px}
+
+@media(max-width:650px){
+  #home .homeHero{padding:12px 13px 11px;margin-bottom:9px}
+  #home .homeHeroBadge{padding:5px 9px;margin-bottom:7px;font-size:11px}
+  #home .homeHero h1{font-size:23px;line-height:1.3;margin-bottom:6px}
+  #home .homeHero>p{font-size:12px;line-height:1.6}
+  #home .homeHero #roleActions{margin-top:8px;gap:6px}
+  #home .homeHero #roleActions .btn{min-height:36px;padding:8px 10px !important}
+  #home .homeSearchBlock{padding:10px;margin:10px 0 12px}
+  #home .homeSearchBlock .homeSectionTitle{margin-bottom:6px}
+  #home .homeSearchBlock .homeSectionTitle h2{font-size:19px;line-height:1.32}
+  #home .homeSearchBlock .homeSectionIcon{width:36px;height:36px;border-radius:12px;font-size:25px}
+  #home .homeSearchInputWrap input{height:46px;padding-top:9px;padding-bottom:9px;font-size:14px}
+  #home .homeSearch .two{gap:6px;margin-top:6px}
+  #home .homeSearch select{min-height:37px;padding-top:7px;padding-bottom:7px;font-size:12px}
+  #home .homeStatsGrid{margin-top:10px;margin-bottom:7px;gap:7px}
+  #home .homeStatsGrid .stat{min-height:53px;padding:7px 6px;font-size:11px}
+  #home .homeStatsGrid .stat b{font-size:19px}
+}
