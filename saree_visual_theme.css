@@ -469,14 +469,14 @@ label{color:#55717f}
 #home .homeSearch select{min-height:43px;margin-top:0;border-radius:12px;background:#f7fbfd !important;color:#285064 !important;border-color:#d8e8ef !important}
 #home #adsHome{margin:17px 0 20px}
 #home #adsHome:empty{display:none}
-#home .homeLocationPanel{display:flex;flex-direction:column;gap:12px;padding:13px;border-radius:18px;border:1px solid #d6e9ed;background:linear-gradient(120deg,#f5fcff,#f0fbf7);margin-bottom:12px}
-#home .homeLocationText{display:flex;align-items:center;gap:9px;color:#4e6f80;font-size:12px;line-height:1.7}
-#home .homeLocationPin{flex:none;display:flex;align-items:center;justify-content:center;width:32px;height:32px;background:#fff;border:1px solid #d7e9ed;border-radius:11px;font-size:17px}
-#home .homeLocationControls{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
-#home .homeLocationControls>.btn{flex:none}
-#home .homeManualLocation{display:grid;grid-template-columns:1fr 1fr auto;align-items:center;gap:7px;flex:1;min-width:min(100%,420px)}
-#home .homeManualLocation select{margin:0;min-width:0;min-height:42px;padding:9px;border-radius:11px;background:#fff !important;color:#31596a !important;border-color:#d4e6eb !important;font-size:12px}
-#home .homeManualLocation .btn{min-height:42px;padding:9px 12px;font-size:12px;white-space:nowrap}
+#home .homeLocationPanel{display:flex;flex-direction:column;gap:9px;padding:11px;border-radius:16px;border:1px solid #d6e9ed;background:linear-gradient(120deg,#f5fcff,#f0fbf7);margin-bottom:9px}
+#home .homeLocationText{display:flex;align-items:center;gap:8px;color:#4e6f80;font-size:12px;line-height:1.5}
+#home .homeLocationPin{flex:none;display:flex;align-items:center;justify-content:center;width:30px;height:30px;background:#fff;border:1px solid #d7e9ed;border-radius:10px;font-size:16px}
+#home .homeLocationControls{display:flex;flex-wrap:wrap;align-items:center;gap:7px}
+#home .homeLocationControls>.btn{flex:none;min-height:40px;padding:9px 13px}
+#home .homeManualLocation{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto;align-items:center;gap:6px;flex:1;min-width:min(100%,420px)}
+#home .homeManualLocation select{margin:0;min-width:0;min-height:40px;padding:8px;border-radius:10px;background:#fff !important;color:#31596a !important;border-color:#d4e6eb !important;font-size:12px}
+#home .homeManualLocation .btn{min-height:40px;padding:8px 10px;font-size:12px;white-space:nowrap}
 #home .homeNearbyGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
 #home .homeNearCard{padding:0;overflow:hidden;border-radius:17px;background:#fff;border:1px solid #dceaf0;box-shadow:0 8px 21px rgba(34,91,113,.06);min-width:0;transition:transform .2s,box-shadow .2s}
 #home .homeNearCard:hover{transform:translateY(-2px);box-shadow:0 13px 28px rgba(34,91,113,.11)}
@@ -491,6 +491,7 @@ label{color:#55717f}
 #home .homeNearbyEmpty>span{font-size:25px}
 #home .homeNearbyEmpty>b{color:#214f68;font-size:16px}
 #home .homeNearbyEmpty p{max-width:390px;margin:0;font-size:12px;line-height:1.8}
+#home .homeNearbyEmptyCompact{padding:10px 12px;border-radius:12px;font-size:12px}
 #home .homeNearbyFooter{display:flex;justify-content:center;margin-top:12px}
 #home .homeNearbyFooter .btn{border-radius:12px;border-color:#cfe3eb;background:#fff;color:#2e728d}
 #home .homeNearbyFooter .btn span{margin-inline-start:8px}
@@ -502,12 +503,18 @@ label{color:#55717f}
 #home .adCard{border-color:#d7e9f0;box-shadow:0 9px 27px rgba(31,81,103,.08)}
 #home .adCard video.adVideo{display:block;width:100%;max-height:360px;aspect-ratio:16/9;object-fit:contain;background:#07131b;border-radius:13px;flex:1 1 100%;min-width:0}
 @media(max-width:760px){
-  #home .homeNearbyGrid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  #home .homeNearbySection{margin:12px 0 16px}
+  #home .homeSectionTitle{margin-bottom:8px;gap:8px}
+  #home .homeNearbyGrid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
   #home .homeNearImage{height:105px}
-  #home .homeLocationControls{align-items:stretch}
-  #home .homeLocationControls>.btn{width:100%}
-  #home .homeManualLocation{grid-template-columns:1fr 1fr;min-width:0;width:100%}
-  #home .homeManualLocation .btn{grid-column:1/-1;width:100%}
+  #home .homeLocationPanel{gap:8px;padding:10px;margin-bottom:8px}
+  #home .homeLocationControls{align-items:stretch;gap:7px}
+  #home .homeLocationControls>.btn{width:100%;min-height:39px}
+  #home .homeManualLocation{grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto;min-width:0;width:100%;gap:6px}
+  #home .homeManualLocation select{min-height:39px;padding:7px 6px;font-size:11px}
+  #home .homeManualLocation .btn{grid-column:auto;width:auto;min-height:39px;padding:7px 9px;font-size:11px}
+  #home .homeNearbyFooter{margin-top:8px}
+  #home .homeNearbyFooter .btn{min-height:40px;padding:9px 14px}
 }
 @media(max-width:420px){
   #home .homeHero{padding:20px 16px}
@@ -518,6 +525,10 @@ label{color:#55717f}
   #home .homeNearInfo{padding:8px}
   #home .homeNearInfo b{font-size:12px}
   #home .homeNearInfo small{font-size:10px}
+  #home .homeLocationText{font-size:11px}
+  #home .homeLocationPin{width:28px;height:28px}
+  #home .homeLocationControls>.btn{font-size:12px}
+  #home .homeManualLocation .btn{padding-inline:7px}
 }
 @media(prefers-reduced-motion:reduce){#home .homeNearCard{transition:none}#home .homeNearCard:hover{transform:none}}
 

@@ -488,9 +488,10 @@
   function renderHomeNearbyStores(){
     const box=$('homeNearbyStores');if(!box)return;
     const all=Array.isArray(stores)?stores:[],sorted=sortStoresByProximity(all).slice(0,4),loc=window.__sareeLocation;
-    if(!all.length){box.innerHTML='<div class="homeNearbyEmpty">ستظهر المتاجر هنا عند توفرها.</div>';return;}
+    if(!all.length){box.innerHTML='<div class="homeNearbyEmpty homeNearbyEmptyCompact">لا توجد متاجر متاحة للعرض حاليًا.</div>';return;}
+    // حالة عدم اختيار الموقع موضّحة بالفعل في شريط الحالة وأزرار الاختيار أعلاه؛ لا نكرر بطاقة كبيرة.
     if(!loc?.ready||((loc.lat==null||loc.lng==null)&&!loc.city)){
-      box.innerHTML='<div class="homeNearbyEmpty"><span>📍</span><b>اعثر على المتاجر الأقرب إليك</b><p>حدّد موقعك مرة واحدة لنرتب المتاجر الأقرب فعليًا، مع حفظ اختيارك على هذا الجهاز.</p><button class="btn primary" type="button" onclick="window.requestSareeLocation(true)">تحديد موقعي</button></div>';
+      box.innerHTML='';
       return;
     }
     box.innerHTML=sorted.map(st=>{
