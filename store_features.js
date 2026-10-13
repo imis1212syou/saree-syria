@@ -371,42 +371,52 @@
   };
 
   const SAREE_LOCATION_KEY = 'saree_visitor_location_v1';
+  const HOME_NEARBY_BATCH_SIZE = 3;
+  let homeNearbyVisibleCount = HOME_NEARBY_BATCH_SIZE;
+  let homeLocationLeafletPromise = null;
+  let homeLocationMap = null;
+  let homeLocationMarker = null;
+  let homeLocationPickedCoords = null;
+
+  function validCoordinates(lat,lng){
+    return Number.isFinite(Number(lat))&&Number.isFinite(Number(lng))&&Number(lat)>=-90&&Number(lat)<=90&&Number(lng)>=-180&&Number(lng)<=180;
+  }
+  function locationHasCoordinates(loc=window.__sareeLocation){
+    return !!loc&&(loc.source==='gps'||loc.source==='map')&&loc.lat!=null&&loc.lng!=null&&validCoordinates(loc.lat,loc.lng);
+  }
   function readSavedLocation(){
     try{
       const v=JSON.parse(localStorage.getItem(SAREE_LOCATION_KEY)||'null');
-      if(!v || typeof v!=='object') return null;
+      if(!v||typeof v!=='object')return null;
       const lat=v.lat==null?null:Number(v.lat),lng=v.lng==null?null:Number(v.lng);
-      const validCoords=Number.isFinite(lat)&&Number.isFinite(lng)&&lat>=-90&&lat<=90&&lng>=-180&&lng<=180;
-      if(validCoords) return {...v,lat,lng,ready:true,source:'gps'};
-      if(v.city) return {...v,lat:null,lng:null,ready:true,source:'area'};
+      if(validCoordinates(lat,lng))return {...v,lat,lng,ready:true,source:v.source==='map'?'map':'gps'};
+      if(v.city)return {...v,lat:null,lng:null,ready:true,source:'area'};
     }catch(_){}
     return null;
   }
   const savedLocation=readSavedLocation();
-  window.__sareeLocation = Object.assign({lat:null,lng:null,city:'',area:'',requested:false,ready:false,source:null},savedLocation||{},window.__sareeLocation||{});
+  window.__sareeLocation=Object.assign({lat:null,lng:null,city:'',area:'',requested:false,ready:false,source:null},savedLocation||{},window.__sareeLocation||{});
   function saveLocation(){
     const l=window.__sareeLocation;
-    try{localStorage.setItem(SAREE_LOCATION_KEY,JSON.stringify({lat:l.lat??null,lng:l.lng??null,city:l.city||'',area:l.area||'',source:l.source||'area',updated_at:new Date().toISOString()}));}catch(err){console.warn('save visitor location:',err)}
+    try{localStorage.setItem(SAREE_LOCATION_KEY,JSON.stringify({lat:l.lat??null,lng:l.lng??null,city:l.city||'',area:l.area||'',source:l.source||'area',updated_at:new Date().toISOString()}));}
+    catch(err){console.warn('save visitor location:',err);}
   }
-  function hasCoords(v){return v?.latitude!==null&&v?.latitude!==undefined&&v?.longitude!==null&&v?.longitude!==undefined&&Number.isFinite(Number(v.latitude))&&Number.isFinite(Number(v.longitude))&&Number(v.latitude)>=-90&&Number(v.latitude)<=90&&Number(v.longitude)>=-180&&Number(v.longitude)<=180;}
+  function hasCoords(v){return v?.latitude!==null&&v?.latitude!==undefined&&v?.longitude!==null&&v?.longitude!==undefined&&validCoordinates(v.latitude,v.longitude);}
   function haversine(lat1,lon1,lat2,lon2){
-    const rad = n => Number(n) * Math.PI / 180;
-    const R = 6371;
-    const dLat = rad(lat2-lat1), dLon = rad(lon2-lon1);
-    const a = Math.sin(dLat/2)**2 + Math.cos(rad(lat1))*Math.cos(rad(lat2))*Math.sin(dLon/2)**2;
-    return 2 * R * Math.asin(Math.sqrt(Math.min(1,a)));
+    const rad=n=>Number(n)*Math.PI/180;
+    const R=6371;
+    const dLat=rad(lat2-lat1),dLon=rad(lon2-lon1);
+    const a=Math.sin(dLat/2)**2+Math.cos(rad(lat1))*Math.cos(rad(lat2))*Math.sin(dLon/2)**2;
+    return 2*R*Math.asin(Math.sqrt(Math.min(1,a)));
   }
   function storeDistanceKm(st){
     const loc=window.__sareeLocation;
-    if(!loc||loc.source!=='gps'||loc.lat==null||loc.lng==null||!hasCoords(st))return null;
-    return haversine(loc.lat,loc.lng,Number(st.latitude),Number(st.longitude));
+    if(!locationHasCoordinates(loc)||!hasCoords(st))return null;
+    return haversine(Number(loc.lat),Number(loc.lng),Number(st.latitude),Number(st.longitude));
   }
-  function distanceText(st){
-    const km=storeDistanceKm(st); if(km===null)return '';
-    return km<1?Math.round(km*1000)+' م':km.toFixed(1)+' كم';
-  }
+  function distanceText(st){const km=storeDistanceKm(st);if(km===null)return '';return km<1?Math.round(km*1000)+' م':km.toFixed(1)+' كم';}
   function localityRank(st){
-    const loc=window.__sareeLocation, city=String(loc?.city||'').trim(),area=String(loc?.area||'').trim();
+    const loc=window.__sareeLocation,city=String(loc?.city||'').trim(),area=String(loc?.area||'').trim();
     if(!city)return 5;
     if(area&&String(st?.area||'').trim()===area&&String(st?.city||'').trim()===city)return 0;
     if(String(st?.city||'').trim()===city)return 1;
@@ -415,7 +425,7 @@
   function sortStoresByProximity(list){
     const loc=window.__sareeLocation;
     return [...(list||[])].sort((a,b)=>{
-      if(loc?.source==='gps'&&loc.lat!=null&&loc.lng!=null){
+      if(locationHasCoordinates(loc)){
         const da=storeDistanceKm(a),db=storeDistanceKm(b);
         if(da!==null&&db!==null&&da!==db)return da-db;
         if((da!==null)!==(db!==null))return da!==null?-1:1;
@@ -426,12 +436,17 @@
     });
   }
   function updateLocationStatus(){
-    const node=$('homeLocationStatus');if(!node)return;
+    const node=$('homeLocationStatus');
     const loc=window.__sareeLocation;
-    if(loc?.source==='gps'&&loc.lat!=null&&loc.lng!=null) node.textContent='تم حفظ موقعك على هذا الجهاز. المتاجر ذات المواقع المسجلة مرتبة حسب المسافة الفعلية.';
-    else if(loc?.city) node.textContent='الموقع المختار: '+[loc.city,loc.area].filter(Boolean).join(' — ')+'. الترتيب حسب المنطقة، والمسافة الدقيقة تحتاج تحديد الموقع الجغرافي.';
-    else node.textContent='حدّد موقعك لترتيب المتاجر حسب المسافة الفعلية.';
+    if(node){
+      if(loc?.source==='gps'&&locationHasCoordinates(loc))node.textContent='تم حفظ موقعك على هذا الجهاز. المتاجر ذات المواقع المسجلة مرتبة حسب المسافة الفعلية.';
+      else if(loc?.source==='map'&&locationHasCoordinates(loc))node.textContent='تم اختيار موقعك على الخريطة. المتاجر ذات المواقع المسجلة مرتبة حسب المسافة الفعلية.';
+      else if(loc?.city)node.textContent='الموقع المختار: '+[loc.city,loc.area].filter(Boolean).join(' — ')+'. الترتيب حسب المنطقة، والمسافة الدقيقة تحتاج تحديد الموقع الجغرافي.';
+      else node.textContent='حدّد موقعك الحالي أو اختر نقطة من الخريطة لعرض المتاجر الأقرب.';
+    }
     const btn=$('homeLocationBtn');if(btn)btn.textContent=loc?.source==='gps'?'تحديث موقعي':'تحديد موقعي';
+    const clearBtn=$('homeLocationClearBtn');
+    if(clearBtn)clearBtn.classList.toggle('hidden',!(loc?.source==='map'||loc?.source==='area'));
   }
   function updateDistancesInPlace(){
     document.querySelectorAll('[data-store-distance]').forEach(node=>{
@@ -451,20 +466,150 @@
   };
   window.requestSareeLocation=function(force=true){
     const state=window.__sareeLocation;
-    if(!force&&state?.source==='gps'&&state.lat!=null&&state.lng!=null){updateLocationStatus();renderHomeNearbyStores();updateDistancesInPlace();return Promise.resolve(true);}
-    if(!navigator.geolocation){updateLocationStatus();return Promise.resolve(false);}
-    state.requested=true;const node=$('homeLocationStatus');if(node)node.textContent='جارٍ تحديد موقعك...';
-    return new Promise(resolve=>navigator.geolocation.getCurrentPosition(pos=>{
-      state.lat=pos.coords.latitude;state.lng=pos.coords.longitude;state.city='';state.area='';state.ready=true;state.source='gps';state.requested=false;saveLocation();
-      updateLocationStatus();renderHomeNearbyStores();updateDistancesInPlace();if(typeof window.renderStores==='function'&&$('stores')?.classList.contains('active'))window.renderStores();resolve(true);
-    },err=>{
-      state.requested=false;if(node)node.textContent=err.code===1?'لم يتم السماح بالموقع. اختر المدينة والمنطقة يدويًا.':'تعذر تحديد الموقع الآن. يمكنك اختيار منطقتك يدويًا.';
-      resolve(false);
-    },{enableHighAccuracy:true,timeout:15000,maximumAge:300000}));
+    if(!force&&state?.source==='gps'&&locationHasCoordinates(state)){updateLocationStatus();renderHomeNearbyStores();updateDistancesInPlace();return Promise.resolve(true);}
+    if(state.requested)return Promise.resolve(false);
+    if(!navigator.geolocation){
+      const node=$('homeLocationStatus');if(node)node.textContent='تحديد الموقع غير مدعوم في هذا الجهاز. استخدم الخريطة لاختيار موقعك يدويًا.';
+      return Promise.resolve(false);
+    }
+    if(window.isSecureContext===false&&location.hostname!=='localhost'&&location.hostname!=='127.0.0.1'){
+      const node=$('homeLocationStatus');if(node)node.textContent='يحتاج تحديد موقع الهاتف إلى فتح الموقع عبر HTTPS. يمكنك اختيار موقعك على الخريطة بدلًا من ذلك.';
+      return Promise.resolve(false);
+    }
+    state.requested=true;
+    const status=$('homeLocationStatus'),btn=$('homeLocationBtn'),iconBtn=$('homeNearbyLocateIcon');
+    if(status)status.textContent='جارٍ تحديد موقعك من الهاتف...';
+    [btn,iconBtn].filter(Boolean).forEach(x=>{x.disabled=true;x.setAttribute('aria-busy','true');});
+    const finish=()=>[btn,iconBtn].filter(Boolean).forEach(x=>{x.disabled=false;x.removeAttribute('aria-busy');});
+    return new Promise(resolve=>{
+      try{
+        navigator.geolocation.getCurrentPosition(pos=>{
+          state.lat=Number(pos.coords.latitude);state.lng=Number(pos.coords.longitude);state.city='';state.area='';state.ready=true;state.source='gps';state.requested=false;
+          if($('homeLocationCity'))$('homeLocationCity').value='';if($('homeLocationArea'))$('homeLocationArea').value='';
+          homeNearbyVisibleCount=HOME_NEARBY_BATCH_SIZE;saveLocation();finish();updateLocationStatus();renderHomeNearbyStores();updateDistancesInPlace();
+          if(typeof window.renderStores==='function'&&$('stores')?.classList.contains('active'))window.renderStores();
+          resolve(true);
+        },err=>{
+          state.requested=false;finish();
+          if(status){
+            if(err?.code===1)status.textContent='لم يُسمح بالوصول إلى موقع الهاتف. اسمح للموقع باستخدام الموقع أو اختر نقطة على الخريطة.';
+            else if(err?.code===3)status.textContent='انتهت مهلة تحديد الموقع. جرّب مرة أخرى أو اختر موقعك على الخريطة.';
+            else status.textContent='تعذر تحديد موقع الهاتف. تحقق من إعدادات GPS أو اختر موقعك على الخريطة.';
+          }
+          resolve(false);
+        },{enableHighAccuracy:true,timeout:20000,maximumAge:force?0:300000});
+      }catch(err){
+        state.requested=false;finish();if(status)status.textContent='تعذر بدء تحديد الموقع. استخدم الخريطة لاختيار موقعك يدويًا.';console.warn('geolocation:',err);resolve(false);
+      }
+    });
   };
+
+  function mapDefaultView(){
+    const loc=window.__sareeLocation;
+    if(locationHasCoordinates(loc))return {center:[Number(loc.lat),Number(loc.lng)],zoom:14};
+    if(loc?.city){
+      const matching=(stores||[]).filter(st=>hasCoords(st)&&String(st.city||'').trim()===String(loc.city).trim()&&(!loc.area||String(st.area||'').trim()===String(loc.area).trim()));
+      if(matching.length){return {center:[matching.reduce((n,s)=>n+Number(s.latitude),0)/matching.length,matching.reduce((n,s)=>n+Number(s.longitude),0)/matching.length],zoom:13};}
+    }
+    return {center:[35,38.5],zoom:6};
+  }
+  function loadHomeLocationLeaflet(){
+    if(window.L)return Promise.resolve(window.L);
+    if(homeLocationLeafletPromise)return homeLocationLeafletPromise;
+    homeLocationLeafletPromise=new Promise((resolve,reject)=>{
+      if(!document.getElementById('saree-leaflet-css')){
+        const css=document.createElement('link');css.id='saree-leaflet-css';css.rel='stylesheet';css.href='https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css';document.head.appendChild(css);
+      }
+      const script=document.createElement('script');script.src='https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js';script.async=true;
+      script.onload=()=>window.L?resolve(window.L):reject(new Error('Leaflet library did not initialize'));
+      script.onerror=()=>reject(new Error('Could not load map library'));
+      document.head.appendChild(script);
+    }).catch(err=>{homeLocationLeafletPromise=null;throw err;});
+    return homeLocationLeafletPromise;
+  }
+  function ensureHomeLocationMapDialog(){
+    let modal=$('homeLocationMapModal');if(modal)return modal;
+    modal=document.createElement('div');modal.id='homeLocationMapModal';modal.className='homeLocationMapModal hidden';modal.setAttribute('role','dialog');modal.setAttribute('aria-modal','true');modal.setAttribute('aria-labelledby','homeLocationMapTitle');
+    modal.innerHTML=`<div class="homeLocationMapDialog"><div class="homeLocationMapHeader"><div><h3 id="homeLocationMapTitle">اختر موقعك على الخريطة</h3><p>قرّب الخريطة ثم اضغط على النقطة التي تريد اعتمادها.</p></div><button type="button" id="homeLocationMapClose" class="homeLocationMapClose" aria-label="إغلاق">×</button></div><p id="homeLocationMapStatus" class="homeLocationMapStatus" aria-live="polite">جارٍ تحميل الخريطة...</p><div id="homeLocationMapCanvas" class="homeLocationMapCanvas"></div><div id="homeLocationMapFallback" class="homeLocationMapFallback hidden"><p>تعذر تحميل الخريطة. يمكنك إدخال إحداثيات الموقع يدويًا مؤقتًا.</p><div class="homeLocationMapCoordsInputs"><input id="homeMapLatitude" type="number" step="any" min="-90" max="90" placeholder="خط العرض Latitude" aria-label="خط العرض"><input id="homeMapLongitude" type="number" step="any" min="-180" max="180" placeholder="خط الطول Longitude" aria-label="خط الطول"></div></div><p id="homeLocationMapCoords" class="homeLocationMapCoords">لم يتم اختيار نقطة بعد.</p><div class="homeLocationMapActions"><button type="button" id="homeLocationMapClearPoint" class="btn secondary">مسح النقطة</button><button type="button" id="homeLocationMapCancel" class="btn secondary">إلغاء</button><button type="button" id="homeLocationMapApply" class="btn primary" disabled>اعتماد هذا الموقع</button></div><div class="homeLocationMapAttribution">الخرائط © OpenStreetMap</div></div>`;
+    document.body.appendChild(modal);
+    const close=()=>{modal.classList.add('hidden');};
+    $('homeLocationMapClose')?.addEventListener('click',close);$('homeLocationMapCancel')?.addEventListener('click',close);
+    modal.addEventListener('click',e=>{if(e.target===modal)close();});
+    const validateFallbackCoords=()=>{
+      const lat=String($('homeMapLatitude')?.value??'').trim(),lng=String($('homeMapLongitude')?.value??'').trim();
+      const valid=lat!==''&&lng!==''&&validCoordinates(lat,lng);
+      const applyBtn=$('homeLocationMapApply');if(applyBtn&&fallbackVisible())applyBtn.disabled=!valid;
+      if(valid){const coords=$('homeLocationMapCoords');if(coords)coords.textContent=`الموقع المدخل: ${Number(lat).toFixed(6)}, ${Number(lng).toFixed(6)}`;}
+    };
+    const fallbackVisible=()=>!!($('homeLocationMapFallback')&&!$('homeLocationMapFallback').classList.contains('hidden'));
+    $('homeMapLatitude')?.addEventListener('input',validateFallbackCoords);$('homeMapLongitude')?.addEventListener('input',validateFallbackCoords);
+    $('homeLocationMapClearPoint')?.addEventListener('click',()=>{
+      homeLocationPickedCoords=null;if(homeLocationMarker&&homeLocationMap){homeLocationMap.removeLayer(homeLocationMarker);homeLocationMarker=null;}
+      const coords=$('homeLocationMapCoords');if(coords)coords.textContent='لم يتم اختيار نقطة بعد.';
+      if($('homeLocationMapApply'))$('homeLocationMapApply').disabled=true;
+      if($('homeMapLatitude'))$('homeMapLatitude').value='';if($('homeMapLongitude'))$('homeMapLongitude').value='';
+    });
+    $('homeLocationMapApply')?.addEventListener('click',()=>{
+      let point=homeLocationPickedCoords;
+      if($('homeLocationMapFallback')&&!$('homeLocationMapFallback').classList.contains('hidden')){
+        const lat=String($('homeMapLatitude')?.value??'').trim(),lng=String($('homeMapLongitude')?.value??'').trim();
+        if(lat===''||lng===''||!validCoordinates(lat,lng)){const s=$('homeLocationMapStatus');if(s)s.textContent='أدخل خط العرض وخط الطول بشكل صحيح.';return;}
+        point={lat:Number(lat),lng:Number(lng)};
+      }
+      if(!point||!validCoordinates(point.lat,point.lng)){const s=$('homeLocationMapStatus');if(s)s.textContent='اضغط على الخريطة لاختيار موقع أولًا.';return;}
+      const state=window.__sareeLocation;state.lat=Number(point.lat);state.lng=Number(point.lng);state.city='';state.area='';state.ready=true;state.source='map';state.requested=false;
+      try{saveLocation();}catch(_){}
+      homeNearbyVisibleCount=HOME_NEARBY_BATCH_SIZE;
+      const citySel=$('homeLocationCity'),areaSel=$('homeLocationArea');if(citySel)citySel.value='';if(areaSel)areaSel.value='';
+      modal.classList.add('hidden');updateLocationStatus();renderHomeNearbyStores();updateDistancesInPlace();
+      if(typeof window.renderStores==='function'&&$('stores')?.classList.contains('active'))window.renderStores();
+    });
+    return modal;
+  }
+  async function openHomeLocationMap(){
+    const modal=ensureHomeLocationMapDialog();modal.classList.remove('hidden');
+    const status=$('homeLocationMapStatus'),canvas=$('homeLocationMapCanvas'),fallback=$('homeLocationMapFallback'),apply=$('homeLocationMapApply');
+    if(status)status.textContent='جارٍ تحميل الخريطة...';if(canvas)canvas.classList.remove('hidden');if(fallback)fallback.classList.add('hidden');if(apply)apply.disabled=!locationHasCoordinates(window.__sareeLocation);
+    if($('homeMapLatitude'))$('homeMapLatitude').value='';if($('homeMapLongitude'))$('homeMapLongitude').value='';
+    const initial=mapDefaultView();
+    homeLocationPickedCoords=locationHasCoordinates(window.__sareeLocation)?{lat:Number(window.__sareeLocation.lat),lng:Number(window.__sareeLocation.lng)}:null;
+    if(homeLocationPickedCoords){const c=$('homeLocationMapCoords');if(c)c.textContent=`الموقع المحدد: ${homeLocationPickedCoords.lat.toFixed(6)}, ${homeLocationPickedCoords.lng.toFixed(6)}`;}
+    else{const c=$('homeLocationMapCoords');if(c)c.textContent='لم يتم اختيار نقطة بعد.';}
+    try{
+      const L=await loadHomeLocationLeaflet();
+      if(modal.classList.contains('hidden'))return;
+      if(!homeLocationMap){
+        homeLocationMap=L.map('homeLocationMapCanvas',{zoomControl:true,scrollWheelZoom:true}).setView(initial.center,initial.zoom);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap contributors'}).addTo(homeLocationMap);
+        homeLocationMap.on('click',event=>{
+          homeLocationPickedCoords={lat:Number(event.latlng.lat),lng:Number(event.latlng.lng)};
+          if(homeLocationMarker)homeLocationMarker.setLatLng(event.latlng);else homeLocationMarker=L.marker(event.latlng).addTo(homeLocationMap);
+          const coords=$('homeLocationMapCoords');if(coords)coords.textContent=`الموقع المحدد: ${homeLocationPickedCoords.lat.toFixed(6)}, ${homeLocationPickedCoords.lng.toFixed(6)}`;
+          const confirmBtn=$('homeLocationMapApply');if(confirmBtn)confirmBtn.disabled=false;
+          const msg=$('homeLocationMapStatus');if(msg)msg.textContent='اضغط «اعتماد هذا الموقع» لحفظ النقطة المحددة.';
+        });
+      }
+      homeLocationMap.setView(initial.center,initial.zoom);
+      if(homeLocationMarker){homeLocationMap.removeLayer(homeLocationMarker);homeLocationMarker=null;}
+      if(homeLocationPickedCoords){homeLocationMarker=L.marker([homeLocationPickedCoords.lat,homeLocationPickedCoords.lng]).addTo(homeLocationMap);if(apply)apply.disabled=false;}else if(apply)apply.disabled=true;
+      if(status)status.textContent='قرّب الخريطة واضغط على أي مكان لاختيار نقطة جديدة.';
+      setTimeout(()=>{try{homeLocationMap?.invalidateSize();}catch(_){}},100);
+    }catch(err){
+      console.warn('map load:',err);if(canvas)canvas.classList.add('hidden');if(fallback)fallback.classList.remove('hidden');
+      const msg=$('homeLocationMapStatus');if(msg)msg.textContent='لم نتمكن من تحميل الخريطة. تحقق من الاتصال أو أدخل الإحداثيات يدويًا.';
+      if(homeLocationPickedCoords){if($('homeMapLatitude'))$('homeMapLatitude').value=homeLocationPickedCoords.lat;if($('homeMapLongitude'))$('homeMapLongitude').value=homeLocationPickedCoords.lng;if(apply)apply.disabled=false;}else if(apply)apply.disabled=true;
+    }
+  }
+  function clearManualLocation(){
+    const state=window.__sareeLocation;state.lat=null;state.lng=null;state.city='';state.area='';state.ready=false;state.source=null;state.requested=false;
+    try{localStorage.removeItem(SAREE_LOCATION_KEY);}catch(err){console.warn('clear saved visitor location:',err);}
+    homeNearbyVisibleCount=HOME_NEARBY_BATCH_SIZE;
+    const citySel=$('homeLocationCity'),areaSel=$('homeLocationArea');if(citySel)citySel.value='';if(areaSel)areaSel.value='';
+    updateLocationStatus();renderHomeNearbyStores();updateDistancesInPlace();
+  }
   function setupHomeLocationControls(){
     const citySel=$('homeLocationCity'),areaSel=$('homeLocationArea');if(!citySel||!areaSel)return;
-    const rows=(stores||[]),cities=[...new Set(rows.map(st=>String(st.city||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ar'));
+    const rows=Array.isArray(stores)?stores:[],cities=[...new Set(rows.map(st=>String(st.city||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ar'));
     const oldCity=citySel.value||window.__sareeLocation.city||'';
     citySel.innerHTML='<option value="">اختر المدينة يدويًا</option>'+cities.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
     citySel.value=cities.includes(oldCity)?oldCity:'';
@@ -474,32 +619,50 @@
       areaSel.innerHTML='<option value="">كل مناطق المدينة</option>'+areas.map(a=>`<option value="${esc(a)}">${esc(a)}</option>`).join('');
       areaSel.value=areas.includes(oldArea)?oldArea:'';
     }
-    citySel.onchange=()=>{syncAreas()};syncAreas();
+    citySel.onchange=()=>syncAreas();syncAreas();
     const savedCity=window.__sareeLocation.city||'',savedArea=window.__sareeLocation.area||'';
     if(savedCity&&cities.includes(savedCity)){citySel.value=savedCity;syncAreas();if(savedArea)areaSel.value=savedArea;}
     if($('homeLocationBtn')&&!$('homeLocationBtn').dataset.locationBound){$('homeLocationBtn').dataset.locationBound='1';$('homeLocationBtn').addEventListener('click',()=>window.requestSareeLocation(true));}
+    if($('homeNearbyLocateIcon')&&!$('homeNearbyLocateIcon').dataset.locationBound){$('homeNearbyLocateIcon').dataset.locationBound='1';$('homeNearbyLocateIcon').addEventListener('click',()=>window.requestSareeLocation(true));}
+    if($('homeLocationMapBtn')&&!$('homeLocationMapBtn').dataset.locationBound){$('homeLocationMapBtn').dataset.locationBound='1';$('homeLocationMapBtn').addEventListener('click',openHomeLocationMap);}
+    if($('homeLocationClearBtn')&&!$('homeLocationClearBtn').dataset.locationBound){$('homeLocationClearBtn').dataset.locationBound='1';$('homeLocationClearBtn').addEventListener('click',clearManualLocation);}
     if($('homeLocationSaveBtn')&&!$('homeLocationSaveBtn').dataset.locationBound){$('homeLocationSaveBtn').dataset.locationBound='1';$('homeLocationSaveBtn').addEventListener('click',()=>{
       const city=citySel.value,area=areaSel.value;if(!city){alert('اختر المدينة أولاً.');return;}
-      const state=window.__sareeLocation;state.lat=null;state.lng=null;state.city=city;state.area=area;state.ready=true;state.source='area';state.requested=false;saveLocation();
-      updateLocationStatus();renderHomeNearbyStores();updateDistancesInPlace();if(typeof window.renderStores==='function'&&$('stores')?.classList.contains('active'))window.renderStores();
+      const state=window.__sareeLocation;state.lat=null;state.lng=null;state.city=city;state.area=area;state.ready=true;state.source='area';state.requested=false;
+      homeNearbyVisibleCount=HOME_NEARBY_BATCH_SIZE;saveLocation();updateLocationStatus();renderHomeNearbyStores();updateDistancesInPlace();
+      if(typeof window.renderStores==='function'&&$('stores')?.classList.contains('active'))window.renderStores();
+    });}
+    if($('homeNearbyMoreBtn')&&!$('homeNearbyMoreBtn').dataset.locationBound){$('homeNearbyMoreBtn').dataset.locationBound='1';$('homeNearbyMoreBtn').addEventListener('click',()=>{
+      const sorted=sortStoresByProximity(Array.isArray(stores)?stores:[]);
+      homeNearbyVisibleCount=homeNearbyVisibleCount>=sorted.length?HOME_NEARBY_BATCH_SIZE:Math.min(sorted.length,homeNearbyVisibleCount+HOME_NEARBY_BATCH_SIZE);
+      renderHomeNearbyStores();
     });}
     if($('homeAllStoresBtn')&&!$('homeAllStoresBtn').dataset.locationBound){$('homeAllStoresBtn').dataset.locationBound='1';$('homeAllStoresBtn').addEventListener('click',()=>window.openNav?window.openNav('stores'):window.show('stores'));}
     updateLocationStatus();
   }
   function renderHomeNearbyStores(){
     const box=$('homeNearbyStores');if(!box)return;
-    const all=Array.isArray(stores)?stores:[],sorted=sortStoresByProximity(all).slice(0,4),loc=window.__sareeLocation;
-    if(!all.length){box.innerHTML='<div class="homeNearbyEmpty">ستظهر المتاجر هنا عند توفرها.</div>';return;}
-    if(!loc?.ready||((loc.lat==null||loc.lng==null)&&!loc.city)){
-      box.innerHTML='<div class="homeNearbyEmpty homeNearbyEmptyCompact"><p>اختر موقعك من الخيارات أعلاه لعرض المتاجر الأقرب إليك.</p></div>';
-      return;
+    const all=Array.isArray(stores)?stores:[],sorted=sortStoresByProximity(all),loc=window.__sareeLocation;
+    const footer=document.querySelector('#home .homeNearbyFooter'),moreBtn=$('homeNearbyMoreBtn');
+    if(!all.length){box.innerHTML='<div class="homeNearbyEmpty">ستظهر المتاجر هنا عند توفرها.</div>';if(moreBtn)moreBtn.classList.add('hidden');if(footer)footer.classList.add('hidden');return;}
+    if(!loc?.ready||(!locationHasCoordinates(loc)&&!loc.city)){
+      box.innerHTML='<div class="homeNearbyEmpty homeNearbyEmptyCompact"><p>حدّد موقعك الحالي أو اختر نقطة على الخريطة لعرض المتاجر الأقرب إليك.</p></div>';
+      if(moreBtn)moreBtn.classList.add('hidden');if(footer)footer.classList.remove('hidden');return;
     }
-    box.innerHTML=sorted.map(st=>{
+    const visible=sorted.slice(0,Math.max(HOME_NEARBY_BATCH_SIZE,homeNearbyVisibleCount));
+    box.innerHTML=visible.map(st=>{
       const img=storeImage(st),dist=distanceText(st),company=storeCompany(st);
       const local=!dist&&loc.source==='area'&&localityRank(st)<2?`<span class="homeNearDistance">${localityRank(st)===0?'في منطقتك':'في مدينتك'}</span>`:'';
       return `<article class="homeNearCard"><button type="button" class="homeNearMain" data-home-store-open="${esc(st.id)}">${img?`<img class="homeNearImage" src="${esc(img)}" alt="${esc(st.name||'المتجر')}" loading="lazy">`:'<span class="homeNearImage homeNearPlaceholder" aria-hidden="true">🏪</span>'}<span class="homeNearInfo"><b>${esc(st.name||'متجر')}</b>${company?`<small>${esc(company)}</small>`:''}<small>${esc([st.city,st.area].filter(Boolean).join(' — ')||'الموقع غير مضاف')}</small>${dist?`<span class="homeNearDistance">📍 يبعد ${esc(dist)}</span>`:local}</span></button></article>`;
     }).join('');
     box.querySelectorAll('[data-home-store-open]').forEach(btn=>btn.addEventListener('click',()=>window.openStore?.(btn.dataset.homeStoreOpen)));
+    if(footer)footer.classList.remove('hidden');
+    if(moreBtn){
+      const hasMore=visible.length<sorted.length;
+      moreBtn.classList.toggle('hidden',sorted.length<=HOME_NEARBY_BATCH_SIZE);
+      moreBtn.textContent=hasMore?'المزيد':'عرض أقل';
+      moreBtn.setAttribute('aria-label',hasMore?'عرض المزيد من المتاجر':'عرض ثلاثة متاجر فقط');
+    }
   }
   window.renderHomeNearbyStores=renderHomeNearbyStores;
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',setupHomeLocationControls);else setupHomeLocationControls();

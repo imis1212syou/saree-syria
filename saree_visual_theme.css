@@ -477,7 +477,7 @@ label{color:#55717f}
 #home .homeManualLocation{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto;align-items:center;gap:6px;flex:1;min-width:min(100%,420px)}
 #home .homeManualLocation select{margin:0;min-width:0;min-height:40px;padding:8px;border-radius:10px;background:#fff !important;color:#31596a !important;border-color:#d4e6eb !important;font-size:12px}
 #home .homeManualLocation .btn{min-height:40px;padding:8px 10px;font-size:12px;white-space:nowrap}
-#home .homeNearbyGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+#home .homeNearbyGrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
 #home .homeNearCard{padding:0;overflow:hidden;border-radius:17px;background:#fff;border:1px solid #dceaf0;box-shadow:0 8px 21px rgba(34,91,113,.06);min-width:0;transition:transform .2s,box-shadow .2s}
 #home .homeNearCard:hover{transform:translateY(-2px);box-shadow:0 13px 28px rgba(34,91,113,.11)}
 #home .homeNearMain{display:flex;flex-direction:column;width:100%;height:100%;padding:0;border:0;background:transparent;text-align:right;cursor:pointer;color:inherit;min-width:0}
@@ -505,7 +505,7 @@ label{color:#55717f}
 @media(max-width:760px){
   #home .homeNearbySection{margin:12px 0 16px}
   #home .homeSectionTitle{margin-bottom:8px;gap:8px}
-  #home .homeNearbyGrid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  #home .homeNearbyGrid{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
   #home .homeNearImage{height:105px}
   #home .homeLocationPanel{gap:8px;padding:10px;margin-bottom:8px}
   #home .homeLocationControls{align-items:stretch;gap:7px}
@@ -597,4 +597,73 @@ label{color:#55717f}
   #home .homeStatsGrid{margin-top:10px;margin-bottom:7px;gap:7px}
   #home .homeStatsGrid .stat{min-height:53px;padding:7px 6px;font-size:11px}
   #home .homeStatsGrid .stat b{font-size:19px}
+}
+
+
+/* تحسينات مطلوبة فقط: تحديد الموقع والخريطة وثلاثة متاجر في الصف */
+#home .homeNearbyLocateIcon{appearance:none;-webkit-appearance:none;cursor:pointer;font-family:inherit;padding:0;line-height:1;position:relative;z-index:2}
+#home .homeNearbyLocateIcon:hover{filter:brightness(.97);box-shadow:0 0 0 3px rgba(38,141,157,.12)}
+#home .homeNearbyLocateIcon:focus-visible{outline:3px solid rgba(38,125,180,.35);outline-offset:3px}
+#home .homeNearbyLocateIcon:disabled,#home #homeLocationBtn:disabled{opacity:.65;cursor:wait}
+#home .homeLocationExtraControls{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:2px}
+#home .homeLocationMapBtn,#home .homeLocationClearBtn{appearance:none;-webkit-appearance:none;border:1px solid #cfe3e9;border-radius:9px;background:#fff;color:#326b7c;padding:7px 10px;font:inherit;font-size:11px;line-height:1.45;cursor:pointer}
+#home .homeLocationMapBtn:hover,#home .homeLocationClearBtn:hover{background:#f0fafb;border-color:#add6df}
+#home .homeLocationClearBtn{color:#96534a;border-color:#ead5d0;background:#fffafa}
+#home .homeNearbyFooter{align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap}
+#home .homeNearbyMoreBtn{appearance:none;-webkit-appearance:none;border:1px solid #cfe3eb;border-radius:999px;padding:4px 10px;min-height:26px;background:#f5fbfd;color:#31748b;font:inherit;font-size:10px;line-height:1.3;font-weight:700;cursor:pointer}
+#home .homeNearbyMoreBtn:hover{background:#e9f7fa;border-color:#9ccdd8}
+#home .homeNearbyFooter #homeAllStoresBtn{min-height:32px;padding:6px 10px !important;font-size:11px;box-shadow:none}
+#home .homeNearCard{min-width:0}
+#home .homeNearImage{height:92px}
+#home .homeNearInfo{padding:8px;gap:4px}
+#home .homeNearInfo b{font-size:12px}
+#home .homeNearInfo small{font-size:10px;overflow-wrap:anywhere}
+#home .homeNearDistance{font-size:9px;padding:3px 6px}
+@media(max-width:760px){
+  #home .homeNearbyGrid{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+  #home .homeNearImage{height:76px}
+  #home .homeNearInfo{padding:6px;gap:4px}
+  #home .homeNearInfo b{font-size:11px}
+  #home .homeNearInfo small{font-size:9px;line-height:1.4}
+  #home .homeNearDistance{font-size:8px;padding:3px 5px}
+  #home .homeLocationExtraControls{gap:6px}
+  #home .homeLocationMapBtn,#home .homeLocationClearBtn{padding:6px 8px;font-size:10px}
+  #home .homeNearbyFooter{margin-top:7px;gap:7px}
+  #home .homeNearbyFooter #homeAllStoresBtn{min-height:28px;padding:5px 8px !important;font-size:10px}
+  #home .homeNearbyMoreBtn{min-height:24px;padding:3px 9px;font-size:10px}
+}
+@media(max-width:360px){
+  #home .homeNearbyGrid{gap:4px}
+  #home .homeNearImage{height:65px}
+  #home .homeNearInfo{padding:5px}
+  #home .homeNearInfo b{font-size:10px}
+  #home .homeNearInfo small{font-size:8px}
+  #home .homeNearDistance{font-size:8px}
+}
+.homeLocationMapModal{position:fixed;inset:0;z-index:10050;display:flex;align-items:center;justify-content:center;padding:14px;background:rgba(7,25,35,.68);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px)}
+.homeLocationMapModal.hidden{display:none!important}
+.homeLocationMapDialog{width:min(900px,100%);max-height:calc(100dvh - 28px);overflow:auto;background:#fff;border:1px solid #d5e8ed;border-radius:18px;box-shadow:0 24px 90px rgba(0,0,0,.3);padding:15px;color:#23465a}
+.homeLocationMapHeader{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.homeLocationMapHeader h3{margin:0;color:#174e68;font-size:19px;line-height:1.45}
+.homeLocationMapHeader p{margin:4px 0 0;color:#64808e;font-size:12px;line-height:1.7}
+.homeLocationMapClose{flex:none;width:34px;height:34px;border:1px solid #d9e8ed;border-radius:10px;background:#f8fcfd;color:#315c6f;font-size:25px;line-height:1;cursor:pointer}
+.homeLocationMapStatus{margin:10px 0;padding:8px 10px;background:#f2fafb;border-radius:9px;color:#357386;font-size:12px;line-height:1.6}
+.homeLocationMapCanvas{height:min(56vh,560px);min-height:290px;border:1px solid #d5e6eb;border-radius:13px;overflow:hidden;background:#edf4f6;direction:ltr}
+.homeLocationMapCoords{margin:9px 0;color:#567887;font-size:11px;line-height:1.6;overflow-wrap:anywhere;direction:ltr;text-align:left}
+.homeLocationMapActions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px}
+.homeLocationMapActions .btn{min-height:38px;padding:8px 12px!important;font-size:12px}
+.homeLocationMapActions #homeLocationMapApply{margin-inline-start:auto}
+.homeLocationMapActions button:disabled{opacity:.5;cursor:not-allowed}
+.homeLocationMapAttribution{margin-top:8px;font-size:10px;color:#8297a0;text-align:left;direction:ltr}
+.homeLocationMapFallback{padding:12px;border:1px dashed #d7e7eb;border-radius:12px;background:#f8fcfd}
+.homeLocationMapFallback p{margin:0 0 8px;font-size:12px;color:#567887}
+.homeLocationMapCoordsInputs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.homeLocationMapCoordsInputs input{min-width:0;width:100%;margin:0;padding:10px;border:1px solid #d2e4e9;border-radius:9px;font-size:13px;direction:ltr}
+@media(max-width:520px){
+  .homeLocationMapModal{padding:7px}
+  .homeLocationMapDialog{padding:11px;border-radius:14px;max-height:calc(100dvh - 14px)}
+  .homeLocationMapHeader h3{font-size:16px}
+  .homeLocationMapCanvas{height:48dvh;min-height:260px}
+  .homeLocationMapActions{gap:6px}
+  .homeLocationMapActions .btn{min-height:35px;padding:7px 9px!important;font-size:11px}
 }
