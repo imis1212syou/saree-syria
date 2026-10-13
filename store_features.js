@@ -478,13 +478,15 @@
     modal.dir='rtl';
     modal.style.cssText='position:fixed;inset:0;z-index:200000;display:flex;align-items:flex-end;justify-content:center;background:rgba(0,0,0,.56);padding:0;';
     const initialHelp = errorCode===1
-      ? 'قد يكون إذن الموقع مرفوضًا لهذا الموقع في المتصفح. سنحاول فتح إعدادات الموقع؛ وإذا لم تفتح، راجع أذونات الموقع من معلومات الصفحة بجانب عنوان المتصفح.'
-      : 'اضغط «تفعيل موقعي» لمحاولة فتح إعدادات الموقع في الهاتف. إذا لم تفتح الإعدادات، اسحب من أعلى الشاشة وافتح لوحة الاختصارات ثم فعّل «الموقع». بعد ذلك ارجع واضغط «تحقق من موقعي».';
+      ? 'لم يتم منح المتصفح إذن الوصول إلى موقعك. اضغط «تفعيل موقعي» لمحاولة طلب الإذن الرسمي من المتصفح. إذا سبق أن رفضت الإذن، فقد تحتاج إلى السماح للموقع يدويًا من أذونات المتصفح.'
+      : errorCode===2
+        ? 'لم يتمكن الهاتف من تحديد موقعك. اضغط «تفعيل موقعي» لإعادة طلب الموقع. إذا كانت خدمة الموقع في الهاتف متوقفة، فلن يستطيع الموقع تشغيلها تلقائيًا.'
+        : 'اضغط «تفعيل موقعي» ليطلب المتصفح الوصول إلى موقع الهاتف. ستظهر نافذة الإذن إذا كان المتصفح قادرًا على طلبه ولم يكن الإذن محظورًا سابقًا.';
     modal.innerHTML=`
       <div style="box-sizing:border-box;width:100%;max-width:560px;background:var(--card-bg,#fff);color:var(--text-color,#152d35);border-radius:22px 22px 0 0;padding:25px 22px calc(24px + env(safe-area-inset-bottom,0px));box-shadow:0 -8px 30px rgba(0,0,0,.22);font-family:inherit">
-        <h2 id="sareeLocationActivationTitle" style="margin:0 0 14px;font-size:25px;line-height:1.4">خدمات الموقع لا تعمل</h2>
+        <h2 id="sareeLocationActivationTitle" style="margin:0 0 14px;font-size:25px;line-height:1.4">السماح بالوصول إلى موقعك</h2>
         <p data-location-help="1" style="margin:0 0 16px;font-size:17px;line-height:1.9">${initialHelp}</p>
-        <p style="margin:0 0 22px;font-size:14px;line-height:1.8;opacity:.8">إذا لم يسمح المتصفح بفتح إعدادات الهاتف، لا يمكن لصفحة الويب تشغيل GPS بنفسها. فعّل «الموقع» من لوحة الاختصارات في الهاتف ثم ارجع إلى هذه النافذة.</p>
+        <p style="margin:0 0 22px;font-size:14px;line-height:1.8;opacity:.8">لن يتم تفعيل الموقع دون موافقتك. إذا كانت خدمة الموقع مطفأة على الجهاز، فقد تحتاج إلى تشغيلها بنفسك؛ صفحة الويب لا تستطيع تشغيلها تلقائيًا.</p>
         <button type="button" data-location-activate="1" style="width:100%;border:0;border-radius:14px;padding:15px 16px;margin:0 0 10px;background:linear-gradient(115deg,#2999cb,#20a68e);color:white;font:inherit;font-weight:700;font-size:17px;cursor:pointer">تفعيل موقعي</button>
         <button type="button" data-location-cancel="1" style="width:100%;border:1px solid #d7e4e8;border-radius:14px;padding:13px 16px;background:transparent;color:inherit;font:inherit;font-size:16px;cursor:pointer">إلغاء</button>
       </div>`;
@@ -492,36 +494,18 @@
     modal.querySelector('[data-location-cancel]')?.addEventListener('click',closeLocationActivationDialog);
     const activateBtn=modal.querySelector('[data-location-activate]');
     activateBtn?.addEventListener('click',()=>{
-      // أول ضغطة تحاول فتح إعدادات أندرويد ولا تعيد طلب GPS فورًا؛ هذا يمنع إغلاق النافذة وظهورها مجددًا مباشرة.
-      if(activateBtn.dataset.retryLocation!=='1'){
-        activateBtn.dataset.retryLocation='1';
-        activateBtn.textContent='تحقق من موقعي';
-        const help=modal.querySelector('[data-location-help]');
-        if(help)help.textContent='تم طلب فتح إعدادات الموقع في الهاتف. إذا ظهرت الإعدادات، فعّل «الموقع» ثم ارجع إلى سعرلي سوريا. إذا لم تفتح، اسحب من أعلى الشاشة وافتح لوحة الاختصارات وفعّل «الموقع». بعد ذلك اضغط «تحقق من موقعي».';
-        if(/Android/i.test(navigator.userAgent)){
-          try{
-            const settingsLink=document.createElement('a');
-            settingsLink.href='intent:#Intent;action=android.settings.LOCATION_SOURCE_SETTINGS;end';
-            settingsLink.target='_blank';
-            settingsLink.rel='noopener';
-            settingsLink.style.display='none';
-            document.body.appendChild(settingsLink);
-            settingsLink.click();
-            settingsLink.remove();
-          }catch(intentError){console.warn('تعذر فتح إعدادات الموقع عبر المتصفح:',intentError);}
-        }
-        return;
-      }
+      // استدعاء Geolocation مباشرةً من نقرة المستخدم حتى يستطيع المتصفح إظهار طلب الإذن الرسمي.
+      // لا نفتح إعدادات النظام ولا رابط intent، ولا نعيد إظهار النافذة فور فشل المحاولة الثانية.
       closeLocationActivationDialog();
       const status=$('homeLocationStatus');
-      if(status)status.textContent='جارٍ إعادة التحقق من موقع الهاتف...';
-      window.requestSareeLocation(true);
+      if(status)status.textContent='جارٍ طلب إذن الوصول إلى موقعك من المتصفح...';
+      window.requestSareeLocation(true, true);
     });
     document.body.appendChild(modal);
     activateBtn?.focus({preventScroll:true});
   }
 
-  window.requestSareeLocation=function(force=true){
+  window.requestSareeLocation=function(force=true,fromActivationDialog=false){
     const state=window.__sareeLocation;
     if(!force&&state?.source==='gps'&&locationHasCoordinates(state)){updateLocationStatus();renderHomeNearbyStores();updateDistancesInPlace();return Promise.resolve(true);}
     if(state.requested)return Promise.resolve(false);
@@ -550,14 +534,19 @@
         },err=>{
           state.requested=false;finish();
           if(status){
-            if(err?.code===1)status.textContent='تعذّر الوصول إلى موقع الهاتف. يمكنك الضغط على «تفعيل موقعي» للمحاولة مجددًا، أو «إلغاء» والمتابعة دون تحديد موقعك.';
-            else if(err?.code===2)status.textContent='خدمة الموقع لم تُرجع موقع الهاتف. يمكنك الضغط على «تفعيل موقعي» للمحاولة مجددًا، أو اختيار موقعك على الخريطة.';
-            else if(err?.code===3)status.textContent='انتهت مهلة تحديد الموقع. يمكنك الضغط على «تفعيل موقعي» للمحاولة مجددًا، أو اختيار موقعك على الخريطة.';
+            if(err?.code===1)status.textContent=fromActivationDialog
+              ? 'لم يسمح المتصفح بالوصول إلى الموقع. إذا سبق أن رفضت الإذن، اسمح به يدويًا من أذونات هذا الموقع في المتصفح ثم جرّب مجددًا.'
+              : 'تعذّر الوصول إلى موقع الهاتف. اضغط «تفعيل موقعي» لطلب الإذن من المتصفح، أو اختر موقعك على الخريطة.';
+            else if(err?.code===2)status.textContent=fromActivationDialog
+              ? 'لم يتمكن الهاتف من تحديد الموقع. تأكد أن خدمة الموقع مفعّلة على الجهاز، ثم اضغط «تحديث موقعي» للمحاولة مجددًا أو اختر موقعك على الخريطة.'
+              : 'خدمة الموقع لم تُرجع موقع الهاتف. اضغط «تفعيل موقعي» للمحاولة مجددًا، أو اختر موقعك على الخريطة.';
+            else if(err?.code===3)status.textContent=fromActivationDialog
+              ? 'انتهت مهلة تحديد الموقع. حاول مجددًا أو اختر موقعك على الخريطة.'
+              : 'انتهت مهلة تحديد الموقع. يمكنك الضغط على «تفعيل موقعي» للمحاولة مجددًا، أو اختيار موقعك على الخريطة.';
             else status.textContent='تعذّر تحديد موقع الهاتف. يمكنك المحاولة مجددًا أو اختيار موقعك على الخريطة.';
           }
-          // اعرض نافذة داخل الموقع عند أي فشل في طلب تحديد الموقع، بما فيه رفض الإذن.
-          // زر «تفعيل موقعي» يعيد محاولة الطلب دون فتح إعدادات الهاتف.
-          showLocationActivationDialog(err?.code||0);
+          // لا تعِد فتح النافذة مباشرة بعد المحاولة من داخلها؛ فهذا كان يجعلها تغلق وتظهر فورًا.
+          if(!fromActivationDialog)showLocationActivationDialog(err?.code||0);
           resolve(false);
         },{enableHighAccuracy:true,timeout:20000,maximumAge:force?0:300000});
       }catch(err){
