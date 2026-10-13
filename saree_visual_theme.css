@@ -667,3 +667,59 @@ label{color:#55717f}
   .homeLocationMapActions{gap:6px}
   .homeLocationMapActions .btn{min-height:35px;padding:7px 9px!important;font-size:11px}
 }
+
+
+/* تعديل محدد: إظهار زر المزيد بوضوح وتكبير كتابة عرض جميع المتاجر قليلًا */
+#home .homeNearbyFooter{justify-content:space-between;gap:8px}
+#home .homeNearbyMoreBtn{min-height:34px;padding:7px 13px;font-size:12px;white-space:nowrap}
+#home .homeNearbyFooter #homeAllStoresBtn{min-height:36px;padding:7px 12px !important;font-size:13.5px;white-space:nowrap}
+@media(max-width:760px){
+  #home .homeNearbyFooter{justify-content:space-between;gap:7px}
+  #home .homeNearbyMoreBtn{min-height:32px;padding:6px 11px;font-size:12px}
+  #home .homeNearbyFooter #homeAllStoresBtn{min-height:34px;padding:6px 10px !important;font-size:13px}
+}
+
+
+/* تصغير صف الشعار وأزرار الرأس على الهواتف فقط، دون تغيير الوظائف أو نسخة الكمبيوتر */
+@media (max-width:650px){
+  .top{
+    display:grid !important;
+    grid-template-columns:minmax(0,1.15fr) repeat(3,minmax(0,.9fr));
+    align-items:center;
+    gap:6px;
+    padding:8px;
+    margin-bottom:10px;
+  }
+  .top > div:first-child{min-width:0}
+  .top .logo{
+    font-size:19px !important;
+    line-height:1.08;
+    gap:5px;
+  }
+  .top .logo:before{width:27px;height:27px}
+  .top .verse{
+    display:block;
+    margin-top:3px;
+    font-size:10px !important;
+    line-height:1.3;
+    transform:none;
+  }
+  .top .status{font-size:10px !important;line-height:1.3}
+  .top > button{
+    display:flex !important;
+    align-items:center;
+    justify-content:center;
+    width:100%;
+    min-width:0 !important;
+    max-width:100%;
+    min-height:68px !important;
+    margin:0 !important;
+    padding:7px 4px !important;
+    font-size:clamp(11px,3vw,12.5px) !important;
+    line-height:1.3 !important;
+    text-align:center;
+    white-space:normal;
+    overflow-wrap:normal;
+    word-break:normal;
+  }
+}
