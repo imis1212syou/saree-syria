@@ -612,7 +612,7 @@ label{color:#55717f}
 #home .homeNearbyFooter{align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap}
 #home .homeNearbyMoreBtn{appearance:none;-webkit-appearance:none;border:1px solid #cfe3eb;border-radius:999px;padding:4px 10px;min-height:26px;background:#f5fbfd;color:#31748b;font:inherit;font-size:10px;line-height:1.3;font-weight:700;cursor:pointer}
 #home .homeNearbyMoreBtn:hover{background:#e9f7fa;border-color:#9ccdd8}
-#home .homeNearbyFooter #homeAllStoresBtn{min-height:32px;padding:6px 10px !important;font-size:11px;box-shadow:none}
+#home .homeNearbyFooter #homeAllStoresBtn{min-height:32px;padding:6px 10px !important;font-size:12px;box-shadow:none}
 #home .homeNearCard{min-width:0}
 #home .homeNearImage{height:92px}
 #home .homeNearInfo{padding:8px;gap:4px}
@@ -629,7 +629,7 @@ label{color:#55717f}
   #home .homeLocationExtraControls{gap:6px}
   #home .homeLocationMapBtn,#home .homeLocationClearBtn{padding:6px 8px;font-size:10px}
   #home .homeNearbyFooter{margin-top:7px;gap:7px}
-  #home .homeNearbyFooter #homeAllStoresBtn{min-height:28px;padding:5px 8px !important;font-size:10px}
+  #home .homeNearbyFooter #homeAllStoresBtn{min-height:28px;padding:5px 8px !important;font-size:11.5px}
   #home .homeNearbyMoreBtn{min-height:24px;padding:3px 9px;font-size:10px}
 }
 @media(max-width:360px){

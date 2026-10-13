@@ -492,9 +492,10 @@
         },err=>{
           state.requested=false;finish();
           if(status){
-            if(err?.code===1)status.textContent='لم يُسمح بالوصول إلى موقع الهاتف. اسمح للموقع باستخدام الموقع أو اختر نقطة على الخريطة.';
-            else if(err?.code===3)status.textContent='انتهت مهلة تحديد الموقع. جرّب مرة أخرى أو اختر موقعك على الخريطة.';
-            else status.textContent='تعذر تحديد موقع الهاتف. تحقق من إعدادات GPS أو اختر موقعك على الخريطة.';
+            if(err?.code===1)status.textContent='إذن الموقع مرفوض لهذا الموقع. اسمح لمتصفحك بالوصول إلى الموقع من إعدادات الموقع، ثم اضغط «تحديد موقعي» مجددًا. إذا كان إذن المتصفح مرفوضًا سابقًا فقد تحتاج إلى تغييره يدويًا.';
+            else if(err?.code===2)status.textContent='تعذر الوصول إلى موقع الهاتف. تأكد من تشغيل خدمة الموقع (GPS) في إعدادات الهاتف، ثم اضغط «تحديد موقعي» مجددًا، أو اختر موقعك على الخريطة.';
+            else if(err?.code===3)status.textContent='انتهت مهلة تحديد الموقع. تأكد من تشغيل الموقع في الهاتف، وجرّب مرة أخرى أو اختر موقعك على الخريطة.';
+            else status.textContent='تعذر تحديد موقع الهاتف. تأكد من إذن المتصفح وتشغيل خدمة الموقع في الهاتف، أو اختر موقعك على الخريطة.';
           }
           resolve(false);
         },{enableHighAccuracy:true,timeout:20000,maximumAge:force?0:300000});
@@ -634,8 +635,10 @@
     });}
     if($('homeNearbyMoreBtn')&&!$('homeNearbyMoreBtn').dataset.locationBound){$('homeNearbyMoreBtn').dataset.locationBound='1';$('homeNearbyMoreBtn').addEventListener('click',()=>{
       const sorted=sortStoresByProximity(Array.isArray(stores)?stores:[]);
-      homeNearbyVisibleCount=homeNearbyVisibleCount>=sorted.length?HOME_NEARBY_BATCH_SIZE:Math.min(sorted.length,homeNearbyVisibleCount+HOME_NEARBY_BATCH_SIZE);
-      renderHomeNearbyStores();
+      if(homeNearbyVisibleCount<sorted.length){
+        homeNearbyVisibleCount=Math.min(sorted.length,homeNearbyVisibleCount+HOME_NEARBY_BATCH_SIZE);
+        renderHomeNearbyStores();
+      }
     });}
     if($('homeAllStoresBtn')&&!$('homeAllStoresBtn').dataset.locationBound){$('homeAllStoresBtn').dataset.locationBound='1';$('homeAllStoresBtn').addEventListener('click',()=>window.openNav?window.openNav('stores'):window.show('stores'));}
     updateLocationStatus();
@@ -659,9 +662,9 @@
     if(footer)footer.classList.remove('hidden');
     if(moreBtn){
       const hasMore=visible.length<sorted.length;
-      moreBtn.classList.toggle('hidden',sorted.length<=HOME_NEARBY_BATCH_SIZE);
-      moreBtn.textContent=hasMore?'المزيد':'عرض أقل';
-      moreBtn.setAttribute('aria-label',hasMore?'عرض المزيد من المتاجر':'عرض ثلاثة متاجر فقط');
+      moreBtn.classList.toggle('hidden',!hasMore);
+      moreBtn.textContent='المزيد';
+      moreBtn.setAttribute('aria-label','عرض المزيد من المتاجر القريبة');
     }
   }
   window.renderHomeNearbyStores=renderHomeNearbyStores;
@@ -872,12 +875,12 @@
   window.openStoreMaterialDetails = function(storeId,productId){
     const item=storeMaterialDetails.get(`${String(storeId)}:${String(productId)}`);
     if(!item)return alert('تعذر العثور على تفاصيل هذه المادة. أعد فتح صفحة المتجر.');
-    const {row,store}=item;const p=row.products||{};const wa=storeWhatsapp(store);const canEdit=canManageStore(storeId);
+    const {row,store}=item;const p=row.products||{};const canEdit=canManageStore(storeId);
     const hasCart=Boolean(store && window.sareeStoreWhatsappOrdersEnabled?.(store) && typeof window.sareeCartAdd==='function' && p.id);
     ensureStoreMaterialDetailsCss();
     const existing=document.getElementById('storeMaterialDetailsModal');existing?.remove();
     const modal=document.createElement('div');modal.id='storeMaterialDetailsModal';modal.className='store-material-modal';
-    modal.innerHTML=`<div class="store-material-modal-inner"><div class="row" style="justify-content:space-between;align-items:center"><h2 style="margin:0">${esc(p.name||'تفاصيل المادة')}</h2><button type="button" class="btn secondary" id="storeMaterialDetailsClose">إغلاق</button></div>${p.image_url?`<img class="img" style="height:220px;object-fit:contain" src="${esc(p.image_url)}" alt="${esc(p.name||'مادة')}">`:''}<span class="pill">${esc(p.category||'عام')}</span><div class="muted">${esc(p.brand||'')}${p.brand&&p.unit?' • ':''}${esc(p.unit||'')}</div>${normBarcode(p.barcode||row.barcode||'')?`<div class="muted">الباركود: ${esc(normBarcode(p.barcode||row.barcode||''))}</div>`:''}<div class="price">${fmt(priceNumber(row))} ل.س جديدة</div><div class="old">${priceOld(priceNumber(row))} ل.س قديمة</div>${p.description?`<p class="muted">${esc(p.description)}</p>`:''}<div class="muted">آخر تحديث: ${row.updated_at?esc(new Date(row.updated_at).toLocaleString('ar')):'—'}</div><div class="actions">${hasCart?`<button type="button" class="btn primary" id="storeMaterialDetailCart">إضافة إلى السلة</button>`:''}${wa?`<a class="btn secondary" href="${esc(wa)}" target="_blank" rel="noopener">💬 واتساب المتجر</a>`:''}${canEdit?`<button type="button" class="btn secondary" id="storeMaterialDetailEdit">تعديل المادة</button><button type="button" class="btn danger" id="storeMaterialDetailDelete">حذف المادة</button>`:''}</div></div>`;
+    modal.innerHTML=`<div class="store-material-modal-inner"><div class="row" style="justify-content:space-between;align-items:center"><h2 style="margin:0">${esc(p.name||'تفاصيل المادة')}</h2><button type="button" class="btn secondary" id="storeMaterialDetailsClose">إغلاق</button></div>${p.image_url?`<img class="img" style="height:220px;object-fit:contain" src="${esc(p.image_url)}" alt="${esc(p.name||'مادة')}">`:''}<span class="pill">${esc(p.category||'عام')}</span><div class="muted">${esc(p.brand||'')}${p.brand&&p.unit?' • ':''}${esc(p.unit||'')}</div>${normBarcode(p.barcode||row.barcode||'')?`<div class="muted">الباركود: ${esc(normBarcode(p.barcode||row.barcode||''))}</div>`:''}<div class="price">${fmt(priceNumber(row))} ل.س جديدة</div><div class="old">${priceOld(priceNumber(row))} ل.س قديمة</div>${p.description?`<p class="muted">${esc(p.description)}</p>`:''}<div class="muted">آخر تحديث: ${row.updated_at?esc(new Date(row.updated_at).toLocaleString('ar')):'—'}</div><div class="actions">${hasCart?`<button type="button" class="btn primary" id="storeMaterialDetailCart">إضافة إلى السلة</button>`:''}${canEdit?`<button type="button" class="btn secondary" id="storeMaterialDetailEdit">تعديل المادة</button><button type="button" class="btn danger" id="storeMaterialDetailDelete">حذف المادة</button>`:''}</div></div>`;
     document.body.appendChild(modal);
     modal.querySelector('#storeMaterialDetailsClose').onclick=()=>modal.remove();
     modal.onclick=ev=>{if(ev.target===modal)modal.remove()};
