@@ -483,7 +483,7 @@
     modal.dir='rtl';
     modal.style.cssText='position:fixed;inset:0;z-index:200000;display:flex;align-items:flex-end;justify-content:center;background:rgba(0,0,0,.56);padding:0;';
     const initialHelp = errorCode===1
-      ? 'لم يتم منح إذن الوصول إلى موقعك. يمكنك المحاولة مجددًا ومنح الإذن من نافذة المتصفح إذا ظهرت.'
+      ? 'لم يتم منح إذن الوصول إلى موقعك في المحاولة السابقة. اضغط «تفعيل موقعي» للمحاولة مجددًا. إذا لم تظهر نافذة السماح من المتصفح، فقد يكون الإذن محظورًا في إعدادات المتصفح.'
       : errorCode===2
         ? 'تعذر الحصول على موقعك في المحاولة السابقة. اضغط «تفعيل موقعي» للمحاولة مجددًا.'
         : 'اضغط «تفعيل موقعي» ليطلب المتصفح إذن الوصول إلى موقعك. يمكنك اختيار السماح أو عدم السماح.';
@@ -543,7 +543,7 @@
         },err=>{
           state.requested=false;finish();
           let locationErrorMessage='تعذر الحصول على موقعك. يمكنك المحاولة مجددًا أو اختيار موقعك على الخريطة.';
-          if(err?.code===1)locationErrorMessage='لم يتم منح إذن الوصول إلى موقعك. يمكنك المحاولة مجددًا.';
+          if(err?.code===1)locationErrorMessage='لم يتم منح إذن الوصول إلى موقعك. سيظهر طلب الموقع مجددًا عند اختيار «تحديد موقعي». إذا كان المتصفح قد حظر الإذن، فقد لا يعرض نافذة السماح مرة أخرى.';
           else if(err?.code===2)locationErrorMessage='لم يتمكن المتصفح من الحصول على موقعك هذه المرة. يمكنك المحاولة مجددًا.';
           else if(err?.code===3)locationErrorMessage='استغرق تحديد الموقع وقتًا طويلًا. يمكنك المحاولة مجددًا.';
           if(status)status.textContent=locationErrorMessage;
@@ -560,6 +560,26 @@
       }
     });
   };
+
+  // في كل مرة يختار المستخدم تحديد الموقع، أظهر نافذة الموقع المخصصة ما لم يؤكد المتصفح أن الإذن ممنوح.
+  // إذا كان الإذن غير محسوم أو مرفوضًا، تبقى الخطوة التالية بيد المستخدم عبر «تفعيل موقعي» أو «إلغاء».
+  async function handleHomeLocationRequest(){
+    let permissionState='prompt';
+    try{
+      if(navigator.permissions&&typeof navigator.permissions.query==='function'){
+        const permission=await navigator.permissions.query({name:'geolocation'});
+        permissionState=permission?.state||'prompt';
+      }
+    }catch(_){
+      // بعض المتصفحات لا تدعم الاستعلام عن حالة الإذن؛ في هذه الحالة نعرض النافذة الآمنة أولاً.
+      permissionState='prompt';
+    }
+    if(permissionState==='granted'){
+      window.requestSareeLocation(true);
+      return;
+    }
+    showLocationActivationDialog(permissionState==='denied'?1:0);
+  }
 
   function mapDefaultView(){
     const loc=window.__sareeLocation;
@@ -679,8 +699,8 @@
     citySel.onchange=()=>syncAreas();syncAreas();
     const savedCity=window.__sareeLocation.city||'',savedArea=window.__sareeLocation.area||'';
     if(savedCity&&cities.includes(savedCity)){citySel.value=savedCity;syncAreas();if(savedArea)areaSel.value=savedArea;}
-    if($('homeLocationBtn')&&!$('homeLocationBtn').dataset.locationBound){$('homeLocationBtn').dataset.locationBound='1';$('homeLocationBtn').addEventListener('click',()=>window.requestSareeLocation(true));}
-    if($('homeNearbyLocateIcon')&&!$('homeNearbyLocateIcon').dataset.locationBound){$('homeNearbyLocateIcon').dataset.locationBound='1';$('homeNearbyLocateIcon').addEventListener('click',()=>window.requestSareeLocation(true));}
+    if($('homeLocationBtn')&&!$('homeLocationBtn').dataset.locationBound){$('homeLocationBtn').dataset.locationBound='1';$('homeLocationBtn').addEventListener('click',()=>handleHomeLocationRequest());}
+    if($('homeNearbyLocateIcon')&&!$('homeNearbyLocateIcon').dataset.locationBound){$('homeNearbyLocateIcon').dataset.locationBound='1';$('homeNearbyLocateIcon').addEventListener('click',()=>handleHomeLocationRequest());}
     if($('homeLocationMapBtn')&&!$('homeLocationMapBtn').dataset.locationBound){$('homeLocationMapBtn').dataset.locationBound='1';$('homeLocationMapBtn').addEventListener('click',openHomeLocationMap);}
     if($('homeLocationClearBtn')&&!$('homeLocationClearBtn').dataset.locationBound){$('homeLocationClearBtn').dataset.locationBound='1';$('homeLocationClearBtn').addEventListener('click',clearManualLocation);}
     if($('homeLocationSaveBtn')&&!$('homeLocationSaveBtn').dataset.locationBound){$('homeLocationSaveBtn').dataset.locationBound='1';$('homeLocationSaveBtn').addEventListener('click',()=>{
