@@ -511,11 +511,21 @@
           if(typeof window.renderStores==='function'&&$('stores')?.classList.contains('active'))window.renderStores();
         }else if(nativeLocationControl.error){
           const err=nativeLocationControl.error;
-          if(err.code===1)setLocationActivationMessage('لم يتم تحديد موقعك. اضغط زر طلب الموقع مجددًا واختر السماح إذا أردت مشاركة موقعك.');
-          else if(err.code===2)setLocationActivationMessage('تعذر الحصول على الموقع الآن. يمكنك الضغط على زر طلب الموقع والمحاولة مجددًا.');
+          if(err.code===1){
+            // لا نُبقِ نافذة الموقع مفتوحة بعد رفض المستخدم؛ يمكنه المحاولة مجددًا من الزر الرئيسي.
+            closeLocationActivationDialog();
+            const status=$('homeLocationStatus');
+            if(status)status.textContent='لم يتم السماح بالوصول إلى موقعك هذه المرة. اضغط «تحديد موقعي» للمحاولة مجددًا.';
+          }else if(err.code===2)setLocationActivationMessage('تعذر الحصول على الموقع الآن. تحقق من تشغيل خدمات الموقع، ثم حاول مجددًا.');
           else if(err.code===3)setLocationActivationMessage('استغرق تحديد الموقع وقتًا طويلًا. اضغط زر طلب الموقع للمحاولة مجددًا.');
           else setLocationActivationMessage('تعذر تحديد الموقع الآن. اضغط زر طلب الموقع للمحاولة مجددًا.');
         }
+      });
+      // إغلاق النافذة عند إغلاق المستخدم لطلب المتصفح دون اختيار، مع إبقاء إعادة المحاولة متاحة.
+      nativeLocationControl.addEventListener('promptdismiss',()=>{
+        closeLocationActivationDialog();
+        const status=$('homeLocationStatus');
+        if(status)status.textContent='تم إلغاء طلب الموقع. اضغط «تحديد موقعي» للمحاولة مجددًا.';
       });
     }else{
       // للمتصفحات التي لا تدعم عنصر geolocation الجديد، نستعمل المسار القديم كخيار احتياطي.
@@ -563,11 +573,14 @@
         },err=>{
           state.requested=false;finish();
           let locationErrorMessage='تعذر الحصول على موقعك. يمكنك المحاولة مجددًا أو اختيار موقعك على الخريطة.';
-          if(err?.code===1)locationErrorMessage='لم يتم منح إذن الوصول إلى موقعك. سيظهر طلب الموقع مجددًا عند اختيار «تحديد موقعي». إذا كان المتصفح قد حظر الإذن، فقد لا يعرض نافذة السماح مرة أخرى.';
-          else if(err?.code===2)locationErrorMessage='لم يتمكن المتصفح من الحصول على موقعك هذه المرة. يمكنك المحاولة مجددًا.';
+          if(err?.code===1)locationErrorMessage='لم يتم السماح بالوصول إلى موقعك هذه المرة. اضغط «تحديد موقعي» للمحاولة مجددًا.';
+          else if(err?.code===2)locationErrorMessage='لم يتمكن المتصفح من الحصول على موقعك هذه المرة. تحقق من تشغيل خدمات الموقع ثم حاول مجددًا.';
           else if(err?.code===3)locationErrorMessage='استغرق تحديد الموقع وقتًا طويلًا. يمكنك المحاولة مجددًا.';
           if(status)status.textContent=locationErrorMessage;
-          if(fromActivationDialog)setLocationActivationMessage(locationErrorMessage);
+          if(err?.code===1){
+            // لا نحفظ الرفض ولا نترك نافذة المشروع ظاهرة؛ يعاد فحص الإذن عند المحاولة التالية.
+            closeLocationActivationDialog();
+          }else if(fromActivationDialog)setLocationActivationMessage(locationErrorMessage);
           else showLocationActivationDialog(err?.code||0);
           resolve(false);
         },{enableHighAccuracy:true,timeout:20000,maximumAge:force?0:300000});
@@ -581,8 +594,9 @@
     });
   };
 
-  // في كل مرة يختار المستخدم تحديد الموقع، أظهر نافذة الموقع المخصصة ما لم يؤكد المتصفح أن الإذن ممنوح.
-  // إذا كان الإذن غير محسوم أو مرفوضًا، تبقى الخطوة التالية بيد المستخدم عبر «تفعيل موقعي» أو «إلغاء».
+  // اطلب الموقع مباشرة عند أول محاولة، كي يظهر طلب المتصفح دون نافذة وسيطة من المشروع.
+  // إذا كان الإذن مرفوضًا سابقًا، استخدم عنصر geolocation في المتصفحات الداعمة ليتمكن المستخدم من المحاولة مجددًا.
+  // لا نخزّن حالة الرفض محليًا؛ حالة الإذن الوحيدة المعتمدة هي التي يبلغ عنها المتصفح.
   async function handleHomeLocationRequest(){
     let permissionState='prompt';
     try{
@@ -591,14 +605,14 @@
         permissionState=permission?.state||'prompt';
       }
     }catch(_){
-      // بعض المتصفحات لا تدعم الاستعلام عن حالة الإذن؛ في هذه الحالة نعرض النافذة الآمنة أولاً.
+      // عدم دعم Permissions API لا يمنع محاولة طلب الموقع مباشرة.
       permissionState='prompt';
     }
-    if(permissionState==='granted'){
-      window.requestSareeLocation(true);
+    if(permissionState==='denied'){
+      showLocationActivationDialog(1);
       return;
     }
-    showLocationActivationDialog(permissionState==='denied'?1:0);
+    window.requestSareeLocation(true);
   }
 
   function mapDefaultView(){
