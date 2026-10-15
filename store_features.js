@@ -476,7 +476,7 @@
   function applySareeLocationPosition(pos){
     const coords=pos?.coords;
     if(!coords||!validCoordinates(coords.latitude,coords.longitude)){
-      handleSareeLocationError({code:2},true,('HTMLGeolocationElement' in window));
+      handleSareeLocationError({code:2},true,false);
       return false;
     }
     const state=window.__sareeLocation;
@@ -513,7 +513,8 @@
     modal.setAttribute('aria-labelledby','sareeLocationActivationTitle');
     modal.dir='rtl';
     modal.style.cssText='position:fixed;inset:0;z-index:200000;display:flex;align-items:flex-end;justify-content:center;background:rgba(0,0,0,.56);padding:0;';
-    const nativeControl=('HTMLGeolocationElement' in window);
+    // Use the standard Geolocation API instead of Chrome's experimental
+    // <geolocation> element, whose recovery UI can send the user to Android Settings.
     const initialHelp = errorCode===1
       ? 'لم يتم منح إذن الوصول إلى موقعك بعد. اضغط «تفعيل موقعي» للمحاولة مجددًا.'
       : errorCode===2
@@ -524,39 +525,22 @@
         <h2 id="sareeLocationActivationTitle" style="margin:0 0 14px;font-size:25px;line-height:1.4">السماح بالوصول إلى موقعك</h2>
         <p data-location-help="1" style="margin:0 0 16px;font-size:17px;line-height:1.9">${initialHelp}</p>
         <p style="margin:0 0 22px;font-size:14px;line-height:1.8;opacity:.8">قد يستخدم جهازك خدمات GPS وشبكات Wi‑Fi والإشارات اللاسلكية لتحسين دقة الموقع بحسب إعداداته. يستخدم سعرلي سوريا موقعك لترتيب المتاجر حسب المسافة الفعلية، ولا يبدأ طلب الموقع إلا عند ضغطك «تفعيل موقعي». يمكنك اختيار «لا شكراً» والعودة متى شئت.</p>
-        <geolocation id="sareeLocationGeoControl" aria-label="تفعيل موقعي" accuracymode="precise" style="display:block;width:100%;min-height:54px;box-sizing:border-box;border:0;border-radius:14px;padding:14px 16px;margin:0 0 10px;background:#238f9e;color:#fff;font-family:inherit;font-size:17px;font-weight:700;text-align:center;cursor:pointer">
-          <button type="button" data-location-activate="1" style="width:100%;min-height:54px;box-sizing:border-box;border:0;border-radius:14px;padding:15px 16px;background:linear-gradient(115deg,#2999cb,#20a68e);color:white;font:inherit;font-weight:700;font-size:17px;cursor:pointer">تفعيل موقعي</button>
-        </geolocation>
+        <button type="button" data-location-activate="1" style="width:100%;min-height:54px;box-sizing:border-box;border:0;border-radius:14px;padding:15px 16px;margin:0 0 10px;background:linear-gradient(115deg,#2999cb,#20a68e);color:white;font:inherit;font-weight:700;font-size:17px;cursor:pointer">تفعيل موقعي</button>
         <button type="button" data-location-cancel="1" style="width:100%;border:1px solid #d7e4e8;border-radius:14px;padding:13px 16px;background:transparent;color:inherit;font:inherit;font-size:16px;cursor:pointer">لا شكراً</button>
       </div>`;
     modal.addEventListener('click',ev=>{if(ev.target===modal)closeLocationActivationDialog();});
     modal.querySelector('[data-location-cancel]')?.addEventListener('click',closeLocationActivationDialog);
 
-    const geoControl=modal.querySelector('#sareeLocationGeoControl');
     const activateBtn=modal.querySelector('[data-location-activate]');
-    if(nativeControl&&geoControl){
-      // Chrome 144+: click the browser-controlled element directly so its recovery
-      // flow can handle a previously blocked geolocation permission.
-      geoControl.addEventListener('click',()=>{
-        window.__sareeLocation.requested=true;
-        setLocationActivationMessage('جارٍ طلب موقعك من المتصفح. أكمل الموافقة التي تظهر لك.');
-        const status=$('homeLocationStatus');if(status)status.textContent='جارٍ تحديد موقعك من الهاتف...';
-      });
-      geoControl.addEventListener('location',event=>{
-        const control=event.target||geoControl;
-        if(control.position){applySareeLocationPosition(control.position);return;}
-        handleSareeLocationError(control.error||{code:2},true,true);
-      });
-    }
-    // Older Chrome, Safari/iOS, and other browsers use the standard web API.
-    // This button is shown as the fallback when <geolocation> is unsupported.
+    // Request location through the standard browser API after an explicit tap.
+    // This avoids the experimental HTML <geolocation> element's Android Settings recovery UI.
     activateBtn?.addEventListener('click',()=>{
-      setLocationActivationMessage('جارٍ طلب إذن الوصول إلى موقعك من المتصفح. اختر السماح إذا ظهرت نافذة الإذن.');
+      setLocationActivationMessage('جارٍ طلب إذن الوصول إلى موقعك من المتصفح. اختر «السماح» إذا ظهرت نافذة الإذن.');
       const status=$('homeLocationStatus');if(status)status.textContent='جارٍ طلب إذن الوصول إلى موقعك من المتصفح...';
       window.requestSareeLocation(true,true);
     });
     document.body.appendChild(modal);
-    if(!nativeControl)activateBtn?.focus({preventScroll:true});
+    activateBtn?.focus({preventScroll:true});
   }
 
   window.requestSareeLocation=function(force=true,fromActivationDialog=false){
