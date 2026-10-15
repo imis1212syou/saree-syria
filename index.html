@@ -48,7 +48,7 @@
     <div class="homeSectionTitle"><div><span class="homeSectionKicker">حولك الآن</span><h2 id="homeNearbyTitle">متاجر قريبة منك</h2></div><button type="button" class="homeSectionIcon homeNearbyLocateIcon" id="homeNearbyLocateIcon" aria-label="تحديد موقعي الحالي" title="تحديد موقعي الحالي">⌖</button></div>
     <div class="homeLocationPanel">
       <div class="homeLocationText"><span class="homeLocationPin" aria-hidden="true">📍</span><span id="homeLocationStatus" aria-live="polite">حدّد موقعك لعرض أقرب المتاجر إليك.</span></div>
-      <div class="homeLocationControls"><button class="btn primary" id="homeLocationBtn" type="button" aria-label="تحديد موقعي">تحديد موقعي</button><div class="homeManualLocation"><select id="homeLocationCity" aria-label="اختيار المحافظة أو المدينة"><option value="">اختر المدينة يدويًا</option></select><select id="homeLocationArea" aria-label="اختيار المنطقة"><option value="">كل مناطق المدينة</option></select><button class="btn secondary" id="homeLocationSaveBtn" type="button">حفظ المنطقة</button></div></div>
+      <div class="homeLocationControls"><geolocation class="btn primary homeNativeLocationControl" id="homeLocationBtn" lang="ar" aria-label="تحديد موقعي" title="تحديد موقعي" style="display:block;width:100%;min-height:52px;box-sizing:border-box;background-color:#168f9d;color:#fff;border:0;border-radius:13px;font:inherit;font-weight:700"><button class="btn primary" data-location-fallback type="button" aria-label="تحديد موقعي" style="width:100%;min-height:52px;box-sizing:border-box">تحديد موقعي</button></geolocation><div class="homeManualLocation"><select id="homeLocationCity" aria-label="اختيار المحافظة أو المدينة"><option value="">اختر المدينة يدويًا</option></select><select id="homeLocationArea" aria-label="اختيار المنطقة"><option value="">كل مناطق المدينة</option></select><button class="btn secondary" id="homeLocationSaveBtn" type="button">حفظ المنطقة</button></div></div>
       <div class="homeLocationExtraControls"><button class="homeLocationMapBtn" id="homeLocationMapBtn" type="button">🗺️ اختيار موقع على الخريطة</button><button class="homeLocationClearBtn hidden" id="homeLocationClearBtn" type="button">إلغاء التحديد اليدوي</button></div>
     </div>
     <div id="homeNearbyStores" class="homeNearbyGrid"></div>
@@ -1204,7 +1204,7 @@ supabaseClient.auth.onAuthStateChange((event)=>{
 
 <script src="store_admin_controls.js?v=location-fields-20261012"></script>
 <script src="ads.js?v=admin-video-20261012"></script>
-  <script src="store_features.js?v=location-button-click-fix-20261015-v5"></script>
+  <script src="store_features.js?v=location-retry-native-control-20261015-v6"></script>
 
 
 <script src="saree_all_features.js?v=whatsapp-modal-20261012"></script>

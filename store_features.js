@@ -445,8 +445,10 @@
       else node.textContent='حدّد موقعك الحالي أو اختر نقطة من الخريطة لعرض المتاجر الأقرب.';
     }
     const btn=$('homeLocationBtn');
-    // اسم الزر ثابت كما طلب المستخدم؛ لا نستخدم نص واجهة geolocation الذي يتحكم به المتصفح.
-    if(btn)btn.textContent='تحديد موقعي';
+    // نص عنصر <geolocation> في Chrome تحدده واجهة المتصفح. نحافظ على الزر الاحتياطي داخل العنصر للمتصفحات الأخرى.
+    const fallbackButton=btn?.querySelector('[data-location-fallback]');
+    if(fallbackButton)fallbackButton.textContent='تحديد موقعي';
+    else if(btn&&btn.localName!=='geolocation')btn.textContent='تحديد موقعي';
     const clearBtn=$('homeLocationClearBtn');
     if(clearBtn)clearBtn.classList.toggle('hidden',!(loc?.source==='map'||loc?.source==='area'));
   }
@@ -477,7 +479,7 @@
     return true;
   }
   function locationErrorMessage(err){
-    if(err?.code===1)return 'لم يتم السماح بالوصول إلى موقعك. يمكنك المحاولة مرة أخرى من زر «تحديد موقعي». إذا كان المتصفح يمنع الطلب بعد الرفض، اسمح للموقع من إعدادات أذونات الموقع في المتصفح.';
+    if(err?.code===1)return 'لم يتم السماح بالموقع هذه المرة. اضغط على عنصر الموقع مجددًا واختر السماح. إذا لم يظهر طلب السماح، راجع أذونات الموقع لهذا الموقع في إعدادات المتصفح.';
     if(err?.code===2)return 'تعذر الحصول على الموقع الحالي. إذا كانت خدمة الموقع متوقفة، فعّلها من إعدادات الهاتف ثم أعد المحاولة.';
     if(err?.code===3)return 'استغرق تحديد الموقع وقتًا طويلًا. اضغط «تحديد موقعي» للمحاولة مجددًا.';
     return 'تعذر تحديد موقعك الآن. تحقق من إعدادات الموقع والاتصال ثم حاول مجددًا.';
@@ -489,15 +491,65 @@
     if(status)status.textContent=locationErrorMessage(err);
   }
   function bindHomeLocationButton(){
-    // استمع إلى زر HTML الظاهر نفسه، بدل عنصر <geolocation> ذي النص الذي يفرضه Chrome.
-    const button=$('homeLocationBtn');
-    if(!button||button.dataset.locationBound)return;
-    button.dataset.locationBound='1';
-    button.addEventListener('click',event=>{
+    const control=$('homeLocationBtn');
+    if(!control||control.dataset.locationBound)return;
+    control.dataset.locationBound='1';
+    const status=$('homeLocationStatus');
+    const state=window.__sareeLocation;
+    const nativeSupported=typeof window.HTMLGeolocationElement==='function'&&control instanceof window.HTMLGeolocationElement;
+
+    if(nativeSupported){
+      // واجهة Chrome الأصلية تسمح بإعادة محاولة الإذن من الزر نفسه بعد رفض سابق.
+      // لا نستدعي getCurrentPosition هنا، كي لا نتجاوز مسار الاسترداد الذي يوفره المتصفح.
+      control.addEventListener('click',()=>{
+        if(state)state.requested=true;
+        if(status)status.textContent='جارٍ طلب إذن تحديد الموقع من المتصفح...';
+      });
+      control.addEventListener('location',()=>{
+        if(state)state.requested=false;
+        const error=control.error;
+        const position=control.position;
+        if(position?.coords){
+          applySareeGpsPosition(position);
+        }else{
+          showLocationError(error||{code:2});
+        }
+      });
+      control.addEventListener('promptaction',()=>{
+        if(control.permissionStatus==='denied'){
+          if(state)state.requested=false;
+          if(status)status.textContent='لم يتم السماح بالموقع هذه المرة. اضغط على عنصر الموقع مرة أخرى واختر السماح إذا أردت مشاركة موقعك.';
+        }else if(control.permissionStatus==='granted'){
+          if(status)status.textContent='تم السماح بالوصول إلى الموقع. جارٍ تحديد موقعك...';
+        }
+      });
+      control.addEventListener('promptdismiss',()=>{
+        if(state)state.requested=false;
+        if(status)status.textContent='أُغلق طلب الموقع. اضغط على عنصر الموقع مجددًا للمحاولة مرة أخرى.';
+      });
+      control.addEventListener('validationstatuschange',()=>{
+        if(control.isValid===false){
+          if(state)state.requested=false;
+          if(status)status.textContent='لا يستطيع المتصفح طلب الموقع في هذه الصفحة. افتح الموقع عبر HTTPS ثم أعد المحاولة.';
+        }
+      });
+      if(control.isValid===false&&status){
+        status.textContent='لا يستطيع المتصفح طلب الموقع في هذه الصفحة. افتح الموقع عبر HTTPS ثم أعد المحاولة.';
+      }
+      return;
+    }
+
+    // احتياط للمتصفحات التي لا تدعم <geolocation>: زر HTML عادي وواجهة الموقع التقليدية.
+    const fallback=control.querySelector('[data-location-fallback]')||control;
+    if(fallback.dataset.locationBound)return;
+    fallback.dataset.locationBound='1';
+    fallback.addEventListener('click',event=>{
       event.preventDefault();
+      event.stopPropagation();
       window.requestSareeLocation(true);
     });
   }
+
 
   window.requestSareeLocation=function(force=true){
     const state=window.__sareeLocation;
