@@ -445,12 +445,8 @@
       else node.textContent='حدّد موقعك الحالي أو اختر نقطة من الخريطة لعرض المتاجر الأقرب.';
     }
     const btn=$('homeLocationBtn');
-    if(btn){
-      const label=loc?.source==='gps'?'تحديث موقعي':'تحديد موقعي';
-      const fallback=btn.querySelector?.('[data-location-fallback]');
-      if(fallback)fallback.textContent=label;
-      else if(btn.localName!=='geolocation')btn.textContent=label;
-    }
+    // اسم الزر ثابت كما طلب المستخدم؛ لا نستخدم نص واجهة geolocation الذي يتحكم به المتصفح.
+    if(btn)btn.textContent='تحديد موقعي';
     const clearBtn=$('homeLocationClearBtn');
     if(clearBtn)clearBtn.classList.toggle('hidden',!(loc?.source==='map'||loc?.source==='area'));
   }
@@ -492,35 +488,15 @@
     const status=$('homeLocationStatus');
     if(status)status.textContent=locationErrorMessage(err);
   }
-  function bindNativeHomeGeolocationControl(){
-    const control=$('homeLocationBtn');
-    if(!control||control.dataset.locationBound)return;
-    control.dataset.locationBound='1';
-    const supported=typeof window.HTMLGeolocationElement==='function'&&control instanceof window.HTMLGeolocationElement;
-    if(supported){
-      // عنصر المتصفح نفسه هو زر تحديد الموقع. لا نضع فوقه نافذة HTML مخصصة.
-      control.addEventListener('location',()=>{
-        if(control.position?.coords)applySareeGpsPosition(control.position);
-        else showLocationError(control.error);
-      });
-      control.addEventListener('promptdismiss',()=>{
-        const state=window.__sareeLocation;
-        if(state?.source!=='gps'){
-          const status=$('homeLocationStatus');
-          if(status)status.textContent='تم إلغاء طلب الموقع. اضغط «تحديد موقعي» للمحاولة مجددًا.';
-        }
-      });
-      control.addEventListener('promptaction',()=>{
-        if(control.permissionStatus!=='granted'){
-          const status=$('homeLocationStatus');
-          if(status)status.textContent='لم يتم السماح بالموقع هذه المرة. اضغط «تحديد موقعي» للمحاولة مجددًا.';
-        }
-      });
-    }else{
-      // المتصفحات التي لا تدعم عنصر geolocation تستخدم زر HTML الاحتياطي وواجهة الموقع التقليدية.
-      const fallback=control.querySelector('[data-location-fallback]')||control;
-      fallback.addEventListener('click',()=>window.requestSareeLocation(true));
-    }
+  function bindHomeLocationButton(){
+    // استمع إلى زر HTML الظاهر نفسه، بدل عنصر <geolocation> ذي النص الذي يفرضه Chrome.
+    const button=$('homeLocationBtn');
+    if(!button||button.dataset.locationBound)return;
+    button.dataset.locationBound='1';
+    button.addEventListener('click',event=>{
+      event.preventDefault();
+      window.requestSareeLocation(true);
+    });
   }
 
   window.requestSareeLocation=function(force=true){
@@ -538,11 +514,7 @@
     state.requested=true;
     const status=$('homeLocationStatus'),btn=$('homeLocationBtn'),iconBtn=$('homeNearbyLocateIcon');
     if(status)status.textContent='جارٍ تحديد موقعك من الهاتف...';
-    const isNativeGeoControl=!!(btn&&typeof window.HTMLGeolocationElement==='function'&&btn instanceof window.HTMLGeolocationElement);
-    const fallbackBtn=btn?.querySelector?.('[data-location-fallback]');
-    const disableTargets=[iconBtn];
-    if(!isNativeGeoControl)disableTargets.push(fallbackBtn||btn);
-    const activeTargets=disableTargets.filter(Boolean);
+    const activeTargets=[btn,iconBtn].filter(Boolean);
     activeTargets.forEach(x=>{x.disabled=true;x.setAttribute('aria-busy','true');});
     const finish=()=>activeTargets.forEach(x=>{x.disabled=false;x.removeAttribute('aria-busy');});
     return new Promise(resolve=>{
@@ -670,6 +642,7 @@
     updateLocationStatus();renderHomeNearbyStores();updateDistancesInPlace();
   }
   function setupHomeLocationControls(){
+    bindHomeLocationButton();
     const citySel=$('homeLocationCity'),areaSel=$('homeLocationArea');if(!citySel||!areaSel)return;
     const rows=Array.isArray(stores)?stores:[],cities=[...new Set(rows.map(st=>String(st.city||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ar'));
     const oldCity=citySel.value||window.__sareeLocation.city||'';
@@ -684,7 +657,6 @@
     citySel.onchange=()=>syncAreas();syncAreas();
     const savedCity=window.__sareeLocation.city||'',savedArea=window.__sareeLocation.area||'';
     if(savedCity&&cities.includes(savedCity)){citySel.value=savedCity;syncAreas();if(savedArea)areaSel.value=savedArea;}
-    bindNativeHomeGeolocationControl();
     if($('homeNearbyLocateIcon')&&!$('homeNearbyLocateIcon').dataset.locationBound){$('homeNearbyLocateIcon').dataset.locationBound='1';$('homeNearbyLocateIcon').addEventListener('click',()=>handleHomeLocationRequest());}
     if($('homeLocationMapBtn')&&!$('homeLocationMapBtn').dataset.locationBound){$('homeLocationMapBtn').dataset.locationBound='1';$('homeLocationMapBtn').addEventListener('click',openHomeLocationMap);}
     if($('homeLocationClearBtn')&&!$('homeLocationClearBtn').dataset.locationBound){$('homeLocationClearBtn').dataset.locationBound='1';$('homeLocationClearBtn').addEventListener('click',clearManualLocation);}
