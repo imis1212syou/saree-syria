@@ -481,19 +481,17 @@
     modal.setAttribute('aria-modal','true');
     modal.setAttribute('aria-labelledby','sareeLocationActivationTitle');
     modal.dir='rtl';
-    modal.style.cssText='position:fixed;inset:0;z-index:200000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.42);padding:16px;box-sizing:border-box;';
-    const initialHelp = 'لتظهر لك المتاجر الأقرب، يمكنك تفعيل تحديد الموقع الجغرافي على جهازك. سيطلب المتصفح الإذن عند الضغط على تفعيل.';
+    modal.style.cssText='position:fixed;inset:0;z-index:200000;display:flex;align-items:flex-end;justify-content:center;background:rgba(0,0,0,.56);padding:0;';
+    const initialHelp = 'اضغط زر طلب الموقع أدناه. سيتيح لك المتصفح اختيار السماح أو الرفض، ويمكنك المحاولة مجددًا إذا لم يكن الإذن ممنوحًا.';
     modal.innerHTML=`
-      <div style="box-sizing:border-box;width:100%;max-width:560px;max-height:calc(100dvh - 32px);overflow:auto;background:#20272d;color:#f3f6f8;border-radius:28px;padding:25px 22px calc(24px + env(safe-area-inset-bottom,0px));box-shadow:0 12px 34px rgba(0,0,0,.3);font-family:inherit">
-        <h2 id="sareeLocationActivationTitle" style="margin:0 0 14px;font-size:24px;line-height:1.5">تفعيل الموقع الجغرافي</h2>
-        <p data-location-help="1" style="margin:0 0 16px;font-size:17px;line-height:1.9;opacity:.94">${initialHelp}</p>
-        <p style="margin:0 0 22px;font-size:14px;line-height:1.8;opacity:.82">لن يتم تحديد موقعك إلا بعد موافقتك. اختيار «لا شكراً» يغلق هذه النافذة فقط، ويمكنك فتحها مجددًا في أي وقت.</p>
-        <div style="display:flex;align-items:stretch;gap:12px;width:100%;margin-top:8px">
-          <geolocation id="sareeNativeLocationControl" lang="ar" accuracymode="precise" style="display:block;width:calc(50% - 6px);height:52px;min-height:52px;margin:0;color:#15303b;background-color:#8fd0f1;border:0 solid transparent;border-radius:28px;font:inherit;font-weight:700;font-size:17px;text-align:center">
-            <button type="button" data-location-activate="1" style="box-sizing:border-box;width:100%;height:52px;border:0;border-radius:28px;padding:13px 12px;margin:0;background:#8fd0f1;color:#15303b;font:inherit;font-weight:700;font-size:17px;cursor:pointer">تفعيل</button>
-          </geolocation>
-          <button type="button" data-location-cancel="1" style="box-sizing:border-box;width:calc(50% - 6px);min-height:52px;border:1px solid #8b969c;border-radius:28px;padding:13px 12px;background:transparent;color:#d7e7ee;font:inherit;font-size:16px;cursor:pointer">لا شكراً</button>
-        </div>
+      <div style="box-sizing:border-box;width:100%;max-width:560px;background:var(--card-bg,#fff);color:var(--text-color,#152d35);border-radius:22px 22px 0 0;padding:25px 22px calc(24px + env(safe-area-inset-bottom,0px));box-shadow:0 -8px 30px rgba(0,0,0,.22);font-family:inherit">
+        <h2 id="sareeLocationActivationTitle" style="margin:0 0 14px;font-size:25px;line-height:1.4">السماح بالوصول إلى موقعك</h2>
+        <p data-location-help="1" style="margin:0 0 16px;font-size:17px;line-height:1.9">${initialHelp}</p>
+        <p style="margin:0 0 22px;font-size:14px;line-height:1.8;opacity:.8">لن يصل الموقع إلى موقعك إلا بعد موافقتك، ويمكنك رفض الطلب.</p>
+        <geolocation id="sareeNativeLocationControl" lang="ar" accuracymode="precise" style="display:block;width:100%;height:52px;box-sizing:border-box;margin:0 0 10px;color:#fff;background-color:#168f9d;border:0 solid transparent;border-radius:14px;font:inherit;font-weight:700;font-size:17px">
+          <button type="button" data-location-activate="1" style="box-sizing:border-box;width:100%;height:52px;border:0;border-radius:14px;padding:15px 16px;margin:0;background:linear-gradient(115deg,#2999cb,#20a68e);color:white;font:inherit;font-weight:700;font-size:17px;cursor:pointer">تفعيل موقعي</button>
+        </geolocation>
+        <button type="button" data-location-cancel="1" style="width:100%;border:1px solid #d7e4e8;border-radius:14px;padding:13px 16px;background:transparent;color:inherit;font:inherit;font-size:16px;cursor:pointer">إلغاء</button>
       </div>`;
     modal.addEventListener('click',ev=>{if(ev.target===modal)closeLocationActivationDialog();});
     modal.querySelector('[data-location-cancel]')?.addEventListener('click',closeLocationActivationDialog);
@@ -529,8 +527,7 @@
       });
     }
     document.body.appendChild(modal);
-    if(typeof window.HTMLGeolocationElement==='function'&&nativeLocationControl)nativeLocationControl.focus({preventScroll:true});
-    else activateBtn?.focus({preventScroll:true});
+    activateBtn?.focus({preventScroll:true});
   }
 
   window.requestSareeLocation=function(force=true,fromActivationDialog=false){
@@ -584,11 +581,24 @@
     });
   };
 
-  // افتح النافذة المخصصة في كل محاولة، حتى لو سبق منح الإذن.
-  // «لا شكراً» يغلق النافذة فقط ولا يحفظ قرار رفض دائم في الموقع.
-  // زر التفعيل داخل النافذة يتولى طلب الإذن عبر عنصر المتصفح أو واجهة Geolocation الاحتياطية.
-  function handleHomeLocationRequest(){
-    showLocationActivationDialog();
+  // في كل مرة يختار المستخدم تحديد الموقع، أظهر نافذة الموقع المخصصة ما لم يؤكد المتصفح أن الإذن ممنوح.
+  // إذا كان الإذن غير محسوم أو مرفوضًا، تبقى الخطوة التالية بيد المستخدم عبر «تفعيل موقعي» أو «إلغاء».
+  async function handleHomeLocationRequest(){
+    let permissionState='prompt';
+    try{
+      if(navigator.permissions&&typeof navigator.permissions.query==='function'){
+        const permission=await navigator.permissions.query({name:'geolocation'});
+        permissionState=permission?.state||'prompt';
+      }
+    }catch(_){
+      // بعض المتصفحات لا تدعم الاستعلام عن حالة الإذن؛ في هذه الحالة نعرض النافذة الآمنة أولاً.
+      permissionState='prompt';
+    }
+    if(permissionState==='granted'){
+      window.requestSareeLocation(true);
+      return;
+    }
+    showLocationActivationDialog(permissionState==='denied'?1:0);
   }
 
   function mapDefaultView(){
