@@ -527,6 +527,23 @@
     activateBtn?.focus({preventScroll:true});
   }
 
+  function acceptSareeLocationPosition(pos){
+    if(!pos||!pos.coords)return false;
+    const state=window.__sareeLocation;
+    state.lat=Number(pos.coords.latitude);state.lng=Number(pos.coords.longitude);state.city='';state.area='';state.ready=true;state.source='gps';state.requested=false;
+    closeLocationActivationDialog();
+    if($('homeLocationCity'))$('homeLocationCity').value='';if($('homeLocationArea'))$('homeLocationArea').value='';
+    homeNearbyVisibleCount=HOME_NEARBY_BATCH_SIZE;saveLocation();updateLocationStatus();renderHomeNearbyStores();updateDistancesInPlace();
+    if(typeof window.renderStores==='function'&&$('stores')?.classList.contains('active'))window.renderStores();
+    return true;
+  }
+  function rejectSareeLocationRequest(err, fromActivationDialog=false){
+    const state=window.__sareeLocation;state.requested=false;
+    const code=Number(err?.code||0),message=locationActivationHelp(code),status=$('homeLocationStatus');
+    if(status)status.textContent=message;
+    if(fromActivationDialog)setLocationActivationMessage(message);else showLocationActivationDialog(code);
+  }
+
   window.requestSareeLocation=function(force=true,fromActivationDialog=false){
     const state=window.__sareeLocation;
     if(!force&&state?.source==='gps'&&locationHasCoordinates(state)){updateLocationStatus();renderHomeNearbyStores();updateDistancesInPlace();return Promise.resolve(true);}
@@ -551,19 +568,9 @@
     return new Promise(resolve=>{
       try{
         navigator.geolocation.getCurrentPosition(pos=>{
-          state.lat=Number(pos.coords.latitude);state.lng=Number(pos.coords.longitude);state.city='';state.area='';state.ready=true;state.source='gps';state.requested=false;
-          closeLocationActivationDialog();
-          if($('homeLocationCity'))$('homeLocationCity').value='';if($('homeLocationArea'))$('homeLocationArea').value='';
-          homeNearbyVisibleCount=HOME_NEARBY_BATCH_SIZE;saveLocation();finish();updateLocationStatus();renderHomeNearbyStores();updateDistancesInPlace();
-          if(typeof window.renderStores==='function'&&$('stores')?.classList.contains('active'))window.renderStores();
-          resolve(true);
+          acceptSareeLocationPosition(pos);finish();resolve(true);
         },err=>{
-          state.requested=false;finish();
-          const locationErrorMessage=locationActivationHelp(err?.code||0);
-          if(status)status.textContent=locationErrorMessage;
-          if(fromActivationDialog)setLocationActivationMessage(locationErrorMessage);
-          else showLocationActivationDialog(err?.code||0);
-          resolve(false);
+          finish();rejectSareeLocationRequest(err,fromActivationDialog);resolve(false);
         },{enableHighAccuracy:true,timeout:20000,maximumAge:force?0:300000});
       }catch(err){
         state.requested=false;finish();
@@ -699,6 +706,17 @@
     citySel.onchange=()=>syncAreas();syncAreas();
     const savedCity=window.__sareeLocation.city||'',savedArea=window.__sareeLocation.area||'';
     if(savedCity&&cities.includes(savedCity)){citySel.value=savedCity;syncAreas();if(savedArea)areaSel.value=savedArea;}
+    const nativeGeo=$('homeLocationNative');
+    if(nativeGeo&&('HTMLGeolocationElement' in window)&&!nativeGeo.dataset.locationBound){
+      nativeGeo.dataset.locationBound='1';
+      nativeGeo.addEventListener('location',()=>{
+        if(nativeGeo.position){acceptSareeLocationPosition(nativeGeo.position);}
+        else if(nativeGeo.error){rejectSareeLocationRequest(nativeGeo.error,false);}
+        else{rejectSareeLocationRequest({code:0},false);}
+      });
+    }
+    // في Chrome 144+ يتولى عنصر geolocation طلب الموقع من نقرة المستخدم
+    // ويقدّم مسار استعادة إذن المتصفح عند الحظر. المتصفحات الأخرى تستخدم الزر الاحتياطي.
     if($('homeLocationBtn')&&!$('homeLocationBtn').dataset.locationBound){$('homeLocationBtn').dataset.locationBound='1';$('homeLocationBtn').addEventListener('click',()=>handleHomeLocationRequest());}
     if($('homeNearbyLocateIcon')&&!$('homeNearbyLocateIcon').dataset.locationBound){$('homeNearbyLocateIcon').dataset.locationBound='1';$('homeNearbyLocateIcon').addEventListener('click',()=>handleHomeLocationRequest());}
     if($('homeLocationMapBtn')&&!$('homeLocationMapBtn').dataset.locationBound){$('homeLocationMapBtn').dataset.locationBound='1';$('homeLocationMapBtn').addEventListener('click',openHomeLocationMap);}
