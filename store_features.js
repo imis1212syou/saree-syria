@@ -444,7 +444,13 @@
       else if(loc?.city)node.textContent='الموقع المختار: '+[loc.city,loc.area].filter(Boolean).join(' — ')+'. الترتيب حسب المنطقة، والمسافة الدقيقة تحتاج تحديد الموقع الجغرافي.';
       else node.textContent='حدّد موقعك الحالي أو اختر نقطة من الخريطة لعرض المتاجر الأقرب.';
     }
-    const btn=$('homeLocationBtn');if(btn)btn.textContent=loc?.source==='gps'?'تحديث موقعي':'تحديد موقعي';
+    const btn=$('homeLocationBtn');
+    if(btn){
+      const label=loc?.source==='gps'?'تحديث موقعي':'تحديد موقعي';
+      const fallback=btn.querySelector?.('[data-location-fallback]');
+      if(fallback)fallback.textContent=label;
+      else if(btn.localName!=='geolocation')btn.textContent=label;
+    }
     const clearBtn=$('homeLocationClearBtn');
     if(clearBtn)clearBtn.classList.toggle('hidden',!(loc?.source==='map'||loc?.source==='area'));
   }
@@ -464,154 +470,99 @@
       if(msg)msg.textContent='تم تحديد الإحداثيات. اضغط حفظ لتسجيل الموقع.';
     },err=>{if(msg)msg.textContent=err.code===1?'لم تسمح بالوصول إلى الموقع. يمكنك إدخال الإحداثيات يدويًا.':'تعذر تحديد الموقع. تحقق من إعدادات الموقع والاتصال.';},{enableHighAccuracy:true,timeout:15000,maximumAge:60000});
   };
-  function closeLocationActivationDialog(){
-    const modal=$('sareeLocationActivationDialog');
-    if(modal)modal.remove();
+  function applySareeGpsPosition(pos){
+    if(!pos?.coords)return false;
+    const state=window.__sareeLocation;
+    state.lat=Number(pos.coords.latitude);state.lng=Number(pos.coords.longitude);state.city='';state.area='';state.ready=true;state.source='gps';state.requested=false;
+    if($('homeLocationCity'))$('homeLocationCity').value='';if($('homeLocationArea'))$('homeLocationArea').value='';
+    homeNearbyVisibleCount=HOME_NEARBY_BATCH_SIZE;
+    saveLocation();updateLocationStatus();renderHomeNearbyStores();updateDistancesInPlace();
+    if(typeof window.renderStores==='function'&&$('stores')?.classList.contains('active'))window.renderStores();
+    return true;
   }
-  function setLocationActivationMessage(message){
-    const modal=$('sareeLocationActivationDialog');
-    const help=modal?.querySelector('[data-location-help="1"]');
-    if(help)help.textContent=message;
+  function locationErrorMessage(err){
+    if(err?.code===1)return 'لم يتم السماح بالوصول إلى موقعك. يمكنك المحاولة مرة أخرى من زر «تحديد موقعي». إذا كان المتصفح يمنع الطلب بعد الرفض، اسمح للموقع من إعدادات أذونات الموقع في المتصفح.';
+    if(err?.code===2)return 'تعذر الحصول على الموقع الحالي. إذا كانت خدمة الموقع متوقفة، فعّلها من إعدادات الهاتف ثم أعد المحاولة.';
+    if(err?.code===3)return 'استغرق تحديد الموقع وقتًا طويلًا. اضغط «تحديد موقعي» للمحاولة مجددًا.';
+    return 'تعذر تحديد موقعك الآن. تحقق من إعدادات الموقع والاتصال ثم حاول مجددًا.';
   }
-  function showLocationActivationDialog(errorCode=0){
-    if($('sareeLocationActivationDialog'))return;
-    const modal=document.createElement('div');
-    modal.id='sareeLocationActivationDialog';
-    modal.setAttribute('role','dialog');
-    modal.setAttribute('aria-modal','true');
-    modal.setAttribute('aria-labelledby','sareeLocationActivationTitle');
-    modal.dir='rtl';
-    modal.style.cssText='position:fixed;inset:0;z-index:200000;display:flex;align-items:flex-end;justify-content:center;background:rgba(0,0,0,.56);padding:0;';
-    const initialHelp = 'اضغط زر طلب الموقع أدناه. سيتيح لك المتصفح اختيار السماح أو الرفض، ويمكنك المحاولة مجددًا إذا لم يكن الإذن ممنوحًا.';
-    modal.innerHTML=`
-      <div style="box-sizing:border-box;width:100%;max-width:560px;background:var(--card-bg,#fff);color:var(--text-color,#152d35);border-radius:22px 22px 0 0;padding:25px 22px calc(24px + env(safe-area-inset-bottom,0px));box-shadow:0 -8px 30px rgba(0,0,0,.22);font-family:inherit">
-        <h2 id="sareeLocationActivationTitle" style="margin:0 0 14px;font-size:25px;line-height:1.4">السماح بالوصول إلى موقعك</h2>
-        <p data-location-help="1" style="margin:0 0 16px;font-size:17px;line-height:1.9">${initialHelp}</p>
-        <p style="margin:0 0 22px;font-size:14px;line-height:1.8;opacity:.8">لن يصل الموقع إلى موقعك إلا بعد موافقتك، ويمكنك رفض الطلب.</p>
-        <geolocation id="sareeNativeLocationControl" lang="ar" accuracymode="precise" style="display:block;width:100%;height:52px;box-sizing:border-box;margin:0 0 10px;color:#fff;background-color:#168f9d;border:0 solid transparent;border-radius:14px;font:inherit;font-weight:700;font-size:17px">
-          <button type="button" data-location-activate="1" style="box-sizing:border-box;width:100%;height:52px;border:0;border-radius:14px;padding:15px 16px;margin:0;background:linear-gradient(115deg,#2999cb,#20a68e);color:white;font:inherit;font-weight:700;font-size:17px;cursor:pointer">تفعيل موقعي</button>
-        </geolocation>
-        <button type="button" data-location-cancel="1" style="width:100%;border:1px solid #d7e4e8;border-radius:14px;padding:13px 16px;background:transparent;color:inherit;font:inherit;font-size:16px;cursor:pointer">إلغاء</button>
-      </div>`;
-    modal.addEventListener('click',ev=>{if(ev.target===modal)closeLocationActivationDialog();});
-    modal.querySelector('[data-location-cancel]')?.addEventListener('click',closeLocationActivationDialog);
-    const activateBtn=modal.querySelector('[data-location-activate]');
-    const nativeLocationControl=modal.querySelector('#sareeNativeLocationControl');
-    if(typeof window.HTMLGeolocationElement==='function'&&nativeLocationControl){
-      // Chrome 144+ يتيح هذا العنصر إعادة عرض تدفق السماح حتى بعد الرفض السابق.
-      // هذه هي واجهة المتصفح الأصلية؛ لا نستدعي navigator.geolocation بدلًا منها.
-      nativeLocationControl.addEventListener('location',()=>{
-        const pos=nativeLocationControl.position;
-        if(pos?.coords){
-          const state=window.__sareeLocation;
-          state.lat=Number(pos.coords.latitude);state.lng=Number(pos.coords.longitude);state.city='';state.area='';state.ready=true;state.source='gps';state.requested=false;
-          closeLocationActivationDialog();
-          if($('homeLocationCity'))$('homeLocationCity').value='';if($('homeLocationArea'))$('homeLocationArea').value='';
-          homeNearbyVisibleCount=HOME_NEARBY_BATCH_SIZE;saveLocation();updateLocationStatus();renderHomeNearbyStores();updateDistancesInPlace();
-          if(typeof window.renderStores==='function'&&$('stores')?.classList.contains('active'))window.renderStores();
-        }else if(nativeLocationControl.error){
-          const err=nativeLocationControl.error;
-          if(err.code===1){
-            // لا نُبقِ نافذة الموقع مفتوحة بعد رفض المستخدم؛ يمكنه المحاولة مجددًا من الزر الرئيسي.
-            closeLocationActivationDialog();
-            const status=$('homeLocationStatus');
-            if(status)status.textContent='لم يتم السماح بالوصول إلى موقعك هذه المرة. اضغط «تحديد موقعي» للمحاولة مجددًا.';
-          }else if(err.code===2)setLocationActivationMessage('تعذر الحصول على الموقع الآن. تحقق من تشغيل خدمات الموقع، ثم حاول مجددًا.');
-          else if(err.code===3)setLocationActivationMessage('استغرق تحديد الموقع وقتًا طويلًا. اضغط زر طلب الموقع للمحاولة مجددًا.');
-          else setLocationActivationMessage('تعذر تحديد الموقع الآن. اضغط زر طلب الموقع للمحاولة مجددًا.');
+  function showLocationError(err){
+    const state=window.__sareeLocation;
+    if(state)state.requested=false;
+    const status=$('homeLocationStatus');
+    if(status)status.textContent=locationErrorMessage(err);
+  }
+  function bindNativeHomeGeolocationControl(){
+    const control=$('homeLocationBtn');
+    if(!control||control.dataset.locationBound)return;
+    control.dataset.locationBound='1';
+    const supported=typeof window.HTMLGeolocationElement==='function'&&control instanceof window.HTMLGeolocationElement;
+    if(supported){
+      // عنصر المتصفح نفسه هو زر تحديد الموقع. لا نضع فوقه نافذة HTML مخصصة.
+      control.addEventListener('location',()=>{
+        if(control.position?.coords)applySareeGpsPosition(control.position);
+        else showLocationError(control.error);
+      });
+      control.addEventListener('promptdismiss',()=>{
+        const state=window.__sareeLocation;
+        if(state?.source!=='gps'){
+          const status=$('homeLocationStatus');
+          if(status)status.textContent='تم إلغاء طلب الموقع. اضغط «تحديد موقعي» للمحاولة مجددًا.';
         }
       });
-      // إغلاق النافذة عند إغلاق المستخدم لطلب المتصفح دون اختيار، مع إبقاء إعادة المحاولة متاحة.
-      nativeLocationControl.addEventListener('promptdismiss',()=>{
-        closeLocationActivationDialog();
-        const status=$('homeLocationStatus');
-        if(status)status.textContent='تم إلغاء طلب الموقع. اضغط «تحديد موقعي» للمحاولة مجددًا.';
+      control.addEventListener('promptaction',()=>{
+        if(control.permissionStatus!=='granted'){
+          const status=$('homeLocationStatus');
+          if(status)status.textContent='لم يتم السماح بالموقع هذه المرة. اضغط «تحديد موقعي» للمحاولة مجددًا.';
+        }
       });
     }else{
-      // للمتصفحات التي لا تدعم عنصر geolocation الجديد، نستعمل المسار القديم كخيار احتياطي.
-      activateBtn?.addEventListener('click',()=>{
-        setLocationActivationMessage('جارٍ طلب إذن الوصول إلى موقعك من المتصفح. اختر «السماح» أو «عدم السماح» إذا ظهرت النافذة.');
-        const status=$('homeLocationStatus');
-        if(status)status.textContent='جارٍ طلب إذن الوصول إلى موقعك من المتصفح...';
-        window.requestSareeLocation(true, true);
-      });
+      // المتصفحات التي لا تدعم عنصر geolocation تستخدم زر HTML الاحتياطي وواجهة الموقع التقليدية.
+      const fallback=control.querySelector('[data-location-fallback]')||control;
+      fallback.addEventListener('click',()=>window.requestSareeLocation(true));
     }
-    document.body.appendChild(modal);
-    activateBtn?.focus({preventScroll:true});
   }
 
-  window.requestSareeLocation=function(force=true,fromActivationDialog=false){
+  window.requestSareeLocation=function(force=true){
     const state=window.__sareeLocation;
     if(!force&&state?.source==='gps'&&locationHasCoordinates(state)){updateLocationStatus();renderHomeNearbyStores();updateDistancesInPlace();return Promise.resolve(true);}
     if(state.requested)return Promise.resolve(false);
     if(!navigator.geolocation){
-      const message='هذا المتصفح لا يدعم طلب إذن الموقع. يمكنك اختيار موقعك على الخريطة.';
-      const node=$('homeLocationStatus');if(node)node.textContent=message;
-      if(fromActivationDialog)setLocationActivationMessage(message);
+      const status=$('homeLocationStatus');if(status)status.textContent='هذا المتصفح لا يدعم تحديد الموقع. يمكنك اختيار موقعك على الخريطة.';
       return Promise.resolve(false);
     }
     if(window.isSecureContext===false&&location.hostname!=='localhost'&&location.hostname!=='127.0.0.1'){
-      const message='يجب فتح الموقع عبر HTTPS حتى يتمكن المتصفح من طلب إذن الوصول إلى موقعك.';
-      const node=$('homeLocationStatus');if(node)node.textContent=message;
-      if(fromActivationDialog)setLocationActivationMessage(message);
+      const status=$('homeLocationStatus');if(status)status.textContent='يجب فتح الموقع عبر HTTPS حتى يتمكن المتصفح من تحديد موقعك.';
       return Promise.resolve(false);
     }
     state.requested=true;
     const status=$('homeLocationStatus'),btn=$('homeLocationBtn'),iconBtn=$('homeNearbyLocateIcon');
     if(status)status.textContent='جارٍ تحديد موقعك من الهاتف...';
-    [btn,iconBtn].filter(Boolean).forEach(x=>{x.disabled=true;x.setAttribute('aria-busy','true');});
-    const finish=()=>[btn,iconBtn].filter(Boolean).forEach(x=>{x.disabled=false;x.removeAttribute('aria-busy');});
+    const isNativeGeoControl=!!(btn&&typeof window.HTMLGeolocationElement==='function'&&btn instanceof window.HTMLGeolocationElement);
+    const fallbackBtn=btn?.querySelector?.('[data-location-fallback]');
+    const disableTargets=[iconBtn];
+    if(!isNativeGeoControl)disableTargets.push(fallbackBtn||btn);
+    const activeTargets=disableTargets.filter(Boolean);
+    activeTargets.forEach(x=>{x.disabled=true;x.setAttribute('aria-busy','true');});
+    const finish=()=>activeTargets.forEach(x=>{x.disabled=false;x.removeAttribute('aria-busy');});
     return new Promise(resolve=>{
       try{
         navigator.geolocation.getCurrentPosition(pos=>{
-          state.lat=Number(pos.coords.latitude);state.lng=Number(pos.coords.longitude);state.city='';state.area='';state.ready=true;state.source='gps';state.requested=false;
-          closeLocationActivationDialog();
-          if($('homeLocationCity'))$('homeLocationCity').value='';if($('homeLocationArea'))$('homeLocationArea').value='';
-          homeNearbyVisibleCount=HOME_NEARBY_BATCH_SIZE;saveLocation();finish();updateLocationStatus();renderHomeNearbyStores();updateDistancesInPlace();
-          if(typeof window.renderStores==='function'&&$('stores')?.classList.contains('active'))window.renderStores();
-          resolve(true);
-        },err=>{
           state.requested=false;finish();
-          let locationErrorMessage='تعذر الحصول على موقعك. يمكنك المحاولة مجددًا أو اختيار موقعك على الخريطة.';
-          if(err?.code===1)locationErrorMessage='لم يتم السماح بالوصول إلى موقعك هذه المرة. اضغط «تحديد موقعي» للمحاولة مجددًا.';
-          else if(err?.code===2)locationErrorMessage='لم يتمكن المتصفح من الحصول على موقعك هذه المرة. تحقق من تشغيل خدمات الموقع ثم حاول مجددًا.';
-          else if(err?.code===3)locationErrorMessage='استغرق تحديد الموقع وقتًا طويلًا. يمكنك المحاولة مجددًا.';
-          if(status)status.textContent=locationErrorMessage;
-          if(err?.code===1){
-            // لا نحفظ الرفض ولا نترك نافذة المشروع ظاهرة؛ يعاد فحص الإذن عند المحاولة التالية.
-            closeLocationActivationDialog();
-          }else if(fromActivationDialog)setLocationActivationMessage(locationErrorMessage);
-          else showLocationActivationDialog(err?.code||0);
-          resolve(false);
+          resolve(applySareeGpsPosition(pos));
+        },err=>{
+          state.requested=false;finish();showLocationError(err);resolve(false);
         },{enableHighAccuracy:true,timeout:20000,maximumAge:force?0:300000});
       }catch(err){
         state.requested=false;finish();
-        const message='تعذر بدء طلب الموقع. يمكنك المحاولة مجددًا أو اختيار موقعك على الخريطة.';
-        if(status)status.textContent=message;
-        if(fromActivationDialog)setLocationActivationMessage(message);
+        const status=$('homeLocationStatus');if(status)status.textContent='تعذر بدء طلب الموقع. حاول مجددًا أو اختر موقعك على الخريطة.';
         console.warn('geolocation:',err);resolve(false);
       }
     });
   };
 
-  // اطلب الموقع مباشرة عند أول محاولة، كي يظهر طلب المتصفح دون نافذة وسيطة من المشروع.
-  // إذا كان الإذن مرفوضًا سابقًا، استخدم عنصر geolocation في المتصفحات الداعمة ليتمكن المستخدم من المحاولة مجددًا.
-  // لا نخزّن حالة الرفض محليًا؛ حالة الإذن الوحيدة المعتمدة هي التي يبلغ عنها المتصفح.
-  async function handleHomeLocationRequest(){
-    let permissionState='prompt';
-    try{
-      if(navigator.permissions&&typeof navigator.permissions.query==='function'){
-        const permission=await navigator.permissions.query({name:'geolocation'});
-        permissionState=permission?.state||'prompt';
-      }
-    }catch(_){
-      // عدم دعم Permissions API لا يمنع محاولة طلب الموقع مباشرة.
-      permissionState='prompt';
-    }
-    if(permissionState==='denied'){
-      showLocationActivationDialog(1);
-      return;
-    }
+  // زر الأيقونة البديل يستخدم واجهة الموقع التقليدية؛ الزر الرئيسي في المتصفحات الداعمة هو عنصر geolocation نفسه.
+  function handleHomeLocationRequest(){
     window.requestSareeLocation(true);
   }
 
@@ -733,7 +684,7 @@
     citySel.onchange=()=>syncAreas();syncAreas();
     const savedCity=window.__sareeLocation.city||'',savedArea=window.__sareeLocation.area||'';
     if(savedCity&&cities.includes(savedCity)){citySel.value=savedCity;syncAreas();if(savedArea)areaSel.value=savedArea;}
-    if($('homeLocationBtn')&&!$('homeLocationBtn').dataset.locationBound){$('homeLocationBtn').dataset.locationBound='1';$('homeLocationBtn').addEventListener('click',()=>handleHomeLocationRequest());}
+    bindNativeHomeGeolocationControl();
     if($('homeNearbyLocateIcon')&&!$('homeNearbyLocateIcon').dataset.locationBound){$('homeNearbyLocateIcon').dataset.locationBound='1';$('homeNearbyLocateIcon').addEventListener('click',()=>handleHomeLocationRequest());}
     if($('homeLocationMapBtn')&&!$('homeLocationMapBtn').dataset.locationBound){$('homeLocationMapBtn').dataset.locationBound='1';$('homeLocationMapBtn').addEventListener('click',openHomeLocationMap);}
     if($('homeLocationClearBtn')&&!$('homeLocationClearBtn').dataset.locationBound){$('homeLocationClearBtn').dataset.locationBound='1';$('homeLocationClearBtn').addEventListener('click',clearManualLocation);}
