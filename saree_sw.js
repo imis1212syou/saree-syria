@@ -1,4 +1,4 @@
-const CACHE = "saree-pwa-v4-push-install-log";
+const CACHE = "saree-pwa-v5-location-permission-cachefix-20261013";
 self.addEventListener("install", event => {
   self.skipWaiting();
   event.waitUntil(caches.open(CACHE).then(c => c.addAll(["./", "./index.html"])).catch(()=>{}));

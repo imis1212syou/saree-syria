@@ -468,84 +468,6 @@
     const modal=$('sareeLocationActivationDialog');
     if(modal)modal.remove();
   }
-  function setLocationActivationMessage(message){
-    const modal=$('sareeLocationActivationDialog');
-    const help=modal?.querySelector('[data-location-help="1"]');
-    if(help)help.textContent=message;
-  }
-  function applySareeLocationPosition(pos){
-    const coords=pos?.coords;
-    if(!coords||!validCoordinates(coords.latitude,coords.longitude)){
-      handleSareeLocationError({code:2},true,false);
-      return false;
-    }
-    const state=window.__sareeLocation;
-    state.lat=Number(coords.latitude);state.lng=Number(coords.longitude);state.city='';state.area='';state.ready=true;state.source='gps';state.requested=false;
-    closeLocationActivationDialog();
-    if($('homeLocationCity'))$('homeLocationCity').value='';if($('homeLocationArea'))$('homeLocationArea').value='';
-    homeNearbyVisibleCount=HOME_NEARBY_BATCH_SIZE;saveLocation();updateLocationStatus();renderHomeNearbyStores();updateDistancesInPlace();
-    if(typeof window.renderStores==='function'&&$('stores')?.classList.contains('active'))window.renderStores();
-    return true;
-  }
-  function locationErrorMessage(err,nativeControl=false){
-    if(err?.code===1){
-      return nativeControl
-        ? 'لم يكتمل إذن الموقع هذه المرة. اضغط زر الموقع في المتصفح لإعادة المحاولة. إذا طلب Chrome إعدادات Android، فذلك يعني أن إذن Chrome أو خدمة الموقع معطّلة على مستوى الجهاز ولا يستطيع الموقع تغييرها نيابةً عنك.'
-        : 'لم تظهر نافذة السماح لأن إذن الموقع قد يكون محظورًا مسبقًا في المتصفح. سنحاول إتاحة إعادة الطلب من واجهة المتصفح إن كانت مدعومة.';
-    }
-    if(err?.code===2)return 'لم يتمكن الجهاز من تحديد موقعك. تأكد من تشغيل خدمة الموقع في الجهاز ثم اضغط «تفعيل موقعي» للمحاولة مجددًا.';
-    if(err?.code===3)return 'استغرق تحديد الموقع وقتًا طويلًا. اضغط «تفعيل موقعي» للمحاولة مجددًا.';
-    return 'تعذر الحصول على موقعك. يمكنك المحاولة مجددًا أو اختيار موقعك على الخريطة.';
-  }
-  function supportsNativeGeolocationControl(){
-    return 'HTMLGeolocationElement' in window && window.isSecureContext!==false;
-  }
-  function installNativeGeolocationRecovery(modal){
-    if(!modal || !supportsNativeGeolocationControl())return false;
-    if(modal.querySelector('#sareeLocationGeoRecovery'))return true;
-    const activateBtn=modal.querySelector('[data-location-activate="1"]');
-    if(!activateBtn)return false;
-    const geoControl=document.createElement('geolocation');
-    geoControl.id='sareeLocationGeoRecovery';
-    geoControl.setAttribute('aria-label','إعادة طلب إذن الموقع');
-    geoControl.setAttribute('accuracymode','precise');
-    geoControl.style.cssText='display:block;width:100%;min-height:54px;box-sizing:border-box;border:0;border-radius:14px;padding:14px 16px;margin:0 0 10px;background:linear-gradient(115deg,#2999cb,#20a68e);color:#fff;font:inherit;font-weight:700;font-size:17px;text-align:center;cursor:pointer;';
-    // Supported Chrome versions render their own permission/recovery button here.
-    // The child is a fallback only for engines that do not implement the element.
-    geoControl.innerHTML='<button type="button" style="width:100%;min-height:54px;border:0;border-radius:14px;background:transparent;color:inherit;font:inherit;font-weight:700">إعادة طلب إذن الموقع</button>';
-    geoControl.addEventListener('click',()=>{
-      const state=window.__sareeLocation;
-      if(state)state.requested=true;
-      setLocationActivationMessage('جارٍ إعادة طلب الموقع من واجهة المتصفح. أكمل أي موافقة تظهر لك.');
-      const status=$('homeLocationStatus');if(status)status.textContent='جارٍ إعادة طلب إذن الموقع من المتصفح...';
-    });
-    geoControl.addEventListener('location',event=>{
-      const control=event.target||geoControl;
-      const state=window.__sareeLocation;if(state)state.requested=false;
-      if(control.position){
-        applySareeLocationPosition(control.position);
-        return;
-      }
-      handleSareeLocationError(control.error||{code:2},true,true);
-    });
-    activateBtn.replaceWith(geoControl);
-    return true;
-  }
-  function handleSareeLocationError(err,fromActivationDialog=false,nativeControl=false){
-    const state=window.__sareeLocation;if(state)state.requested=false;
-    const message=locationErrorMessage(err,nativeControl),status=$('homeLocationStatus');
-    if(status)status.textContent=message;
-    if(fromActivationDialog)setLocationActivationMessage(message);
-    else showLocationActivationDialog(err?.code||0);
-    // A normal JS request cannot re-open a browser prompt once the origin is blocked.
-    // On Chrome versions supporting <geolocation>, provide its user-activated recovery control.
-    if(err?.code===1&&fromActivationDialog&&supportsNativeGeolocationControl()){
-      const modal=$('sareeLocationActivationDialog');
-      if(installNativeGeolocationRecovery(modal)){
-        setLocationActivationMessage('لم تظهر نافذة الإذن من الطلب العادي. اضغط زر إعادة طلب الموقع أدناه؛ سيعالج Chrome حالة الإذن السابقة إن أمكن.');
-      }
-    }
-  }
   function showLocationActivationDialog(errorCode=0){
     if($('sareeLocationActivationDialog'))return;
     const modal=document.createElement('div');
@@ -556,61 +478,43 @@
     modal.dir='rtl';
     modal.style.cssText='position:fixed;inset:0;z-index:200000;display:flex;align-items:flex-end;justify-content:center;background:rgba(0,0,0,.56);padding:0;';
     const initialHelp = errorCode===1
-      ? 'سبق أن لم يتم منح إذن الموقع. اضغط «تفعيل موقعي» للمحاولة مجددًا.'
+      ? 'لم يتم منح المتصفح إذن الوصول إلى موقعك. اضغط «تفعيل موقعي» لمحاولة طلب الإذن الرسمي من المتصفح. إذا سبق أن رفضت الإذن، فقد تحتاج إلى السماح للموقع يدويًا من أذونات المتصفح.'
       : errorCode===2
-        ? 'تعذر تحديد موقعك في المحاولة السابقة. تحقق من تشغيل خدمة الموقع ثم حاول مجددًا.'
-        : 'لترتيب المتاجر حسب قربها منك، اسمح لسعرلي سوريا بالوصول إلى موقعك عند الضغط على «تفعيل موقعي».';
+        ? 'لم يتمكن الهاتف من تحديد موقعك. اضغط «تفعيل موقعي» لإعادة طلب الموقع. إذا كانت خدمة الموقع في الهاتف متوقفة، فلن يستطيع الموقع تشغيلها تلقائيًا.'
+        : 'اضغط «تفعيل موقعي» ليطلب المتصفح الوصول إلى موقع الهاتف. ستظهر نافذة الإذن إذا كان المتصفح قادرًا على طلبه ولم يكن الإذن محظورًا سابقًا.';
     modal.innerHTML=`
       <div style="box-sizing:border-box;width:100%;max-width:560px;background:var(--card-bg,#fff);color:var(--text-color,#152d35);border-radius:22px 22px 0 0;padding:25px 22px calc(24px + env(safe-area-inset-bottom,0px));box-shadow:0 -8px 30px rgba(0,0,0,.22);font-family:inherit">
         <h2 id="sareeLocationActivationTitle" style="margin:0 0 14px;font-size:25px;line-height:1.4">السماح بالوصول إلى موقعك</h2>
         <p data-location-help="1" style="margin:0 0 16px;font-size:17px;line-height:1.9">${initialHelp}</p>
-        <p style="margin:0 0 22px;font-size:14px;line-height:1.8;opacity:.8">قد يستخدم جهازك خدمات GPS وشبكات Wi‑Fi والإشارات اللاسلكية لتحسين دقة الموقع بحسب إعداداته. يستخدم سعرلي سوريا موقعك لترتيب المتاجر حسب المسافة الفعلية، ولا يبدأ طلب الموقع إلا عند ضغطك «تفعيل موقعي». يمكنك اختيار «لا شكراً» والعودة متى شئت.</p>
-        <button type="button" data-location-activate="1" style="width:100%;min-height:54px;box-sizing:border-box;border:0;border-radius:14px;padding:15px 16px;margin:0 0 10px;background:linear-gradient(115deg,#2999cb,#20a68e);color:white;font:inherit;font-weight:700;font-size:17px;cursor:pointer">تفعيل موقعي</button>
-        <button type="button" data-location-cancel="1" style="width:100%;border:1px solid #d7e4e8;border-radius:14px;padding:13px 16px;background:transparent;color:inherit;font:inherit;font-size:16px;cursor:pointer">لا شكراً</button>
+        <p style="margin:0 0 22px;font-size:14px;line-height:1.8;opacity:.8">لن يتم تفعيل الموقع دون موافقتك. إذا كانت خدمة الموقع مطفأة على الجهاز، فقد تحتاج إلى تشغيلها بنفسك؛ صفحة الويب لا تستطيع تشغيلها تلقائيًا.</p>
+        <button type="button" data-location-activate="1" style="width:100%;border:0;border-radius:14px;padding:15px 16px;margin:0 0 10px;background:linear-gradient(115deg,#2999cb,#20a68e);color:white;font:inherit;font-weight:700;font-size:17px;cursor:pointer">تفعيل موقعي</button>
+        <button type="button" data-location-cancel="1" style="width:100%;border:1px solid #d7e4e8;border-radius:14px;padding:13px 16px;background:transparent;color:inherit;font:inherit;font-size:16px;cursor:pointer">إلغاء</button>
       </div>`;
     modal.addEventListener('click',ev=>{if(ev.target===modal)closeLocationActivationDialog();});
     modal.querySelector('[data-location-cancel]')?.addEventListener('click',closeLocationActivationDialog);
     const activateBtn=modal.querySelector('[data-location-activate]');
     activateBtn?.addEventListener('click',()=>{
-      setLocationActivationMessage('جارٍ طلب إذن الوصول إلى موقعك من المتصفح. اختر «السماح» إذا ظهرت نافذة الإذن.');
-      const status=$('homeLocationStatus');if(status)status.textContent='جارٍ طلب إذن الوصول إلى موقعك من المتصفح...';
-      window.requestSareeLocation(true,true);
+      // استدعاء Geolocation مباشرةً من نقرة المستخدم حتى يستطيع المتصفح إظهار طلب الإذن الرسمي.
+      // لا نفتح إعدادات النظام ولا رابط intent، ولا نعيد إظهار النافذة فور فشل المحاولة الثانية.
+      closeLocationActivationDialog();
+      const status=$('homeLocationStatus');
+      if(status)status.textContent='جارٍ طلب إذن الوصول إلى موقعك من المتصفح...';
+      window.requestSareeLocation(true, true);
     });
     document.body.appendChild(modal);
     activateBtn?.focus({preventScroll:true});
-
-    // If Chrome already reports a blocked permission, show its direct, user-activated
-    // recovery control. This state is read from the browser and is never saved by Saree.
-    if(navigator.permissions?.query){
-      try{
-        Promise.resolve(navigator.permissions.query({name:'geolocation'})).then(permission=>{
-          if(!modal.isConnected||permission.state!=='denied')return;
-          if(installNativeGeolocationRecovery(modal)){
-            setLocationActivationMessage('إذن الموقع محظور حاليًا من المتصفح. اضغط زر إعادة طلب الموقع أدناه لمحاولة السماح من واجهة Chrome.');
-          }else{
-            setLocationActivationMessage('إذن الموقع محظور حاليًا من المتصفح. لم يحفظ سعرلي سوريا هذا الرفض؛ لكن هذا المتصفح لا يتيح إعادة فتح نافذة الإذن من الصفحة، لذلك يلزم تغيير إذن الموقع لهذا العنوان من إعدادات المتصفح.');
-          }
-        }).catch(()=>{});
-      }catch(_permissionQueryError){}
-    }
   }
 
   window.requestSareeLocation=function(force=true,fromActivationDialog=false){
-    // Every page-button tap opens the in-site dialog. «لا شكراً» is not persisted.
-    if(!fromActivationDialog){showLocationActivationDialog(0);return Promise.resolve(false);}
     const state=window.__sareeLocation;
     if(!force&&state?.source==='gps'&&locationHasCoordinates(state)){updateLocationStatus();renderHomeNearbyStores();updateDistancesInPlace();return Promise.resolve(true);}
     if(state.requested)return Promise.resolve(false);
     if(!navigator.geolocation){
-      const message='هذا المتصفح لا يدعم طلب إذن الموقع. يمكنك اختيار موقعك على الخريطة.';
-      const node=$('homeLocationStatus');if(node)node.textContent=message;
-      setLocationActivationMessage(message);
+      const node=$('homeLocationStatus');if(node)node.textContent='تحديد الموقع غير مدعوم في هذا الجهاز. استخدم الخريطة لاختيار موقعك يدويًا.';
       return Promise.resolve(false);
     }
     if(window.isSecureContext===false&&location.hostname!=='localhost'&&location.hostname!=='127.0.0.1'){
-      const message='يجب فتح الموقع عبر HTTPS حتى يتمكن المتصفح من طلب إذن الوصول إلى موقعك.';
-      const node=$('homeLocationStatus');if(node)node.textContent=message;
-      setLocationActivationMessage(message);
+      const node=$('homeLocationStatus');if(node)node.textContent='يحتاج تحديد موقع الهاتف إلى فتح الموقع عبر HTTPS. يمكنك اختيار موقعك على الخريطة بدلًا من ذلك.';
       return Promise.resolve(false);
     }
     state.requested=true;
@@ -621,18 +525,32 @@
     return new Promise(resolve=>{
       try{
         navigator.geolocation.getCurrentPosition(pos=>{
-          const ok=applySareeLocationPosition(pos);state.requested=false;finish();resolve(ok);
+          state.lat=Number(pos.coords.latitude);state.lng=Number(pos.coords.longitude);state.city='';state.area='';state.ready=true;state.source='gps';state.requested=false;
+          closeLocationActivationDialog();
+          if($('homeLocationCity'))$('homeLocationCity').value='';if($('homeLocationArea'))$('homeLocationArea').value='';
+          homeNearbyVisibleCount=HOME_NEARBY_BATCH_SIZE;saveLocation();finish();updateLocationStatus();renderHomeNearbyStores();updateDistancesInPlace();
+          if(typeof window.renderStores==='function'&&$('stores')?.classList.contains('active'))window.renderStores();
+          resolve(true);
         },err=>{
           state.requested=false;finish();
-          handleSareeLocationError(err,true,false);
+          if(status){
+            if(err?.code===1)status.textContent=fromActivationDialog
+              ? 'لم يسمح المتصفح بالوصول إلى الموقع. إذا سبق أن رفضت الإذن، اسمح به يدويًا من أذونات هذا الموقع في المتصفح ثم جرّب مجددًا.'
+              : 'تعذّر الوصول إلى موقع الهاتف. اضغط «تفعيل موقعي» لطلب الإذن من المتصفح، أو اختر موقعك على الخريطة.';
+            else if(err?.code===2)status.textContent=fromActivationDialog
+              ? 'لم يتمكن الهاتف من تحديد الموقع. تأكد أن خدمة الموقع مفعّلة على الجهاز، ثم اضغط «تحديث موقعي» للمحاولة مجددًا أو اختر موقعك على الخريطة.'
+              : 'خدمة الموقع لم تُرجع موقع الهاتف. اضغط «تفعيل موقعي» للمحاولة مجددًا، أو اختر موقعك على الخريطة.';
+            else if(err?.code===3)status.textContent=fromActivationDialog
+              ? 'انتهت مهلة تحديد الموقع. حاول مجددًا أو اختر موقعك على الخريطة.'
+              : 'انتهت مهلة تحديد الموقع. يمكنك الضغط على «تفعيل موقعي» للمحاولة مجددًا، أو اختيار موقعك على الخريطة.';
+            else status.textContent='تعذّر تحديد موقع الهاتف. يمكنك المحاولة مجددًا أو اختيار موقعك على الخريطة.';
+          }
+          // لا تعِد فتح النافذة مباشرة بعد المحاولة من داخلها؛ فهذا كان يجعلها تغلق وتظهر فورًا.
+          if(!fromActivationDialog)showLocationActivationDialog(err?.code||0);
           resolve(false);
         },{enableHighAccuracy:true,timeout:20000,maximumAge:force?0:300000});
       }catch(err){
-        state.requested=false;finish();
-        const message='تعذر بدء طلب الموقع. يمكنك المحاولة مجددًا أو اختيار موقعك على الخريطة.';
-        if(status)status.textContent=message;
-        setLocationActivationMessage(message);
-        console.warn('geolocation:',err);resolve(false);
+        state.requested=false;finish();if(status)status.textContent='تعذر بدء تحديد الموقع. استخدم الخريطة لاختيار موقعك يدويًا.';console.warn('geolocation:',err);resolve(false);
       }
     });
   };
