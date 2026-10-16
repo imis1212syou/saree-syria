@@ -18,8 +18,13 @@
       .company-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
       .company-card{display:flex;flex-direction:column;gap:9px;height:100%}
       .company-card .actions{margin-top:auto}
+      /* Keep existing company-product image styling unchanged. */
       .company-logo{width:100%;height:170px;object-fit:cover;border-radius:13px;background:#0d1418}
       .company-logo-empty{width:100%;height:170px;border-radius:13px;background:#0d1418;border:1px dashed #303b40;display:flex;align-items:center;justify-content:center;color:#718087}
+      /* Company brand images: bounded frame; any uploaded aspect ratio fits without cropping. */
+      .company-brand-logo{display:block;width:min(100%,360px)!important;height:120px!important;max-height:120px!important;object-fit:contain!important;object-position:center!important;padding:6px;box-sizing:border-box;border-radius:13px;background:#f7fbfd;border:1px solid #e2edf2;margin:0 auto 8px}
+      .company-brand-logo-empty{display:flex;width:min(100%,360px);height:120px;box-sizing:border-box;margin:0 auto 8px;border-radius:13px;background:#f7fbfd;border:1px dashed #d5e3e9;align-items:center;justify-content:center;color:#718087}
+      .company-detail-logo{display:block;width:min(100%,360px)!important;max-width:100%!important;height:120px!important;max-height:120px!important;object-fit:contain!important;object-position:center!important;padding:6px;box-sizing:border-box;border-radius:13px!important;background:#f7fbfd!important;border:1px solid #e2edf2!important;margin:0 auto 12px!important}
       .company-price{font-size:22px;font-weight:900;color:#35d07f}
       .company-no-price{color:#f0cf71;background:#362d18;padding:7px 9px;border-radius:9px;font-size:12px}
       .company-toolbar{position:sticky;top:0;background:#080d11;padding:7px 0;z-index:4}
@@ -157,7 +162,7 @@
   function companyCard(c, products, stores){
     const ps=products.filter(p=>String(p.company_id)===String(c.id));
     const ss=stores.filter(s=>String(s.company_id)===String(c.id));
-    const image=c.image_url?`<img class="company-logo" src="${attr(c.image_url)}" alt="${attr(c.name)}" loading="lazy">`:`<div class="company-logo-empty">سعرلي سوريا</div>`;
+    const image=c.image_url?`<img class="company-brand-logo" src="${attr(c.image_url)}" alt="${attr(c.name)}" loading="lazy">`:`<div class="company-brand-logo-empty">سعرلي سوريا</div>`;
     return `<article class="card company-card"><div onclick="window.openCompanyById('${attr(c.id)}')" style="cursor:pointer">${image}<div class="row" style="justify-content:space-between;align-items:center"><div class="name">${esc(c.name)}</div>${c.verified?'<span class="pill">✓ موثقة</span>':''}</div>${c.address?`<div class="muted">📍 ${esc(c.address)}</div>`:''}${c.phone?`<div class="muted">📞 ${esc(c.phone)}</div>`:''}<div class="meta"><span>${ps.length} منتجات</span><span>${ss.length} متاجر</span></div></div><div class="actions"><button type="button" class="btn primary" onclick="window.openCompanyById('${attr(c.id)}')">فتح الشركة</button>${c.whatsapp_url?`<a class="btn secondary" href="${attr(c.whatsapp_url)}" target="_blank" rel="noopener">💬 واتساب</a>`:''}</div></article>`;
   }
 
@@ -222,7 +227,7 @@
       if(String(companyQuery||'')!==String(id)||qrMode) history.pushState({},'',companyPublicUrl(id)+(qrMode?'&qr=1':''));
       try{sessionStorage.setItem('saree_current_view','companyDetail')}catch(_){}
       $('companyDetailName').textContent=company.name;
-      const image=company.image_url?`<img class="img storeDetailLogo" src="${attr(company.image_url)}" alt="${attr(company.name)}">`:'';
+      const image=company.image_url?`<img class="img company-detail-logo" src="${attr(company.image_url)}" alt="${attr(company.name)}">`:'';
       const canSettings=companyCanEditSettings(company.id,window.__companyEditContext);
       const canEditProducts=companyCanEditProducts(company.id,window.__companyEditContext);
       const maps=companyMapsUrl(company);
