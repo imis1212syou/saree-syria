@@ -931,7 +931,16 @@
     return Array.from(byProduct.values());
   }
 
+  function ensureStoreProductCompactCss(){
+    if($('storeProductCompactCss')) return;
+    const style=document.createElement('style');
+    style.id='storeProductCompactCss';
+    style.textContent=`.storeProductCompactCard{padding:10px;display:flex;flex-direction:column;gap:4px;min-width:0}.storeProductCompactCard .name{margin:0 0 4px!important;font-size:15px;line-height:1.45;overflow-wrap:anywhere}.storeProductCompactCard .price{margin:0!important;font-size:19px;line-height:1.35;overflow-wrap:anywhere}.storeProductCompactCard .storeProductCompactActions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin-top:8px}.storeProductCompactCard .storeProductCompactActions .btn{min-width:0;padding:8px 5px!important;font-size:12px;line-height:1.35;white-space:normal;overflow-wrap:anywhere;min-height:38px}`;
+    document.head.appendChild(style);
+  }
+
   function renderStorePriceCards(list,storeId){
+    ensureStoreProductCompactCss();
     const rows = uniqueListings(list);
     const canEdit = canManageStore(storeId);
     const st = (stores || []).find(x=>String(x.id)===String(storeId)) || null;
@@ -945,18 +954,10 @@
       const canCart = Boolean(st && productId && window.sareeStoreWhatsappOrdersEnabled?.(st) && typeof window.sareeCartAdd==='function');
       const key = `${String(storeId)}:${String(productId)}`;
       storeMaterialDetails.set(key,{row,storeId,store:st});
-      return `<article class="card storeProductCard" data-product-id="${esc(productId)}" data-material-search="${esc(searchText)}" data-material-category="${esc(category)}">
-        ${p.image_url ? `<img class="img materialImage" src="${esc(p.image_url)}" alt="${esc(p.name || 'مادة')}" loading="lazy">` : ''}
-        <span class="pill">${esc(category)}</span>
+      return `<article class="card storeProductCard storeProductCompactCard" data-product-id="${esc(productId)}" data-material-search="${esc(searchText)}" data-material-category="${esc(category)}">
         <div class="name">${esc(p.name || 'مادة')}</div>
-        ${p.brand ? `<div class="muted">${esc(p.brand)}</div>` : ''}
-        ${p.unit ? `<div class="muted">${esc(p.unit)}</div>` : ''}
-        ${barcode ? `<div class="muted">باركود: ${esc(barcode)}</div>` : ''}
         <div class="price">${fmt(priceNumber(row))} ل.س جديدة</div>
-        <div class="old">${priceOld(priceNumber(row))} ل.س قديمة</div>
-        ${p.description ? `<div class="muted storeProductDescription">${esc(p.description)}</div>` : ''}
-        <div class="muted">آخر تحديث: ${row.updated_at ? esc(new Date(row.updated_at).toLocaleString('ar')) : '—'}</div>
-        <div class="actions">
+        <div class="actions storeProductCompactActions">
           <button type="button" class="btn primary" data-material-detail="${esc(productId)}" data-store-id="${esc(storeId)}">تفاصيل المادة</button>
           ${canCart ? `<button type="button" class="btn primary" data-saree-add="1" data-store-cart-add="${esc(productId)}" data-store-id="${esc(storeId)}">إضافة للسلة</button>` : ''}
           ${canEdit ? `<button type="button" class="btn secondary" data-edit-listing="${esc(row.id)}" data-store-id="${esc(storeId)}">تعديل المادة</button><button type="button" class="btn danger" data-delete-listing="${esc(row.id)}" data-store-id="${esc(storeId)}">حذف</button>` : ''}
