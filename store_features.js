@@ -931,16 +931,9 @@
     return Array.from(byProduct.values());
   }
 
-  function ensureStoreProductCompactCss(){
-    if($('storeProductCompactCss')) return;
-    const style=document.createElement('style');
-    style.id='storeProductCompactCss';
-    style.textContent=`.storeProductCompactCard{padding:10px;display:flex;flex-direction:column;gap:4px;min-width:0}.storeProductCompactCard .name{margin:0 0 4px!important;font-size:15px;line-height:1.45;overflow-wrap:anywhere}.storeProductCompactCard .price{margin:0!important;font-size:19px;line-height:1.35;overflow-wrap:anywhere}.storeProductCompactCard .storeProductCompactActions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin-top:8px}.storeProductCompactCard .storeProductCompactActions .btn{min-width:0;padding:8px 5px!important;font-size:12px;line-height:1.35;white-space:normal;overflow-wrap:anywhere;min-height:38px}`;
-    document.head.appendChild(style);
-  }
-
   function renderStorePriceCards(list,storeId){
-    ensureStoreProductCompactCss();
+    // Compact browse-only cards. Full product information remains available in the details modal.
+    ensureStoreMaterialDetailsCss();
     const rows = uniqueListings(list);
     const canEdit = canManageStore(storeId);
     const st = (stores || []).find(x=>String(x.id)===String(storeId)) || null;
@@ -954,13 +947,16 @@
       const canCart = Boolean(st && productId && window.sareeStoreWhatsappOrdersEnabled?.(st) && typeof window.sareeCartAdd==='function');
       const key = `${String(storeId)}:${String(productId)}`;
       storeMaterialDetails.set(key,{row,storeId,store:st});
-      return `<article class="card storeProductCard storeProductCompactCard" data-product-id="${esc(productId)}" data-material-search="${esc(searchText)}" data-material-category="${esc(category)}">
-        <div class="name">${esc(p.name || 'مادة')}</div>
-        <div class="price">${fmt(priceNumber(row))} ل.س جديدة</div>
-        <div class="actions storeProductCompactActions">
-          <button type="button" class="btn primary" data-material-detail="${esc(productId)}" data-store-id="${esc(storeId)}">تفاصيل المادة</button>
-          ${canCart ? `<button type="button" class="btn primary" data-saree-add="1" data-store-cart-add="${esc(productId)}" data-store-id="${esc(storeId)}">إضافة للسلة</button>` : ''}
-          ${canEdit ? `<button type="button" class="btn secondary" data-edit-listing="${esc(row.id)}" data-store-id="${esc(storeId)}">تعديل المادة</button><button type="button" class="btn danger" data-delete-listing="${esc(row.id)}" data-store-id="${esc(storeId)}">حذف</button>` : ''}
+      return `<article class="card storeProductCard storeProductCompactCard" data-has-image="${p.image_url ? '1' : '0'}" data-product-id="${esc(productId)}" data-material-search="${esc(searchText)}" data-material-category="${esc(category)}">
+        ${p.image_url ? `<img class="img materialImage" src="${esc(p.image_url)}" alt="${esc(p.name || 'مادة')}" loading="lazy">` : ''}
+        <div class="storeProductCompactInfo">
+          <div class="name storeProductCompactName">${esc(p.name || 'مادة')}</div>
+          <div class="price storeProductCompactPrice">${fmt(priceNumber(row))} ل.س جديدة</div>
+          <div class="actions storeProductCompactActions">
+            <button type="button" class="btn primary" data-material-detail="${esc(productId)}" data-store-id="${esc(storeId)}">تفاصيل المادة</button>
+            ${canCart ? `<button type="button" class="btn primary" data-saree-add="1" data-store-cart-add="${esc(productId)}" data-store-id="${esc(storeId)}">إضافة للسلة</button>` : ''}
+            ${canEdit ? `<button type="button" class="btn secondary" data-edit-listing="${esc(row.id)}" data-store-id="${esc(storeId)}">تعديل المادة</button><button type="button" class="btn danger" data-delete-listing="${esc(row.id)}" data-store-id="${esc(storeId)}">حذف</button>` : ''}
+          </div>
         </div>
       </article>`;
     }).join('');
@@ -969,7 +965,22 @@
   function ensureStoreMaterialDetailsCss(){
     if($('storeMaterialDetailsCss'))return;
     const style=document.createElement('style');style.id='storeMaterialDetailsCss';
-    style.textContent=`.store-material-modal{position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.78);padding:12px;overflow:auto;display:block}.store-material-modal-inner{width:min(760px,100%);margin:20px auto;background:var(--card-bg,#10191e);border:1px solid var(--border-color,#303b40);border-radius:20px;padding:16px;color:inherit;box-shadow:0 18px 55px rgba(0,0,0,.35)}.store-material-modal-inner .actions{display:flex;gap:8px;flex-wrap:wrap}`;
+    style.textContent=`
+      /* Compact horizontal product cards inside a store only. */
+      #storeProductsGrid.grid{grid-template-columns:minmax(0,1fr)!important;gap:10px!important;align-items:stretch}
+      .storeProductCard.storeProductCompactCard{display:grid!important;grid-template-columns:108px minmax(0,1fr)!important;direction:rtl;align-items:center;gap:12px;padding:12px!important;min-width:0;overflow:hidden}
+      .storeProductCard.storeProductCompactCard[data-has-image="0"]{grid-template-columns:minmax(0,1fr)!important}
+      .storeProductCard.storeProductCompactCard>.materialImage{display:block;width:108px!important;min-width:108px;height:128px!important;max-height:128px;object-fit:contain!important;background:#f7fbfd!important;border:1px solid #e2edf2;border-radius:14px!important;margin:0!important}
+      .storeProductCompactInfo{display:flex;flex-direction:column;align-items:stretch;gap:7px;min-width:0;direction:rtl}
+      .storeProductCard.storeProductCompactCard .storeProductCompactName{margin:0!important;padding:0!important;background:transparent!important;color:#173042!important;font-size:18px!important;line-height:1.4!important;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;overflow-wrap:anywhere;max-height:2.8em}
+      .storeProductCompactPrice{margin:0!important;font-size:22px!important;line-height:1.35;color:#218c70!important;overflow-wrap:anywhere}
+      .storeProductCompactActions{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px!important;margin:3px 0 0!important;width:100%;min-width:0}
+      .storeProductCompactActions .btn{width:100%;min-width:0;min-height:42px;padding:8px 6px!important;font-size:12px;line-height:1.25;white-space:normal;overflow-wrap:anywhere}
+      @media(max-width:380px){.storeProductCard.storeProductCompactCard{grid-template-columns:88px minmax(0,1fr)!important;gap:9px;padding:10px!important}.storeProductCard.storeProductCompactCard[data-has-image="0"]{grid-template-columns:minmax(0,1fr)!important}.storeProductCard.storeProductCompactCard>.materialImage{width:88px!important;min-width:88px;height:112px!important;max-height:112px}.storeProductCompactName{font-size:16px!important}.storeProductCompactPrice{font-size:20px!important}.storeProductCompactActions .btn{font-size:11px}}
+      .store-material-modal{position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.78);padding:12px;overflow:auto;display:block}
+      .store-material-modal-inner{width:min(760px,100%);margin:20px auto;background:var(--card-bg,#10191e);border:1px solid var(--border-color,#303b40);border-radius:20px;padding:16px;color:inherit;box-shadow:0 18px 55px rgba(0,0,0,.35)}
+      .store-material-modal-inner .actions{display:flex;gap:8px;flex-wrap:wrap}
+    `;
     document.head.appendChild(style);
   }
 
