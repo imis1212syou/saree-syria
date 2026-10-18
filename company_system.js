@@ -489,7 +489,7 @@
     const {data:cs,error:ce}=await supabaseClient.from('company_categories').select('*').eq('company_id',ctx.company_id).order('name');
     if(pe)console.warn(pe); if(ce)console.warn(ce);
     const p=ps||[], c=cs||[]; if($('companyProductCount'))$('companyProductCount').textContent=p.filter(x=>x.active).length;if($('companyCategoryCount'))$('companyCategoryCount').textContent=c.filter(x=>x.active).length;
-    if($('companyDashboardProducts'))$('companyDashboardProducts').innerHTML=p.length?p.map(x=>`<div class="company-account-row"><div class="row" style="justify-content:space-between"><div><b>${esc(x.name)}</b><div class="muted">${esc(x.barcode||'بدون باركود')} • ${x.price_new==null?'بدون سعر':money(x.price_new)+' ل.س'}</div></div><span class="pill">${x.active?'نشط':'مخفي'}</span></div><div class="actions"><button class="btn secondary ${ctx.can_edit_products||ctx.can_edit_prices||ctx.can_manage_products?'':'company-disabled'}" onclick="window.companyEditProduct('${attr(x.id)}')">تعديل</button><button class="btn danger ${ctx.can_delete_products||ctx.can_manage_products?'':'company-disabled'}" onclick="window.companyDeleteProduct('${attr(x.id)}')">حذف</button></div></div>`).join(''):'<div class="muted">لا توجد مواد بعد.</div>';
+    if($('companyDashboardProducts'))$('companyDashboardProducts').innerHTML=p.length?p.map(x=>`<div class="company-account-row" data-company-dashboard-product="${attr(x.id)}"><div class="row" style="justify-content:space-between"><div><b>${esc(x.name)}</b><div class="muted">${esc(x.barcode||'بدون باركود')} • ${x.price_new==null?'بدون سعر':money(x.price_new)+' ل.س'}</div></div><span class="pill">${x.active?'نشط':'مخفي'}</span></div><div class="actions"><button class="btn secondary ${ctx.can_edit_products||ctx.can_edit_prices||ctx.can_manage_products?'':'company-disabled'}" onclick="window.companyEditProduct('${attr(x.id)}')">تعديل</button><button class="btn danger ${ctx.can_delete_products||ctx.can_manage_products?'':'company-disabled'}" onclick="window.companyDeleteProduct('${attr(x.id)}')">حذف</button></div></div>`).join(''):'<div class="muted">لا توجد مواد بعد.</div>';
     if($('companyDashboardCategories'))$('companyDashboardCategories').innerHTML=c.length?c.map(x=>`<div class="company-account-row"><b>${esc(x.name)}</b><div class="muted">${x.active?'نشط':'مخفي'}</div><button class="btn secondary" onclick="window.companyToggleCategory('${attr(x.id)}',${!x.active})">${x.active?'إخفاء':'إظهار'}</button></div>`).join(''):'<div class="muted">لا توجد تصنيفات.</div>';
   }
 
@@ -499,10 +499,54 @@
     companyProductEditor();
   };
 
+  function restoreCompanyProductPosition(context,restoreFilters){
+    if(!context)return;
+    if(context.view==='companyDetail'){
+      const search=$('companyProductSearch');
+      const category=$('companyProductCategory');
+      const priceFilter=$('companyProductPriceFilter');
+      const render=()=>{if(search&&typeof search.oninput==='function')search.oninput();};
+      if(restoreFilters){
+        if(search)search.value=context.search||'';
+        if(category){const wanted=context.category||'';category.value=[...category.options].some(o=>o.value===wanted)?wanted:'';}
+        if(priceFilter)priceFilter.value=context.priceFilter||'all';
+        render();
+      }
+      const findTarget=()=>[...document.querySelectorAll('[data-company-product-id]')]
+        .find(node=>String(node.dataset.companyProductId)===String(context.productId));
+      let target=findTarget();
+      if(!target&&restoreFilters&&context.productId){
+        // A rename/category/price change can make the old filter hide the edited product.
+        if(search)search.value='';
+        if(category)category.value='';
+        if(priceFilter)priceFilter.value='all';
+        render();
+        target=findTarget();
+      }
+      if(target)target.scrollIntoView({block:'center',behavior:'auto'});
+      else window.scrollTo(0,Number(context.scrollY)||0);
+      return;
+    }
+    if(context.view==='company'){
+      const target=[...document.querySelectorAll('[data-company-dashboard-product]')]
+        .find(node=>String(node.dataset.companyDashboardProduct)===String(context.productId));
+      if(target)target.scrollIntoView({block:'center',behavior:'auto'});
+      else window.scrollTo(0,Number(context.scrollY)||0);
+      return;
+    }
+    window.scrollTo(0,Number(context.scrollY)||0);
+  }
+
   function companyProductEditor(existing, forcedContext){
     const p=existing||{};
     const editContext=forcedContext||window.companyContext||null;
     const editCompanyId=editContext?.company_id||p.company_id||currentCompany?.id||null;
+    const returnContext=existing?{
+      view:document.querySelector('.page.active')?.id||(editContext?'company':'companyDetail'),
+      companyId:String(editCompanyId||p.company_id||''),productId:String(existing.id),scrollY:window.scrollY,
+      search:$('companyProductSearch')?.value||'',category:$('companyProductCategory')?.value||'',
+      priceFilter:$('companyProductPriceFilter')?.value||'all'
+    }:null;
     const modal=document.createElement('div');
     modal.id='companyEditorModal';
     modal.className='company-modal';
@@ -525,8 +569,9 @@
       <div class="actions"><button class="btn primary" id="saveCompanyProduct">حفظ</button><button class="btn secondary" id="cancelCompanyProduct">إلغاء</button></div>
     </div>`;
     document.body.appendChild(modal);
-    $('closeCompanyEditor').onclick=()=>modal.remove();
-    $('cancelCompanyProduct').onclick=()=>modal.remove();
+    const dismissCompanyEditor=()=>{modal.remove();if(returnContext)restoreCompanyProductPosition(returnContext,false);};
+    $('closeCompanyEditor').onclick=dismissCompanyEditor;
+    $('cancelCompanyProduct').onclick=dismissCompanyEditor;
     $('cep_barcode_camera').onclick=()=>window.openBarcodeScannerForCompanyAdd?.(window.companyContext?.company_id||currentCompany?.id);
     $('cep_barcode').addEventListener('input',()=>{$('cep_barcode').value=norm($('cep_barcode').value)});
     $('saveCompanyProduct').onclick=async()=>{
@@ -550,6 +595,21 @@
         if(r.error) throw r.error;
         modal.remove();
         await window.refreshHomeProductCount?.();
+        if(existing&&returnContext){
+          if(returnContext.view==='companyDetail'){
+            await window.openCompanyById(returnContext.companyId||editCompanyId);
+            restoreCompanyProductPosition(returnContext,true);
+          }else if(returnContext.view==='company'){
+            if(editContext)await loadCompanyDashboardData(editContext);
+            restoreCompanyProductPosition(returnContext,false);
+          }else if(editContext){
+            await loadCompanyDashboardData(editContext);
+            restoreCompanyProductPosition(returnContext,false);
+          }else if(currentCompany){
+            await window.openCompanyById(currentCompany.id);
+          }
+          return;
+        }
         if(editContext) await loadCompanyDashboardData(editContext);
         if(!existing && window.companyContext?.can_manage_products){companyProductEditor();return;}
         if(currentCompany) await window.openCompanyById(currentCompany.id);
@@ -895,6 +955,13 @@
 
   window.adminEditCompanyProduct=async function(companyId,productId,companyArg){
     if(role()!=='admin')return alert('المدير فقط يستطيع إضافة أو تعديل مواد الشركات.');
+    const returnContext={
+      view:document.querySelector('.page.active')?.id||'admin',companyId:String(companyId),
+      productId:productId?String(productId):null,scrollY:window.scrollY,
+      managerScrollTop:$('adminCompanyProductModal')?.scrollTop||0,
+      search:$('companyProductSearch')?.value||'',category:$('companyProductCategory')?.value||'',
+      priceFilter:$('companyProductPriceFilter')?.value||'all'
+    };
     let company=companyArg;
     if(!company){
       const cr=await supabaseClient.from('companies').select('*').eq('id',companyId).maybeSingle();
@@ -917,7 +984,18 @@
       <p id="admin_cep_msg" class="muted"></p><div class="actions"><button type="button" class="btn primary" id="admin_cep_save">حفظ</button><button type="button" class="btn secondary" id="admin_cep_cancel">إلغاء</button></div>
     </div>`;
     document.body.appendChild(modal);
-    $('adminCepClose').onclick=()=>modal.remove();$('admin_cep_cancel').onclick=()=>modal.remove();$('admin_cep_barcode_camera').onclick=()=>window.openBarcodeScannerForCompanyAdd?.(companyId);$('admin_cep_barcode').addEventListener('input',()=>{$('admin_cep_barcode').value=norm($('admin_cep_barcode').value)});
+    const restoreAdminCompanyOrigin=()=>{
+      const manager=$('adminCompanyProductModal');
+      if(manager){
+        const row=returnContext.productId?[...manager.querySelectorAll('[data-admin-company-product]')].find(node=>String(node.dataset.adminCompanyProduct)===String(returnContext.productId)):null;
+        if(row)row.scrollIntoView({block:'center',behavior:'auto'});
+        else manager.scrollTop=returnContext.managerScrollTop;
+      }else if(returnContext.view==='companyDetail'){
+        restoreCompanyProductPosition(returnContext,false);
+      }else window.scrollTo(0,Number(returnContext.scrollY)||0);
+    };
+    const dismissAdminCompanyEditor=()=>{modal.remove();restoreAdminCompanyOrigin();};
+    $('adminCepClose').onclick=dismissAdminCompanyEditor;$('admin_cep_cancel').onclick=dismissAdminCompanyEditor;$('admin_cep_barcode_camera').onclick=()=>window.openBarcodeScannerForCompanyAdd?.(companyId);$('admin_cep_barcode').addEventListener('input',()=>{$('admin_cep_barcode').value=norm($('admin_cep_barcode').value)});
     $('admin_cep_save').onclick=async()=>{
       const msg=$('admin_cep_msg');msg.textContent='جاري الحفظ...';
       try{
@@ -933,7 +1011,16 @@
         modal.remove();
         await window.refreshHomeProductCount?.();
         const manager=$('adminCompanyProductModal');
-        if(manager){const cc=await supabaseClient.from('companies').select('*').eq('id',companyId).maybeSingle();await adminReloadCompanyProducts(companyId,cc.data||company);}
+        if(manager){
+          const cc=await supabaseClient.from('companies').select('*').eq('id',companyId).maybeSingle();
+          await adminReloadCompanyProducts(companyId,cc.data||company);
+          restoreAdminCompanyOrigin();
+        }else if(returnContext.view==='companyDetail'){
+          await window.openCompanyById(companyId);
+          restoreCompanyProductPosition(returnContext,true);
+        }else{
+          restoreAdminCompanyOrigin();
+        }
         alert(existing?'تم تعديل مادة الشركة بنجاح ✅':'تمت إضافة مادة للشركة بنجاح ✅');
       }catch(err){msg.textContent='تعذر الحفظ: '+(err.message||err);}
     };

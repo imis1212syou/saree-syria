@@ -1286,6 +1286,38 @@
     renderAdditionalBarcodes();
   }
 
+  async function returnFromStoreMaterialEdit(fallbackStoreId){
+    const context=window.__sareeStoreEditReturn||null;
+    window.__sareeStoreEditReturn=null;
+    const closeButton=$('add')?.querySelector(':scope > .pageCloseBtn button');
+    if(closeButton) closeButton.onclick=()=>window.closePageView?.('add');
+    resetMaterialForm();
+    const storeId=context?.storeId||fallbackStoreId;
+    if(!storeId){window.show?.('home');return;}
+    window.show?.('storeDetail');
+    await window.renderStoreDetail?.(storeId);
+    const search=$('storeMaterialSearch');
+    const category=$('storeMaterialCategory');
+    if(search) search.value=context?.search||'';
+    if(category){
+      const desired=context?.category||'';
+      category.value=[...category.options].some(option=>option.value===desired)?desired:'';
+    }
+    filterStoreMaterials();
+    const findTarget=()=>[...document.querySelectorAll('[data-edit-listing]')]
+      .find(button=>String(button.dataset.editListing)===String(context?.listingId))?.closest('.storeProductCard');
+    let target=findTarget();
+    if(target&&target.style.display==='none'){
+      // If the edit changed the name/category used by the old filter, reveal the same material.
+      if(search) search.value='';
+      if(category) category.value='';
+      filterStoreMaterials();
+      target=findTarget();
+    }
+    if(target) target.scrollIntoView({block:'center',behavior:'auto'});
+    else window.scrollTo(0,Number(context?.scrollY)||0);
+  }
+
   window.showAdd = async function(){
     ensureAdditionalBarcodeUI();
     if(!profileData) return alert('هذه الميزة للحسابات المصرح لها فقط.');
@@ -1323,8 +1355,15 @@
       if(error) throw error;
       if(!data) throw new Error('لم يتم العثور على المادة.');
       const p=data.products||{};
+      window.__sareeStoreEditReturn={
+        view:document.querySelector('.page.active')?.id||'storeDetail',
+        storeId:String(storeId),listingId:String(listingId),scrollY:window.scrollY,
+        search:$('storeMaterialSearch')?.value||'',category:$('storeMaterialCategory')?.value||''
+      };
       window.__editingMaterial={listingId,storeId,productId:data.product_id,companyId:p.company_id||null,originalBarcode:normBarcode(p.barcode||data.barcode||'')};
       window.show('add');
+      const closeButton=$('add')?.querySelector(':scope > .pageCloseBtn button');
+      if(closeButton) closeButton.onclick=()=>returnFromStoreMaterialEdit(storeId).catch(err=>{console.warn('return to store after edit:',err);window.show?.('storeDetail')});
       $('existingProduct').value='';
       ['pn','brand','unit','cat'].forEach(id=>{ if($(id)) $(id).disabled=false; });
       $('pn').value=p.name||'';
@@ -1342,7 +1381,7 @@
       $('addSubmitBtn').textContent='حفظ التعديلات';
       $('addMsg').textContent='';
       window.__editingMaterial.currentImageUrl=p.image_url||null;
-    }catch(err){ console.error(err); alert('تعذر فتح المادة للتعديل: '+(err.message||'خطأ غير معروف')); }
+    }catch(err){ window.__sareeStoreEditReturn=null; console.error(err); alert('تعذر فتح المادة للتعديل: '+(err.message||'خطأ غير معروف')); }
   };
 
   window.deleteStoreMaterial = async function(listingId,storeId){
@@ -1444,7 +1483,7 @@
         }
         alert('تم حفظ تعديلات المادة بنجاح ✅');
         window.__editingMaterial=null;
-        await window.renderStoreDetail(storeId);
+        await returnFromStoreMaterialEdit(storeId);
         return;
       }catch(err){ console.error(err); return alert('تعذر حفظ التعديلات: '+(err.message||'خطأ غير معروف')); }
     }
