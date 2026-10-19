@@ -869,8 +869,57 @@
   }
 
   function priceNumber(row){ return Number(row?.price_new ?? row?.price ?? 0); }
+  function hasStorePrice(row){
+    const value=row?.price_new ?? row?.price;
+    return value!==null && value!==undefined && String(value).trim()!=='' && Number.isFinite(Number(value));
+  }
   function priceOld(v){ return typeof window.old === 'function' ? window.old(v) : Number(v||0)*100; }
   function fmt(v){ return typeof window.f === 'function' ? window.f(v) : Number(v||0).toLocaleString('en-US',{maximumFractionDigits:2}); }
+
+  // تطبيع مخصص للبحث النصي داخل المتجر فقط؛ لا يُستخدم أو يغيّر بحث الباركود.
+  function normalizeStoreMaterialSearch(value){
+    return String(value ?? '')
+      .normalize('NFKC')
+      .toLocaleLowerCase('ar')
+      .replace(/[\u064B-\u065F\u0670\u06D6-\u06ED]/g,'')
+      .replace(/\u0640/g,'')
+      .replace(/[أإآٱ]/g,'ا')
+      .replace(/ى/g,'ي')
+      .replace(/ؤ/g,'و')
+      .replace(/ئ/g,'ي')
+      .replace(/\s+/g,' ')
+      .trim();
+  }
+
+  let storeActionToastTimer=null;
+  function showStoreActionToast(message){
+    let toast=$('storeMaterialActionToast');
+    if(!toast){
+      toast=document.createElement('div');
+      toast.id='storeMaterialActionToast';
+      toast.setAttribute('role','status');
+      toast.setAttribute('aria-live','polite');
+      toast.style.cssText='position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:20000;max-width:calc(100vw - 28px);padding:12px 18px;border-radius:12px;background:#173a28;color:#d7ffe6;border:1px solid #2f8055;box-shadow:0 8px 28px rgba(0,0,0,.28);font-weight:700;text-align:center;direction:rtl;display:none;opacity:1;transition:opacity .18s ease;';
+      document.body.appendChild(toast);
+    }
+    toast.textContent=message;
+    toast.style.display='block';
+    toast.style.opacity='1';
+    if(storeActionToastTimer) clearTimeout(storeActionToastTimer);
+    storeActionToastTimer=setTimeout(()=>{
+      if(!toast.isConnected) return;
+      toast.style.opacity='0';
+      setTimeout(()=>{ if(toast.isConnected) toast.remove(); },220);
+    },3200);
+  }
+
+  function updateStoreProductCount(){
+    const grid=$('storeProductsGrid');
+    const title=document.querySelector('[data-store-products-title]');
+    if(!grid || !title) return;
+    const count=grid.querySelectorAll('.storeProductCard').length;
+    title.textContent=`أسعار المتجر (${count})`;
+  }
 
   window.renderProducts = function(){
     const q=(document.getElementById('search')?.value||'').trim().toLowerCase();
@@ -937,21 +986,22 @@
     const rows = uniqueListings(list);
     const canEdit = canManageStore(storeId);
     const st = (stores || []).find(x=>String(x.id)===String(storeId)) || null;
-    if(!rows.length) return '<div class="card muted">لا توجد أسعار معتمدة لهذا المتجر حالياً.</div>';
+    if(!rows.length) return '<div class="card muted" data-store-empty="1">لا توجد أسعار معتمدة لهذا المتجر حالياً.</div>';
     return rows.map(row=>{
       const p = row.products || {};
       const productId = p.id || row.product_id || '';
       const barcode = normBarcode(p.barcode || row.barcode || '');
       const category = p.category || 'عام';
-      const searchText = [p.name,p.description,p.brand,p.unit,p.category,barcode].filter(Boolean).join(' ').toLocaleLowerCase();
+      // يبقى الباركود في بيانات البطاقة كما كان؛ دالة بحث الباركود المستقلة لم تتغير.
+      const searchText = [p.name,p.description,p.brand,p.unit,p.category,barcode].filter(Boolean).join(' ');
       const canCart = Boolean(st && productId && window.sareeStoreWhatsappOrdersEnabled?.(st) && typeof window.sareeCartAdd==='function');
       const key = `${String(storeId)}:${String(productId)}`;
       storeMaterialDetails.set(key,{row,storeId,store:st});
-      return `<article class="card storeProductCard storeProductCompactCard" data-has-image="${p.image_url ? '1' : '0'}" data-product-id="${esc(productId)}" data-material-search="${esc(searchText)}" data-material-category="${esc(category)}">
+      return `<article class="card storeProductCard storeProductCompactCard" data-listing-id="${esc(row.id)}" data-has-image="${p.image_url ? '1' : '0'}" data-product-id="${esc(productId)}" data-material-search="${esc(searchText)}" data-material-category="${esc(category)}">
         ${p.image_url ? `<img class="img materialImage" src="${esc(p.image_url)}" alt="${esc(p.name || 'مادة')}" loading="lazy">` : ''}
         <div class="storeProductCompactInfo">
           <div class="name storeProductCompactName">${esc(p.name || 'مادة')}</div>
-          <div class="price storeProductCompactPrice">${fmt(priceNumber(row))} ل.س جديدة</div>
+          ${hasStorePrice(row) ? `<div class="price storeProductCompactPrice">${fmt(priceNumber(row))} ل.س جديدة</div>` : '<div class="muted storeProductCompactPrice">لا يوجد سعر معتمد حالياً</div>'}
           <div class="actions storeProductCompactActions">
             <button type="button" class="btn primary" data-material-detail="${esc(productId)}" data-store-id="${esc(storeId)}">تفاصيل المادة</button>
             ${canCart ? `<button type="button" class="btn primary" data-saree-add="1" data-store-cart-add="${esc(productId)}" data-store-id="${esc(storeId)}">إضافة للسلة</button>` : ''}
@@ -992,7 +1042,7 @@
     ensureStoreMaterialDetailsCss();
     const existing=document.getElementById('storeMaterialDetailsModal');existing?.remove();
     const modal=document.createElement('div');modal.id='storeMaterialDetailsModal';modal.className='store-material-modal';
-    modal.innerHTML=`<div class="store-material-modal-inner"><div class="row" style="justify-content:space-between;align-items:center"><h2 style="margin:0">${esc(p.name||'تفاصيل المادة')}</h2><button type="button" class="btn secondary" id="storeMaterialDetailsClose">إغلاق</button></div>${p.image_url?`<img class="img" style="height:220px;object-fit:contain" src="${esc(p.image_url)}" alt="${esc(p.name||'مادة')}">`:''}<span class="pill">${esc(p.category||'عام')}</span><div class="muted">${esc(p.brand||'')}${p.brand&&p.unit?' • ':''}${esc(p.unit||'')}</div>${normBarcode(p.barcode||row.barcode||'')?`<div class="muted">الباركود: ${esc(normBarcode(p.barcode||row.barcode||''))}</div>`:''}<div class="price">${fmt(priceNumber(row))} ل.س جديدة</div><div class="old">${priceOld(priceNumber(row))} ل.س قديمة</div>${p.description?`<p class="muted">${esc(p.description)}</p>`:''}<div class="muted">آخر تحديث: ${row.updated_at?esc(new Date(row.updated_at).toLocaleString('ar')):'—'}</div><div class="actions">${hasCart?`<button type="button" class="btn primary" id="storeMaterialDetailCart">إضافة إلى السلة</button>`:''}${canEdit?`<button type="button" class="btn secondary" id="storeMaterialDetailEdit">تعديل المادة</button><button type="button" class="btn danger" id="storeMaterialDetailDelete">حذف المادة</button>`:''}</div></div>`;
+    modal.innerHTML=`<div class="store-material-modal-inner"><div class="row" style="justify-content:space-between;align-items:center"><h2 style="margin:0">${esc(p.name||'تفاصيل المادة')}</h2><button type="button" class="btn secondary" id="storeMaterialDetailsClose">إغلاق</button></div>${p.image_url?`<img class="img" style="height:220px;object-fit:contain" src="${esc(p.image_url)}" alt="${esc(p.name||'مادة')}">`:''}<span class="pill">${esc(p.category||'عام')}</span><div class="muted">${esc(p.brand||'')}${p.brand&&p.unit?' • ':''}${esc(p.unit||'')}</div>${normBarcode(p.barcode||row.barcode||'')?`<div class="muted">الباركود: ${esc(normBarcode(p.barcode||row.barcode||''))}</div>`:''}${hasStorePrice(row)?`<div class="price">${fmt(priceNumber(row))} ل.س جديدة</div><div class="old">${priceOld(priceNumber(row))} ل.س قديمة</div>`:'<div class="muted">لا يوجد سعر معتمد حالياً</div>'}${p.description?`<p class="muted">${esc(p.description)}</p>`:''}<div class="muted">آخر تحديث: ${row.updated_at?esc(new Date(row.updated_at).toLocaleString('ar')):'—'}</div><div class="actions">${hasCart?`<button type="button" class="btn primary" id="storeMaterialDetailCart">إضافة إلى السلة</button>`:''}${canEdit?`<button type="button" class="btn secondary" id="storeMaterialDetailEdit">تعديل المادة</button><button type="button" class="btn danger" id="storeMaterialDetailDelete">حذف المادة</button>`:''}</div></div>`;
     document.body.appendChild(modal);
     modal.querySelector('#storeMaterialDetailsClose').onclick=()=>modal.remove();
     modal.onclick=ev=>{if(ev.target===modal)modal.remove()};
@@ -1007,19 +1057,22 @@
     const msg=$('storeMaterialSearchMsg');
     const grid=$('storeProductsGrid');
     if(!grid)return;
-    const q=String(input?.value||'').trim().toLocaleLowerCase();
+    const q=normalizeStoreMaterialSearch(input?.value||'');
     const cat=String(category?.value||'');
     let shown=0;const cards=[...grid.querySelectorAll('.storeProductCard')];
     cards.forEach(card=>{
-      const txt=String(card.dataset.materialSearch||'').toLocaleLowerCase();
+      const txt=normalizeStoreMaterialSearch(card.dataset.materialSearch||'');
       const categoryMatch=!cat||String(card.dataset.materialCategory||'')===cat;
       const queryMatch=!q||txt.includes(q);
       const visible=queryMatch&&categoryMatch;
       card.classList.toggle('hidden',!visible);if(visible)shown++;
     });
     if(msg)msg.textContent=(q||cat)?`النتائج داخل هذا المتجر: ${shown}`:'';
-    let empty=grid.querySelector('[data-store-search-empty]');
-    if((q||cat)&&shown===0){if(!empty){empty=document.createElement('div');empty.className='card muted';empty.dataset.storeSearchEmpty='1';empty.textContent='لا توجد مواد مطابقة في هذا المتجر.';grid.appendChild(empty)}}else empty?.remove();
+    let empty=grid.querySelector('[data-store-empty]');
+    if(!cards.length || ((q||cat)&&shown===0)){
+      if(!empty){empty=document.createElement('div');empty.className='card muted';empty.dataset.storeEmpty='1';grid.appendChild(empty)}
+      empty.textContent=(!cards.length && !(q||cat))?'لا توجد أسعار معتمدة لهذا المتجر حالياً.':'لا توجد مواد مطابقة في هذا المتجر.';
+    }else empty?.remove();
   }
 
   window.renderStoreDetail = async function(id){
@@ -1078,7 +1131,7 @@
         <div id="storeBarcodeResult"></div>
       </div>
       <div class="card">
-        <h3>أسعار المتجر (${uniqueListings(listings).length})</h3>
+        <h3 data-store-products-title>أسعار المتجر (${uniqueListings(listings).length})</h3>
         <div id="storeProductsGrid" class="grid">${renderStorePriceCards(listings,st.id)}</div>
       </div>`;
 
@@ -1294,7 +1347,10 @@
     resetMaterialForm();
     const storeId=context?.storeId||fallbackStoreId;
     if(!storeId){window.show?.('home');return;}
+    const savedScrollY=Math.max(0,Number(context?.scrollY)||0);
     window.show?.('storeDetail');
+    // show() يعيد التمرير إلى الصفر؛ استرجع الموضع فوراً قبل انتظار تحميل بيانات المتجر.
+    window.scrollTo(0,savedScrollY);
     await window.renderStoreDetail?.(storeId);
     const search=$('storeMaterialSearch');
     const category=$('storeMaterialCategory');
@@ -1304,18 +1360,24 @@
       category.value=[...category.options].some(option=>option.value===desired)?desired:'';
     }
     filterStoreMaterials();
-    const findTarget=()=>[...document.querySelectorAll('[data-edit-listing]')]
-      .find(button=>String(button.dataset.editListing)===String(context?.listingId))?.closest('.storeProductCard');
-    let target=findTarget();
-    if(target&&target.style.display==='none'){
-      // If the edit changed the name/category used by the old filter, reveal the same material.
-      if(search) search.value='';
-      if(category) category.value='';
-      filterStoreMaterials();
-      target=findTarget();
+    updateStoreProductCount();
+
+    // لا نفرض إظهار المادة بمسح البحث ولا نمررها إلى وسط الشاشة؛ نحافظ على البحث والموضع.
+    const target=[...document.querySelectorAll('#storeProductsGrid .storeProductCard')]
+      .find(card=>String(card.dataset.listingId)===String(context?.listingId) && !card.classList.contains('hidden'));
+    const desiredTop=context?.cardTop==null ? NaN : Number(context.cardTop);
+    if(target && Number.isFinite(desiredTop)){
+      const delta=target.getBoundingClientRect().top-desiredTop;
+      window.scrollTo(0,Math.max(0,window.scrollY+delta));
+      requestAnimationFrame(()=>{
+        if(!target.isConnected)return;
+        const adjust=target.getBoundingClientRect().top-desiredTop;
+        if(Math.abs(adjust)>1) window.scrollTo(0,Math.max(0,window.scrollY+adjust));
+      });
+    }else{
+      window.scrollTo(0,savedScrollY);
+      requestAnimationFrame(()=>window.scrollTo(0,savedScrollY));
     }
-    if(target) target.scrollIntoView({block:'center',behavior:'auto'});
-    else window.scrollTo(0,Number(context?.scrollY)||0);
   }
 
   window.showAdd = async function(){
@@ -1355,9 +1417,12 @@
       if(error) throw error;
       if(!data) throw new Error('لم يتم العثور على المادة.');
       const p=data.products||{};
+      const sourceCard=[...document.querySelectorAll('#storeProductsGrid .storeProductCard')]
+        .find(card=>String(card.dataset.listingId)===String(listingId) && !card.classList.contains('hidden'));
       window.__sareeStoreEditReturn={
         view:document.querySelector('.page.active')?.id||'storeDetail',
         storeId:String(storeId),listingId:String(listingId),scrollY:window.scrollY,
+        cardTop:sourceCard ? sourceCard.getBoundingClientRect().top : null,
         search:$('storeMaterialSearch')?.value||'',category:$('storeMaterialCategory')?.value||''
       };
       window.__editingMaterial={listingId,storeId,productId:data.product_id,companyId:p.company_id||null,originalBarcode:normBarcode(p.barcode||data.barcode||'')};
@@ -1387,6 +1452,11 @@
   window.deleteStoreMaterial = async function(listingId,storeId){
     if(!canManageStore(storeId)) return alert('ليس لديك صلاحية حذف مواد هذا المتجر.');
     if(!confirm('هل أنت متأكد من حذف المادة من هذا المتجر؟')) return;
+    const savedScrollY=window.scrollY;
+    const sourceCard=[...document.querySelectorAll('#storeProductsGrid .storeProductCard')]
+      .find(card=>String(card.dataset.listingId)===String(listingId));
+    const sourceTop=sourceCard ? sourceCard.getBoundingClientRect().top : null;
+    const sourceHeight=sourceCard ? sourceCard.getBoundingClientRect().height : 0;
     try{
       const {data:listing,error:listingError}=await supabaseClient.from('price_listings').select('product_id').eq('id',listingId).eq('store_id',storeId).single();
       if(listingError) throw listingError;
@@ -1405,8 +1475,22 @@
         const {error:productError}=await supabaseClient.from('products').update({active:false}).eq('id',listing.product_id);
         if(productError) throw productError;
       }
-      alert('تم حذف المادة من المتجر ✅');
-      await window.refreshAll?.();
+
+      // Remove the deleted listing from the store DOM directly; do not rerender the whole app or jump to the top.
+      document.querySelectorAll('#storeProductsGrid .storeProductCard, #storeBarcodeResult .storeProductCard').forEach(card=>{
+        if(String(card.dataset.listingId)===String(listingId)) card.remove();
+      });
+      updateStoreProductCount();
+      filterStoreMaterials();
+      const adjustedScrollY=(sourceTop!==null && sourceTop<0)
+        ? Math.max(0,savedScrollY-sourceHeight)
+        : savedScrollY;
+      window.scrollTo(0,adjustedScrollY);
+      requestAnimationFrame(()=>window.scrollTo(0,adjustedScrollY));
+      showStoreActionToast('تم حذف المادة من المتجر ✅');
+      // حدّث بيانات الكتالوج المخزنة بالذاكرة دون إعادة فتح الصفحة أو تغيير موضعها.
+      try{ await window.loadPublicData?.(); window.renderProducts?.(); }
+      catch(refreshErr){ console.warn('refresh public catalog after store deletion:',refreshErr); }
     }catch(err){ console.error(err); alert('تعذر حذف المادة: '+(err.message||'خطأ غير معروف')); }
   };
 
@@ -1481,9 +1565,12 @@
           if(updateListingError) throw updateListingError;
           await saveStoreAdditionalBarcodes(storeId,row.product_id);
         }
-        alert('تم حفظ تعديلات المادة بنجاح ✅');
         window.__editingMaterial=null;
         await returnFromStoreMaterialEdit(storeId);
+        showStoreActionToast('تم تعديل المادة بنجاح ✅');
+        // حدّث بيانات الكتالوج في الخلفية دون refreshAll الذي يعيد التمرير إلى أعلى الصفحة.
+        try{ await window.loadPublicData?.(); window.renderProducts?.(); }
+        catch(refreshErr){ console.warn('refresh public catalog after store edit:',refreshErr); }
         return;
       }catch(err){ console.error(err); return alert('تعذر حفظ التعديلات: '+(err.message||'خطأ غير معروف')); }
     }
