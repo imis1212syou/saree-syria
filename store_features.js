@@ -21,6 +21,10 @@
   const storeWhatsapp = st => st?.whatsapp_url || st?.whatsapp || '';
 
   const STORE_BARCODE_TABLE = 'store_product_barcodes';
+  const STORE_CATEGORY_TABLE = 'store_categories';
+  let activeStoreSectionCategory = '';
+  let activeStoreSectionStoreId = null;
+  let activeStoreSectionCategories = [];
   window.__sareeStoreAdditionalBarcodes = window.__sareeStoreAdditionalBarcodes || [];
   let barcodeValidationToken = 0;
   let barcodeValidationBusy = false;
@@ -891,6 +895,123 @@
       .trim();
   }
 
+  function normalizeStoreCategoryName(value){
+    return String(value ?? '').normalize('NFKC').replace(/\s+/g,' ').trim();
+  }
+
+  function sortStoreCategoryNames(values){
+    const unique=new Map();
+    (values||[]).forEach(value=>{
+      const name=normalizeStoreCategoryName(value);
+      if(name && ![...unique.keys()].some(old=>old.toLocaleLowerCase('ar')===name.toLocaleLowerCase('ar'))) unique.set(name,name);
+    });
+    if(!unique.size) unique.set('عام','عام');
+    return [...unique.values()].sort((a,b)=>{
+      if(a==='عام') return -1;
+      if(b==='عام') return 1;
+      return a.localeCompare(b,'ar');
+    });
+  }
+
+  async function loadStoreCategoryNames(storeId,listingRows=null){
+    const names=[];
+    let categoryTableError=null;
+    if(storeId){
+      try{
+        const {data,error}=await supabaseClient.from(STORE_CATEGORY_TABLE).select('name').eq('store_id',storeId).order('name',{ascending:true});
+        if(error) throw error;
+        (data||[]).forEach(row=>names.push(row.name));
+      }catch(err){
+        categoryTableError=err;
+        if(!/relation .*store_categories|schema cache|does not exist/i.test(String(err?.message||''))) console.warn('load store categories:',err);
+      }
+      if(Array.isArray(listingRows)){
+        listingRows.forEach(row=>names.push(row?.products?.category));
+      }else{
+        try{
+          const {data,error}=await supabaseClient.from('price_listings').select('products(category)').eq('store_id',storeId).eq('approved',true);
+          if(error) throw error;
+          (data||[]).forEach(row=>names.push(row?.products?.category));
+        }catch(err){console.warn('load existing store product categories:',err);}
+      }
+    }
+    const result=sortStoreCategoryNames(names);
+    result.tableMissing=Boolean(categoryTableError && /relation .*store_categories|schema cache|does not exist/i.test(String(categoryTableError.message||'')));
+    return result;
+  }
+
+  async function populateStoreCategorySelect(storeId,selectedValue=''){
+    const select=$('cat');
+    if(!select) return [];
+    const prior=normalizeStoreCategoryName(selectedValue || select.value || 'عام');
+    const names=await loadStoreCategoryNames(storeId);
+    if(prior && !names.some(name=>name.toLocaleLowerCase('ar')===prior.toLocaleLowerCase('ar'))) names.unshift(prior);
+    const choices=sortStoreCategoryNames(names);
+    select.innerHTML='<option value="">اختر القسم</option>'+choices.map(name=>`<option value="${esc(name)}">${esc(name)}</option>`).join('');
+    select.value=choices.find(name=>name.toLocaleLowerCase('ar')===prior.toLocaleLowerCase('ar'))||'';
+    return choices;
+  }
+
+  function renderStoreSectionPicker(storeId,categories){
+    const host=$('storeSectionPicker');
+    if(!host) return;
+    activeStoreSectionStoreId=String(storeId);
+    activeStoreSectionCategories=sortStoreCategoryNames(categories||[]);
+    if(!activeStoreSectionCategories.some(name=>name===activeStoreSectionCategory)) activeStoreSectionCategory='';
+    const selectedLabel=activeStoreSectionCategory||'جميع المواد';
+    const canAdd=canManageStore(storeId);
+    host.innerHTML=`<div class="storeSectionPickerWrap">
+      <button type="button" id="storeSectionToggle" class="storeSectionToggle" aria-expanded="false" aria-controls="storeSectionMenu"><span>الأقسام</span><span class="storeSectionCurrent">${esc(selectedLabel)}</span><span aria-hidden="true">▾</span></button>
+      <div id="storeSectionMenu" class="storeSectionMenu hidden" role="group" aria-label="أقسام المتجر">
+        <button type="button" class="storeSectionOption ${activeStoreSectionCategory?'':'active'}" data-store-section="">جميع المواد</button>
+        ${activeStoreSectionCategories.map(name=>`<button type="button" class="storeSectionOption ${name===activeStoreSectionCategory?'active':''}" data-store-section="${esc(name)}">${esc(name)}</button>`).join('')}
+        ${canAdd?'<div class="storeSectionMenuDivider"></div><button type="button" class="storeSectionAdd" id="storeSectionAddBtn">＋ إضافة قسم</button>':''}
+      </div>
+    </div>`;
+    $('storeSectionToggle')?.addEventListener('click',()=>{
+      const menu=$('storeSectionMenu'); if(!menu)return;
+      const willOpen=menu.classList.contains('hidden');
+      menu.classList.toggle('hidden',!willOpen);
+      $('storeSectionToggle')?.setAttribute('aria-expanded',String(willOpen));
+    });
+    host.querySelectorAll('[data-store-section]').forEach(btn=>btn.addEventListener('click',()=>{
+      activeStoreSectionCategory=btn.dataset.storeSection||'';
+      const menu=$('storeSectionMenu');menu?.classList.add('hidden');
+      $('storeSectionToggle')?.setAttribute('aria-expanded','false');
+      const label=host.querySelector('.storeSectionCurrent'); if(label)label.textContent=activeStoreSectionCategory||'جميع المواد';
+      host.querySelectorAll('[data-store-section]').forEach(option=>option.classList.toggle('active',(option.dataset.storeSection||'')===activeStoreSectionCategory));
+      filterStoreMaterials();
+    }));
+    $('storeSectionAddBtn')?.addEventListener('click',()=>window.addStoreCategory?.(storeId));
+  }
+
+  window.addStoreCategory=async function(storeId){
+    if(!canManageStore(storeId)) return alert('إضافة الأقسام متاحة لمدير الموقع أو صاحب هذا المتجر فقط.');
+    const raw=prompt('اكتب اسم القسم الجديد، مثل: شيبسات أو بسكوت');
+    if(raw===null) return;
+    const name=normalizeStoreCategoryName(raw);
+    if(!name) return alert('اكتب اسم القسم.');
+    if(name.length>60) return alert('اسم القسم طويل جدًا. الحد الأقصى 60 حرفًا.');
+    if(activeStoreSectionCategories.some(item=>item.toLocaleLowerCase('ar')===name.toLocaleLowerCase('ar'))){
+      activeStoreSectionCategory=activeStoreSectionCategories.find(item=>item.toLocaleLowerCase('ar')===name.toLocaleLowerCase('ar'))||name;
+      renderStoreSectionPicker(storeId,activeStoreSectionCategories);filterStoreMaterials();return;
+    }
+    try{
+      const {error}=await supabaseClient.from(STORE_CATEGORY_TABLE).insert({store_id:String(storeId),name,created_by:profileData?.id||null});
+      if(error) throw error;
+      const names=await loadStoreCategoryNames(storeId);
+      activeStoreSectionCategory=name;
+      renderStoreSectionPicker(storeId,names);
+      await populateStoreCategorySelect(storeId,name);
+      filterStoreMaterials();
+      showStoreActionToast('تمت إضافة القسم بنجاح ✅');
+    }catch(err){
+      console.error('add store category:',err);
+      const missing=/relation .*store_categories|schema cache|does not exist/i.test(String(err?.message||''));
+      alert(missing?'يلزم أولًا تنفيذ ملف STORE_CATEGORIES_SETUP.sql في قاعدة بيانات Supabase لتفعيل حفظ أقسام المتجر.':'تعذر إضافة القسم: '+(err.message||'خطأ غير معروف'));
+    }
+  };
+
   let storeActionToastTimer=null;
   function showStoreActionToast(message){
     let toast=$('storeMaterialActionToast');
@@ -1018,6 +1139,8 @@
     style.textContent=`
       /* Compact horizontal product cards inside a store only. */
       #storeProductsGrid.grid{grid-template-columns:minmax(0,1fr)!important;gap:10px!important;align-items:stretch}
+      /* The compact-card display rule must never override the hidden state used by store search. */
+      #storeProductsGrid .storeProductCard.hidden{display:none!important}
       .storeProductCard.storeProductCompactCard{display:grid!important;grid-template-columns:108px minmax(0,1fr)!important;direction:rtl;align-items:center;gap:12px;padding:12px!important;min-width:0;overflow:hidden}
       .storeProductCard.storeProductCompactCard[data-has-image="0"]{grid-template-columns:minmax(0,1fr)!important}
       .storeProductCard.storeProductCompactCard>.materialImage{display:block;width:108px!important;min-width:108px;height:128px!important;max-height:128px;object-fit:contain!important;background:#f7fbfd!important;border:1px solid #e2edf2;border-radius:14px!important;margin:0!important}
@@ -1030,6 +1153,17 @@
       .store-material-modal{position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.78);padding:12px;overflow:auto;display:block}
       .store-material-modal-inner{width:min(760px,100%);margin:20px auto;background:var(--card-bg,#10191e);border:1px solid var(--border-color,#303b40);border-radius:20px;padding:16px;color:inherit;box-shadow:0 18px 55px rgba(0,0,0,.35)}
       .store-material-modal-inner .actions{display:flex;gap:8px;flex-wrap:wrap}
+      #storeSectionPicker{position:relative;z-index:40;display:flex;justify-content:flex-start;margin:0 0 10px;direction:rtl}
+      .storeSectionPickerWrap{position:relative;display:inline-block;max-width:100%}
+      .storeSectionToggle{display:flex;align-items:center;gap:8px;max-width:min(100%,340px);min-height:40px;padding:7px 12px;border:1px solid #d5e7ed;border-radius:13px;background:#edf7fb;color:#315f76;font:inherit;font-size:14px;font-weight:700;cursor:pointer;box-shadow:0 2px 8px rgba(20,80,100,.05)}
+      .storeSectionCurrent{max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#258c7a;font-weight:600}
+      .storeSectionMenu{position:absolute;top:calc(100% + 5px);right:0;width:min(300px,calc(100vw - 70px));max-height:min(55vh,360px);overflow:auto;z-index:300;background:var(--card-bg,#fff);color:var(--text-color,#173042);border:1px solid #d5e7ed;border-radius:14px;padding:7px;box-shadow:0 12px 35px rgba(20,55,70,.22)}
+      .storeSectionOption,.storeSectionAdd{display:block;width:100%;text-align:right;border:0;border-radius:9px;background:transparent;color:inherit;padding:10px 11px;font:inherit;cursor:pointer}
+      .storeSectionOption.active{background:#e5f5f2;color:#187d70;font-weight:700}
+      .storeSectionOption:hover,.storeSectionAdd:hover{background:#eef7fa}
+      .storeSectionMenuDivider{height:1px;background:#dbe8ed;margin:5px 2px}
+      .storeSectionAdd{color:#197f70;font-weight:700}
+      #add #cat{width:100%;}
     `;
     document.head.appendChild(style);
   }
@@ -1053,12 +1187,11 @@
 
   function filterStoreMaterials(){
     const input=$('storeMaterialSearch');
-    const category=$('storeMaterialCategory');
     const msg=$('storeMaterialSearchMsg');
     const grid=$('storeProductsGrid');
     if(!grid)return;
     const q=normalizeStoreMaterialSearch(input?.value||'');
-    const cat=String(category?.value||'');
+    const cat=String(activeStoreSectionCategory||'');
     let shown=0;const cards=[...grid.querySelectorAll('.storeProductCard')];
     cards.forEach(card=>{
       const txt=normalizeStoreMaterialSearch(card.dataset.materialSearch||'');
@@ -1116,7 +1249,6 @@
           <input id="storeMaterialSearch" inputmode="search" autocomplete="off" placeholder="ابحث باسم المادة أو التصنيف أو العلامة التجارية">
           <button type="button" class="btn primary" id="storeMaterialSearchBtn">بحث</button>
         </div>
-        <select id="storeMaterialCategory" aria-label="تصفية مواد المتجر حسب التصنيف"><option value="">كل التصنيفات</option>${[...new Set(uniqueListings(listings).map(r=>r.products?.category||'عام'))].sort((a,b)=>String(a).localeCompare(String(b),'ar')).map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('')}</select>
         <p id="storeMaterialSearchMsg" class="muted" aria-live="polite"></p>
       </div>
       <div class="card">
@@ -1131,11 +1263,16 @@
         <div id="storeBarcodeResult"></div>
       </div>
       <div class="card">
+        <div id="storeSectionPicker"></div>
         <h3 data-store-products-title>أسعار المتجر (${uniqueListings(listings).length})</h3>
         <div id="storeProductsGrid" class="grid">${renderStorePriceCards(listings,st.id)}</div>
       </div>`;
 
     window.sareeShowEntityQrFloat?.('store',st.id,st.name||'المتجر');
+
+    activeStoreSectionCategory='';
+    const storeCategories=await loadStoreCategoryNames(st.id,listings);
+    renderStoreSectionPicker(st.id,storeCategories);
 
     $('storeCompanyBtn')?.addEventListener('click',()=>company && window.openCompanyById ? window.openCompanyById(st.company_id) : window.openCompany?.(company));
     $('storeDirectionsBtn')?.addEventListener('click',()=>window.open(maps,'_blank','noopener'));
@@ -1163,7 +1300,6 @@
     $('storeMaterialSearch')?.addEventListener('input',filterStoreMaterials);
     $('storeMaterialSearch')?.addEventListener('keydown',ev=>{ if(ev.key==='Enter'){ev.preventDefault();filterStoreMaterials();} });
     $('storeMaterialSearchBtn')?.addEventListener('click',filterStoreMaterials);
-    $('storeMaterialCategory')?.addEventListener('change',filterStoreMaterials);
     $('storeBarcodeSearchBtn')?.addEventListener('click',()=>window.searchStoreBarcode(st.id));
     $('storeBarcodeSearch')?.addEventListener('keydown',ev=>{ if(ev.key==='Enter') window.searchStoreBarcode(st.id); });
     $('storeBarcodeCamera')?.addEventListener('click',()=>window.openBarcodeScannerForStore ? window.openBarcodeScannerForStore(st.id) : alert('ماسح الباركود غير محمّل.'));
@@ -1349,35 +1485,24 @@
     if(!storeId){window.show?.('home');return;}
     const savedScrollY=Math.max(0,Number(context?.scrollY)||0);
     window.show?.('storeDetail');
-    // show() يعيد التمرير إلى الصفر؛ استرجع الموضع فوراً قبل انتظار تحميل بيانات المتجر.
-    window.scrollTo(0,savedScrollY);
     await window.renderStoreDetail?.(storeId);
     const search=$('storeMaterialSearch');
-    const category=$('storeMaterialCategory');
     if(search) search.value=context?.search||'';
-    if(category){
-      const desired=context?.category||'';
-      category.value=[...category.options].some(option=>option.value===desired)?desired:'';
+    activeStoreSectionCategory=context?.category||'';
+    if(activeStoreSectionStoreId) {
+      const names=await loadStoreCategoryNames(activeStoreSectionStoreId);
+      renderStoreSectionPicker(activeStoreSectionStoreId,names);
     }
     filterStoreMaterials();
     updateStoreProductCount();
 
-    // لا نفرض إظهار المادة بمسح البحث ولا نمررها إلى وسط الشاشة؛ نحافظ على البحث والموضع.
-    const target=[...document.querySelectorAll('#storeProductsGrid .storeProductCard')]
-      .find(card=>String(card.dataset.listingId)===String(context?.listingId) && !card.classList.contains('hidden'));
-    const desiredTop=context?.cardTop==null ? NaN : Number(context.cardTop);
-    if(target && Number.isFinite(desiredTop)){
-      const delta=target.getBoundingClientRect().top-desiredTop;
-      window.scrollTo(0,Math.max(0,window.scrollY+delta));
-      requestAnimationFrame(()=>{
-        if(!target.isConnected)return;
-        const adjust=target.getBoundingClientRect().top-desiredTop;
-        if(Math.abs(adjust)>1) window.scrollTo(0,Math.max(0,window.scrollY+adjust));
-      });
-    }else{
-      window.scrollTo(0,savedScrollY);
-      requestAnimationFrame(()=>window.scrollTo(0,savedScrollY));
-    }
+    // احفظ موضع الصفحة نفسه، لا موضع البطاقة؛ فقد تنتقل المادة المعدّلة إلى أول القائمة بعد التحديث.
+    const restoreScrollPosition=()=>window.scrollTo(0,savedScrollY);
+    restoreScrollPosition();
+    requestAnimationFrame(()=>{
+      restoreScrollPosition();
+      requestAnimationFrame(restoreScrollPosition);
+    });
   }
 
   window.showAdd = async function(){
@@ -1388,7 +1513,9 @@
       window.show('add');
       const options = '<option value="">اختر المتجر</option>' + (stores||[]).map(st=>`<option value="${esc(st.id)}">${esc(st.name)}${st.city?' — '+esc(st.city):''}</option>`).join('');
       $('merchantStoreBox').innerHTML = `<label class="muted">المتجر المستهدف</label><select id="merchantStoreSelect">${options}</select>`;
+      $('merchantStoreSelect')?.addEventListener('change',()=>populateStoreCategorySelect($('merchantStoreSelect')?.value||null,'').catch(err=>console.warn('load selected store categories:',err)));
       await loadStoreMaterialCompanyOptions('');
+      await populateStoreCategorySelect($('merchantStoreSelect')?.value||null,'عام');
       window.__sareeStoreAdditionalBarcodes=[];
       renderAdditionalBarcodes();
       $('addHeading').textContent='إضافة مادة أو سعر';
@@ -1404,6 +1531,7 @@
     window.show('add');
     $('merchantStoreBox').innerHTML=`<div class="notice">المتجر المرتبط: <b>${esc(st?.name||'غير ظاهر')}</b></div>`;
     await loadStoreMaterialCompanyOptions('');
+    await populateStoreCategorySelect(profileData.store_id,$('cat')?.value||'عام');
     window.__sareeStoreAdditionalBarcodes=[];
     renderAdditionalBarcodes();
     $('addHeading').textContent='إضافة مادة أو سعر';
@@ -1417,13 +1545,10 @@
       if(error) throw error;
       if(!data) throw new Error('لم يتم العثور على المادة.');
       const p=data.products||{};
-      const sourceCard=[...document.querySelectorAll('#storeProductsGrid .storeProductCard')]
-        .find(card=>String(card.dataset.listingId)===String(listingId) && !card.classList.contains('hidden'));
       window.__sareeStoreEditReturn={
         view:document.querySelector('.page.active')?.id||'storeDetail',
         storeId:String(storeId),listingId:String(listingId),scrollY:window.scrollY,
-        cardTop:sourceCard ? sourceCard.getBoundingClientRect().top : null,
-        search:$('storeMaterialSearch')?.value||'',category:$('storeMaterialCategory')?.value||''
+        search:$('storeMaterialSearch')?.value||'',category:activeStoreSectionCategory||''
       };
       window.__editingMaterial={listingId,storeId,productId:data.product_id,companyId:p.company_id||null,originalBarcode:normBarcode(p.barcode||data.barcode||'')};
       window.show('add');
@@ -1434,11 +1559,12 @@
       $('pn').value=p.name||'';
       $('brand').value=p.brand||'';
       $('unit').value=p.unit||'';
-      $('cat').value=p.category||'عام';
       $('barcode').value=normBarcode(p.barcode||data.barcode||'');
       resetBarcodeValidationState();
       $('pr').value=Number(data.price_new ?? data.price ?? 0);
       $('merchantStoreBox').innerHTML = `<div class="notice">تعديل مادة من متجر: <b>${esc((stores||[]).find(s=>String(s.id)===String(storeId))?.name||storeId)}</b>${p.image_url?'<br>الصورة الحالية محفوظة ما لم تختر صورة جديدة.':''}</div>`;
+      await populateStoreCategorySelect(storeId,p.category||'عام');
+      $('cat').value=p.category||'عام';
       await loadStoreMaterialCompanyOptions(p.company_id||'');
       await loadStoreAdditionalBarcodes(storeId,data.product_id);
       await window.validateStorePrimaryBarcode?.();
@@ -1519,7 +1645,7 @@
     if(!Number.isFinite(v)||v<0) return alert('اكتب السعر بشكل صحيح.');
     if(!profileData) return alert('يجب تسجيل الدخول.');
     const editing=window.__editingMaterial;
-    if(!n) return alert('اكتب اسم المادة.');
+    if(!n && !selected) return alert('اكتب اسم المادة.');
 
     if(editing){
       const storeId=String(editing.storeId);
@@ -1586,9 +1712,11 @@
       let imageUrl=window.__barcodeTemplateImageUrl || null;
       if(file) imageUrl=await uploadImage(file,'materials');
       let productId=selected||null;
+      let selectedProduct=null;
       if(productId){
         const {data:p,error}=await supabaseClient.from('products').select('*').eq('id',productId).single();
         if(error) throw error;
+        selectedProduct=p;
         if(!barcode && p.barcode) $('barcode').value=normBarcode(p.barcode);
       }
 
@@ -1643,7 +1771,9 @@
       const user=await ensureCurrentUser();
       if(role()==='store'){
         if(!storeId) return alert('الحساب غير مرتبط بمتجر بعد.');
+        const sourceProductId=productId;
         let finalProductId=productId;
+        let categoryChangedForSelectedProduct=false;
         if(!finalProductId){
           if(barcode && await storeBarcodeExists(storeId,barcode,null)){ barcodePrimaryUsed=true; if($('barcodeMsg')) $('barcodeMsg').textContent='مستخدم في المتجر'; syncBarcodeSubmitState(); return; }
           const {data:p,error}=await supabaseClient.from('products').insert({
@@ -1651,16 +1781,41 @@
           }).select().single();
           if(error) throw error;
           finalProductId=p.id;
+        }else if(selectedProduct && normalizeStoreCategoryName(category).toLocaleLowerCase('ar')!==normalizeStoreCategoryName(selectedProduct.category||'عام').toLocaleLowerCase('ar')){
+          // التصنيف خاص بمواد هذا المتجر؛ لا نغيّر تصنيف المنتج المشترك لباقي المتاجر.
+          const {data:clone,error:cloneError}=await supabaseClient.from('products').insert({
+            name:selectedProduct.name||n||'مادة',
+            brand:selectedProduct.brand||null,
+            unit:selectedProduct.unit||null,
+            category,
+            barcode:barcode||normBarcode(selectedProduct.barcode||'')||null,
+            image_url:imageUrl||selectedProduct.image_url||null,
+            company_id:selectedProduct.company_id||companyId||null,
+            active:true,
+            created_by:user.id
+          }).select().single();
+          if(cloneError) throw cloneError;
+          finalProductId=clone.id;
+          categoryChangedForSelectedProduct=true;
         }
-        const {data:existing,error:existingError}=await supabaseClient.from('price_listings').select('id').eq('product_id',finalProductId).eq('store_id',storeId).maybeSingle();
+        const lookupProductId=categoryChangedForSelectedProduct?sourceProductId:finalProductId;
+        const {data:existing,error:existingError}=await supabaseClient.from('price_listings').select('id').eq('product_id',lookupProductId).eq('store_id',storeId).maybeSingle();
         if(existingError) throw existingError;
         const pricePayload={price_new:v,price:v,approved:true,submitted_by:user.id,approved_by:user.id,updated_at:new Date().toISOString()};
         if(existing){
-          const {error}=await supabaseClient.from('price_listings').update(pricePayload).eq('id',existing.id).eq('store_id',storeId);
+          const listingUpdate={...pricePayload};
+          if(categoryChangedForSelectedProduct) listingUpdate.product_id=finalProductId;
+          const {error}=await supabaseClient.from('price_listings').update(listingUpdate).eq('id',existing.id).eq('store_id',storeId);
           if(error) throw error;
         }else{
           const {error}=await supabaseClient.from('price_listings').insert({product_id:finalProductId,store_id:storeId,...pricePayload});
           if(error) throw error;
+        }
+        if(categoryChangedForSelectedProduct){
+          const {error:oldBarcodeDeleteError}=await supabaseClient.rpc('store_set_product_barcodes',{
+            p_store_id:String(storeId),p_product_id:String(sourceProductId),p_barcodes:[]
+          });
+          if(oldBarcodeDeleteError) throw oldBarcodeDeleteError;
         }
         await saveStoreAdditionalBarcodes(storeId,finalProductId);
         alert('تم حفظ المادة بنجاح');
@@ -1813,9 +1968,13 @@
       if(!pid){window.__sareeStoreAdditionalBarcodes=[];renderAdditionalBarcodes();return;}
       const storeId=activeStoreIdForMaterialForm();
       try{
-        const {data:p,error}=await supabaseClient.from('products').select('barcode').eq('id',pid).maybeSingle();
+        const {data:p,error}=await supabaseClient.from('products').select('barcode,category').eq('id',pid).maybeSingle();
         if(error) throw error;
         if($('barcode') && dataBarcode(p?.barcode)) $('barcode').value=normBarcode(p.barcode);
+        if(p?.category){
+          await populateStoreCategorySelect(storeId,p.category);
+          if($('cat')) $('cat').value=p.category;
+        }
         await loadStoreAdditionalBarcodes(storeId,pid);
       }catch(err){
         console.warn('load store material barcodes:',err);

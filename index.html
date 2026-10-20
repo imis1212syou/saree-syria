@@ -140,11 +140,11 @@
 
     </div>
 
-    <!-- التصنيف -->
-    <input
-      id="cat"
-      type="text"
-      placeholder="التصنيف">
+    <!-- تصنيف المادة (تُحمّل أقسام المتجر المرتبط) -->
+    <select id="cat" aria-label="تصنيف المادة">
+      <option value="">اختر القسم</option>
+      <option value="عام">عام</option>
+    </select>
 
     <!-- السعر -->
     <input
@@ -759,7 +759,7 @@ async function showAdd(){
  if(!profileData.store_id){alert('الحساب غير مرتبط بمتجر بعد.');return}
  show('add');$('merchantStoreBox').innerHTML=`<div class="notice">المتجر المرتبط: ${e(stores.find(s=>s.id===profileData.store_id)?.name||'غير ظاهر')}</div>`;
 }
-$('existingProduct').addEventListener('change',()=>{const on=!!$('existingProduct').value;$('pn').disabled=on;$('brand').disabled=on;$('unit').disabled=on;$('cat').disabled=on}); $('accountType')?.addEventListener('change',setupSignupPhoneField); loadSignupPhoneSetting().catch(console.warn)
+$('existingProduct').addEventListener('change',()=>{const on=!!$('existingProduct').value;$('pn').disabled=on;$('brand').disabled=on;$('unit').disabled=on;$('cat').disabled=false}); $('accountType')?.addEventListener('change',setupSignupPhoneField); loadSignupPhoneSetting().catch(console.warn)
 async function uploadImage(file,folder){
  if(!file)return null;const {data:{user}}=await supabaseClient.auth.getUser();if(!user)throw Error('يجب تسجيل الدخول');
  const ext=(file.name.split('.').pop()||'jpg').toLowerCase(),path=`${folder}/${user.id}/${Date.now()}.${ext}`;
@@ -1204,7 +1204,7 @@ supabaseClient.auth.onAuthStateChange((event)=>{
 
 <script src="store_admin_controls.js?v=location-fields-20261012"></script>
 <script src="ads.js?v=admin-video-20261012"></script>
-  <script src="store_features.js?v=store-product-compact-20261016-v2"></script>
+  <script src="store_features.js?v=store-categories-search-scroll-20261020-v1"></script>
 
 
 <script src="saree_all_features.js?v=whatsapp-modal-20261012"></script>
