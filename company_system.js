@@ -214,7 +214,11 @@
       supabaseClient.from('company_categories').select('*').eq('company_id',id).eq('active',true).order('name')
     ]);
     if(pr.error)throw pr.error;
-    companyProducts=pr.data||[]; companyCategories=cat.data||[]; return {company:data,stores:st.data||[]};
+    companyProducts=pr.data||[];
+    if(typeof window.loadCompanyImageBarcodeAliases==='function'){
+      try{companyProducts=await window.loadCompanyImageBarcodeAliases(companyProducts,id);}catch(aliasErr){console.warn('company extra barcodes:',aliasErr);}
+    }
+    companyCategories=cat.data||[]; return {company:data,stores:st.data||[]};
   }
 
   window.openCompanyById=async function(id){
@@ -243,12 +247,12 @@
         const q=String($('companyProductSearch')?.value||'').trim().toLowerCase();
         const cat=String($('companyProductCategory')?.value||'');
         const pf=$('companyProductPriceFilter')?.value||'all';
-        const rows=companyProducts.filter(p=>{const txt=[p.name,p.brand,p.unit,p.barcode,p.category].join(' ').toLowerCase();const has=p.price_new!==null&&p.price_new!==undefined&&p.price_new!=='';return (!q||txt.includes(q))&&(!cat||p.category===cat)&&(pf==='all'||(pf==='with'?has:!has))});
+        const rows=companyProducts.filter(p=>{const txt=[p.name,p.brand,p.unit,p.barcode,p.category,...(p.additional_barcodes||[])].join(' ').toLowerCase();const has=p.price_new!==null&&p.price_new!==undefined&&p.price_new!=='';return (!q||txt.includes(q))&&(!cat||p.category===cat)&&(pf==='all'||(pf==='with'?has:!has))});
         $('companyProductsGrid').innerHTML=rows.length?rows.map(companyDetailCardProduct).join(''):'<div class="card muted">لا توجد مواد مطابقة.</div>';
         if(canOrder) renderCompanyCart(id);
       };
       $('companyProductSearch').oninput=render;$('companyProductCategory').onchange=render;$('companyProductPriceFilter').onchange=render;
-      $('companyBarcodeSearchBtn').onclick=async()=>{const q=norm($('companyProductSearch').value);if(!q)return render();const exact=companyProducts.find(p=>norm(p.barcode)===q);if(exact){openCompanyProduct(exact.id);$('companyProductMsg').textContent='تم العثور على المادة بالباركود.'}else{$('companyProductMsg').textContent='لم يتم العثور على مادة بهذا الباركود.';render()}};
+      $('companyBarcodeSearchBtn').onclick=async()=>{const q=norm($('companyProductSearch').value);if(!q)return render();const exact=companyProducts.find(p=>norm(p.barcode)===q||(p.additional_barcodes||[]).some(code=>norm(code)===q));if(exact){openCompanyProduct(exact.id);$('companyProductMsg').textContent='تم العثور على المادة بالباركود.'}else{$('companyProductMsg').textContent='لم يتم العثور على مادة بهذا الباركود.';render()}};
       $('companyProductSearch').onkeydown=ev=>{if(ev.key==='Enter')$('companyBarcodeSearchBtn').click()};
       $('companyBarcodeCamera').onclick=()=>window.openBarcodeScannerForCompany?.(id);
       $('companyDirectionsBtn')?.addEventListener('click',()=>window.open(maps,'_blank','noopener'));
@@ -332,7 +336,7 @@
     const deleteButton=canDelete?`<button class="btn danger" onclick="document.getElementById('companyProductModal')?.remove();${isAdmin?`window.adminDeleteCompanyProduct('${companyId}','${productId}').then(ok=>{if(ok)window.openCompanyById('${companyId}')})`:`window.companyDeleteProduct('${productId}')`}">حذف المادة</button>`:'';
     const old=$('companyProductModal');if(old)old.remove();
     const m=document.createElement('div');m.id='companyProductModal';m.className='company-modal';
-    m.innerHTML=`<div class="company-modal-inner"><div class="row" style="justify-content:space-between;align-items:center"><h2>${esc(p.name)}</h2><button class="btn secondary" id="closeCompanyProduct">×</button></div>${p.image_url?`<img class="img" style="height:230px;object-fit:contain" src="${attr(p.image_url)}">`:''}<div class="muted">${esc(p.category||'عام')}${p.brand?' • '+esc(p.brand):''}${p.unit?' • '+esc(p.unit):''}</div>${p.barcode?`<div class="muted">الباركود: ${esc(p.barcode)}</div>`:''}${has?`<div class="company-price" style="margin-top:12px">${money(p.price_new)} ل.س</div>`:'<div class="company-no-price" style="margin-top:12px">السعر غير محدد حالياً</div>'}<p class="muted">${esc(p.description||'')}</p><div class="actions">${canOrder?`<button class="btn primary" onclick="window.companyCartAdd('${companyId}','${productId}')">أضف للسلة</button>`:''}${whatsapp?`<a class="btn secondary" href="${attr(whatsapp)}" target="_blank" rel="noopener">💬 واتساب</a>`:''}${editButton}${deleteButton}</div></div>`;
+    m.innerHTML=`<div class="company-modal-inner"><div class="row" style="justify-content:space-between;align-items:center"><h2>${esc(p.name)}</h2><button class="btn secondary" id="closeCompanyProduct">×</button></div>${p.image_url?`<img class="img" style="height:230px;object-fit:contain" src="${attr(p.image_url)}">`:''}<div class="muted">${esc(p.category||'عام')}${p.brand?' • '+esc(p.brand):''}${p.unit?' • '+esc(p.unit):''}</div>${p.barcode?`<div class="muted">الباركود: ${esc(p.barcode)}</div>`:''}${(p.additional_barcodes||[]).length?`<div class="muted">باركودات إضافية: ${(p.additional_barcodes||[]).map(code=>esc(code)).join(' • ')}</div>`:''}${has?`<div class="company-price" style="margin-top:12px">${money(p.price_new)} ل.س</div>`:'<div class="company-no-price" style="margin-top:12px">السعر غير محدد حالياً</div>'}<p class="muted">${esc(p.description||'')}</p><div class="actions">${canOrder?`<button class="btn primary" onclick="window.companyCartAdd('${companyId}','${productId}')">أضف للسلة</button>`:''}${whatsapp?`<a class="btn secondary" href="${attr(whatsapp)}" target="_blank" rel="noopener">💬 واتساب</a>`:''}${editButton}${deleteButton}</div></div>`;
     document.body.appendChild(m);$('closeCompanyProduct').onclick=()=>m.remove();m.onclick=e=>{if(e.target===m)m.remove()};
   };
 
@@ -561,6 +565,7 @@
         <input id="cep_unit" value="${attr(p.unit||'')}" placeholder="الوزن / الحجم">
         <input id="cep_category" value="${attr(p.category||'')}" placeholder="التصنيف">
         <div class="company-barcode" style="grid-column:1/-1"><input id="cep_barcode" value="${attr(p.barcode||'')}" placeholder="الباركود"><button type="button" class="btn secondary" id="cep_barcode_camera">📷</button></div>
+        <div id="cepImageBarcodeBox" data-company-id="${attr(editCompanyId||'')}" data-product-id="${attr(existing?.id||'')}" data-product-name="${attr(p.name||'')}" style="grid-column:1/-1"></div>
         <input id="cep_price" value="${p.price_new==null?'':attr(p.price_new)}" type="number" min="0" step="0.01" placeholder="السعر — اختياري">
         <input id="cep_image" type="file" accept="image/*">
         <textarea id="cep_desc" style="width:100%;min-height:95px;grid-column:1/-1;background:#0d1418;color:#fff;border:1px solid #303b40;border-radius:10px;padding:12px" placeholder="وصف المادة (اختياري)">${esc(p.description||'')}</textarea>
@@ -569,6 +574,7 @@
       <div class="actions"><button class="btn primary" id="saveCompanyProduct">حفظ</button><button class="btn secondary" id="cancelCompanyProduct">إلغاء</button></div>
     </div>`;
     document.body.appendChild(modal);
+    window.initCompanyImageBarcodeControl?.({containerId:'cepImageBarcodeBox',companyId:editCompanyId,productId:existing?.id||null,productName:p.name||'',primaryBarcode:p.barcode||''});
     const dismissCompanyEditor=()=>{modal.remove();if(returnContext)restoreCompanyProductPosition(returnContext,false);};
     $('closeCompanyEditor').onclick=dismissCompanyEditor;
     $('cancelCompanyProduct').onclick=dismissCompanyEditor;
@@ -593,6 +599,7 @@
           r=await supabaseClient.rpc('company_add_product',{p_company_id:editCompanyId,p_name:name,p_brand:$('cep_brand').value.trim()||null,p_unit:$('cep_unit').value.trim()||null,p_category:$('cep_category').value.trim()||null,p_category_id:null,p_barcode:barcode||null,p_description:$('cep_desc').value.trim()||null,p_image_url:image,p_price_new:price,p_active:true});
         }
         if(r.error) throw r.error;
+        await window.saveCompanyImageBarcodeAliases?.({companyId:editCompanyId,productId:existing?.id||r.data?.id||(typeof r.data==='string'?r.data:null),productName:name,primaryBarcode:barcode,containerId:'cepImageBarcodeBox'});
         modal.remove();
         await window.refreshHomeProductCount?.();
         if(existing&&returnContext){
@@ -978,12 +985,13 @@
     const p=existing||{};
     modal.innerHTML=`<div class="company-modal-inner">
       <div class="row" style="justify-content:space-between;align-items:center"><h2 style="margin:0">${existing?'تعديل مادة':'إضافة مادة'} — ${esc(company.name||'شركة')}</h2><button type="button" class="btn secondary" id="adminCepClose">×</button></div>
-      <div class="two" style="margin-top:12px"><input id="admin_cep_name" value="${attr(p.name||'')}" placeholder="اسم المادة"><input id="admin_cep_brand" value="${attr(p.brand||'')}" placeholder="العلامة التجارية (اختياري)"><input id="admin_cep_unit" value="${attr(p.unit||'')}" placeholder="الوزن / الحجم"><input id="admin_cep_category" value="${attr(p.category||'')}" placeholder="التصنيف"><div class="company-barcode"><input id="admin_cep_barcode" value="${attr(p.barcode||'')}" placeholder="الباركود"><button type="button" class="btn secondary" id="admin_cep_barcode_camera">📷</button></div><input id="admin_cep_price" value="${p.price_new==null?'':attr(p.price_new)}" type="number" min="0" step="0.01" placeholder="السعر — اختياري"><input id="admin_cep_image" type="file" accept="image/*"></div>
+      <div class="two" style="margin-top:12px"><input id="admin_cep_name" value="${attr(p.name||'')}" placeholder="اسم المادة"><input id="admin_cep_brand" value="${attr(p.brand||'')}" placeholder="العلامة التجارية (اختياري)"><input id="admin_cep_unit" value="${attr(p.unit||'')}" placeholder="الوزن / الحجم"><input id="admin_cep_category" value="${attr(p.category||'')}" placeholder="التصنيف"><div class="company-barcode"><input id="admin_cep_barcode" value="${attr(p.barcode||'')}" placeholder="الباركود"><button type="button" class="btn secondary" id="admin_cep_barcode_camera">📷</button></div><div id="adminCepImageBarcodeBox" data-company-id="${attr(companyId)}" data-product-id="${attr(existing?.id||'')}" data-product-name="${attr(p.name||'')}" style="grid-column:1/-1"></div><input id="admin_cep_price" value="${p.price_new==null?'':attr(p.price_new)}" type="number" min="0" step="0.01" placeholder="السعر — اختياري"><input id="admin_cep_image" type="file" accept="image/*"></div>
       <textarea id="admin_cep_desc" style="width:100%;min-height:95px;margin-top:10px;background:#0d1418;color:#fff;border:1px solid #303b40;border-radius:10px;padding:12px" placeholder="وصف المادة (اختياري)">${esc(p.description||'')}</textarea>
       <label class="muted" style="display:block;margin-top:10px"><input id="admin_cep_active" type="checkbox" ${p.active!==false?'checked':''}> المادة نشطة</label>
       <p id="admin_cep_msg" class="muted"></p><div class="actions"><button type="button" class="btn primary" id="admin_cep_save">حفظ</button><button type="button" class="btn secondary" id="admin_cep_cancel">إلغاء</button></div>
     </div>`;
     document.body.appendChild(modal);
+    window.initCompanyImageBarcodeControl?.({containerId:'adminCepImageBarcodeBox',companyId,productId:existing?.id||null,productName:p.name||'',primaryBarcode:p.barcode||''});
     const restoreAdminCompanyOrigin=()=>{
       const manager=$('adminCompanyProductModal');
       if(manager){
@@ -1008,6 +1016,7 @@
         if(existing) r=await supabaseClient.from('company_products').update(payload).eq('id',existing.id).eq('company_id',companyId).select('id').maybeSingle();
         else r=await supabaseClient.from('company_products').insert({...payload,company_id:companyId}).select('id').single();
         if(r.error)throw r.error;
+        await window.saveCompanyImageBarcodeAliases?.({companyId,productId:existing?.id||r.data?.id,productName:name,primaryBarcode:barcode,containerId:'adminCepImageBarcodeBox'});
         modal.remove();
         await window.refreshHomeProductCount?.();
         const manager=$('adminCompanyProductModal');
