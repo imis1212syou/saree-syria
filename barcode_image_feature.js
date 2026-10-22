@@ -85,26 +85,143 @@
     return readerPromise;
   }
 
+  const READER_OPTIONS = {
+    formats: [],
+    tryHarder: true,
+    tryRotate: true,
+    tryInvert: true,
+    // 0 means the library should not limit the number of symbols per image.
+    maxNumberOfSymbols: 0
+  };
+
+  function readWithFileReader(file) {
+    return new Promise((resolve, reject) => {
+      if (typeof FileReader === 'undefined') {
+        reject(new Error('هذا المتصفح لا يدعم قراءة الملفات مباشرة.'));
+        return;
+      }
+      const fr = new FileReader();
+      fr.onload = () => {
+        const result = fr.result;
+        if (!(result instanceof ArrayBuffer) || result.byteLength === 0) {
+          reject(new Error('الصورة فارغة أو تعذر الوصول إلى محتواها.'));
+        } else resolve(new Uint8Array(result));
+      };
+      fr.onerror = () => reject(fr.error || new Error('تعذرت قراءة ملف الصورة من الهاتف.'));
+      fr.onabort = () => reject(new Error('تم إلغاء قراءة الصورة.'));
+      try { fr.readAsArrayBuffer(file); }
+      catch (error) { reject(error); }
+    });
+  }
+
+  async function readFileBytes(file) {
+    // Some Android document providers hand Chrome a File handle that the WASM
+    // decoder cannot read reliably. Copy the bytes first and pass a Uint8Array.
+    if (typeof file.arrayBuffer === 'function') {
+      try {
+        const buffer = await file.arrayBuffer();
+        if (buffer instanceof ArrayBuffer && buffer.byteLength > 0) return new Uint8Array(buffer);
+      } catch (_) { /* Use FileReader as a compatibility fallback below. */ }
+    }
+    return readWithFileReader(file);
+  }
+
+  async function imageDataFromFile(file) {
+    // Fallback path for mobile gallery/document providers and image formats
+    // that cannot be consumed directly by the WebAssembly decoder.
+    let bitmap = null;
+    let objectUrl = '';
+    try {
+      if (typeof createImageBitmap === 'function') {
+        try { bitmap = await createImageBitmap(file); }
+        catch (_) { bitmap = null; }
+      }
+      // Some Android providers fail in createImageBitmap but still expose the
+      // selected photo through an object URL in a regular HTMLImageElement.
+      if (!bitmap) {
+        objectUrl = URL.createObjectURL(file);
+        bitmap = await new Promise((resolve, reject) => {
+          const image = new Image();
+          image.onload = () => resolve(image);
+          image.onerror = () => reject(new Error('تعذر فتح الصورة في المتصفح.'));
+          image.src = objectUrl;
+        });
+      }
+      const width = Number(bitmap.width || bitmap.naturalWidth || 0);
+      const height = Number(bitmap.height || bitmap.naturalHeight || 0);
+      if (!width || !height) throw new Error('أبعاد الصورة غير صالحة.');
+      // Avoid excessive memory usage with high-resolution photos on phones.
+      const scale = Math.min(1, 4096 / Math.max(width, height));
+      const outWidth = Math.max(1, Math.round(width * scale));
+      const outHeight = Math.max(1, Math.round(height * scale));
+      let canvas, context;
+      if (typeof OffscreenCanvas === 'function') {
+        canvas = new OffscreenCanvas(outWidth, outHeight);
+        context = canvas.getContext('2d', { willReadFrequently: true });
+      } else {
+        canvas = document.createElement('canvas');
+        canvas.width = outWidth;
+        canvas.height = outHeight;
+        context = canvas.getContext('2d', { willReadFrequently: true });
+      }
+      if (!context) throw new Error('تعذر تجهيز الصورة للقراءة.');
+      context.drawImage(bitmap, 0, 0, outWidth, outHeight);
+      return context.getImageData(0, 0, outWidth, outHeight);
+    } finally {
+      if (bitmap && typeof bitmap.close === 'function') bitmap.close();
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    }
+  }
+
+  function extractNumericCodes(results, found) {
+    for (const item of (Array.isArray(results) ? results : [])) {
+      const raw = String(item?.text || '').trim();
+      if (item?.error || !/^\d{6,18}$/.test(raw)) continue;
+      const code = normalize(raw);
+      if (code && !found.includes(code)) found.push(code);
+    }
+  }
+
+  async function decodeOneFile(reader, file, found) {
+    let byteError = null;
+    const countBefore = found.length;
+    try {
+      const bytes = await readFileBytes(file);
+      const results = await reader.readBarcodes(bytes, READER_OPTIONS);
+      extractNumericCodes(results, found);
+      if (found.length > countBefore) return;
+      // If the raw image decoded but yielded no symbol, try browser image decoding
+      // as some Android gallery providers/encodings behave differently.
+    } catch (error) { byteError = error; }
+
+    try {
+      const imageData = await imageDataFromFile(file);
+      const results = await reader.readBarcodes(imageData, READER_OPTIONS);
+      extractNumericCodes(results, found);
+    } catch (imageError) {
+      const reason = imageError?.message || byteError?.message || 'تعذرت قراءة الصورة.';
+      throw new Error(reason);
+    }
+  }
+
   async function decodeFiles(fileList) {
-    const files = Array.from(fileList || []).filter(file => file && String(file.type || '').startsWith('image/'));
+    const files = Array.from(fileList || []).filter(file => {
+      if (!file || typeof file.size === 'number' && file.size <= 0) return false;
+      const type = String(file.type || '').toLowerCase();
+      const name = String(file.name || '').toLowerCase();
+      // Android's photo picker may return an empty MIME type for a valid image.
+      return type.startsWith('image/') || !type || /\.(jpe?g|png|webp|gif|bmp|tiff?|heic|heif|avif)$/i.test(name);
+    });
     if (!files.length) return [];
     const reader = await loadReader();
     const found = [];
+    const errors = [];
     for (const file of files) {
-      // maxNumberOfSymbols: 0 removes the scanner's per-image symbol limit.
-      const results = await reader.readBarcodes(file, {
-        formats: [],
-        tryHarder: true,
-        tryRotate: true,
-        tryInvert: true,
-        maxNumberOfSymbols: 0
-      });
-      for (const item of (Array.isArray(results) ? results : [])) {
-        const raw = String(item?.text || '').trim();
-        if (item?.error || !/^\d{6,18}$/.test(raw)) continue;
-        const code = normalize(raw);
-        if (code && !found.includes(code)) found.push(code);
-      }
+      try { await decodeOneFile(reader, file, found); }
+      catch (error) { errors.push(`${file.name || 'الصورة'}: ${error?.message || error}`); }
+    }
+    if (!found.length && errors.length === files.length) {
+      throw new Error('تعذرت قراءة الصور المختارة. أغلق نافذة الصور وأعد اختيارها، أو جرّب حفظ الصورة في الجهاز ثم اختيارها من جديد. ' + errors[0]);
     }
     return found;
   }
