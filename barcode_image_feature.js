@@ -114,57 +114,144 @@
     });
   }
 
+  function readAsDataURL(blob) {
+    return new Promise((resolve, reject) => {
+      if (typeof FileReader === 'undefined') {
+        reject(new Error('هذا المتصفح لا يدعم فتح الصور المختارة.'));
+        return;
+      }
+      const fr = new FileReader();
+      fr.onload = () => typeof fr.result === 'string' && fr.result.startsWith('data:')
+        ? resolve(fr.result)
+        : reject(new Error('تعذر تحويل الصورة إلى صيغة قابلة للعرض.'));
+      fr.onerror = () => reject(fr.error || new Error('تعذرت قراءة الصورة من ذاكرة الهاتف.'));
+      fr.onabort = () => reject(new Error('تم إلغاء قراءة الصورة.'));
+      try { fr.readAsDataURL(blob); }
+      catch (error) { reject(error); }
+    });
+  }
+
+  function readImageMime(file) {
+    const declared = String(file?.type || '').toLowerCase();
+    if (declared.startsWith('image/')) return declared;
+    const name = String(file?.name || '').toLowerCase();
+    if (/\.jpe?g$/.test(name)) return 'image/jpeg';
+    if (/\.png$/.test(name)) return 'image/png';
+    if (/\.webp$/.test(name)) return 'image/webp';
+    if (/\.gif$/.test(name)) return 'image/gif';
+    if (/\.bmp$/.test(name)) return 'image/bmp';
+    if (/\.tiff?$/.test(name)) return 'image/tiff';
+    if (/\.heic$/.test(name)) return 'image/heic';
+    if (/\.heif$/.test(name)) return 'image/heif';
+    if (/\.avif$/.test(name)) return 'image/avif';
+    return 'application/octet-stream';
+  }
+
   async function readFileBytes(file) {
-    // Some Android document providers hand Chrome a File handle that the WASM
-    // decoder cannot read reliably. Copy the bytes first and pass a Uint8Array.
+    // Normalize files returned by Android/iOS photo pickers into ordinary bytes.
     if (typeof file.arrayBuffer === 'function') {
       try {
         const buffer = await file.arrayBuffer();
         if (buffer instanceof ArrayBuffer && buffer.byteLength > 0) return new Uint8Array(buffer);
-      } catch (_) { /* Use FileReader as a compatibility fallback below. */ }
+      } catch (_) { /* FileReader compatibility path below. */ }
     }
     return readWithFileReader(file);
   }
 
-  async function imageDataFromFile(file) {
-    // Fallback path for mobile gallery/document providers and image formats
-    // that cannot be consumed directly by the WebAssembly decoder.
+  function imageElementFromSource(source) {
+    return new Promise((resolve, reject) => {
+      const image = new Image();
+      image.decoding = 'async';
+      image.onload = () => {
+        if ((image.naturalWidth || image.width) > 0 && (image.naturalHeight || image.height) > 0) resolve(image);
+        else reject(new Error('أبعاد الصورة غير صالحة.'));
+      };
+      image.onerror = () => reject(new Error('المتصفح لم يتمكن من فك ترميز الصورة.'));
+      image.src = source;
+    });
+  }
+
+  async function imageDataFromFile(file, bytes) {
+    // Rebuild a normal Blob from file bytes. This avoids relying only on the
+    // original File URL, which may fail with some Android/iOS photo providers.
+    const candidates = [];
+    const mime = readImageMime(file);
+    let rebuiltBlob = null;
+    if (bytes && bytes.byteLength) {
+      try {
+        rebuiltBlob = new Blob([bytes], { type: mime.startsWith('image/') ? mime : 'image/jpeg' });
+        candidates.push(rebuiltBlob);
+      } catch (_) { /* Continue with the original selected file. */ }
+    }
+    if (file) candidates.push(file);
+
     let bitmap = null;
     let objectUrl = '';
+    let lastError = null;
     try {
+      // Native decoders are usually fastest; try both a normalized Blob and File.
       if (typeof createImageBitmap === 'function') {
-        try { bitmap = await createImageBitmap(file); }
-        catch (_) { bitmap = null; }
+        for (const candidate of candidates) {
+          try {
+            bitmap = await createImageBitmap(candidate);
+            if (bitmap && bitmap.width && bitmap.height) break;
+            if (bitmap && typeof bitmap.close === 'function') bitmap.close();
+            bitmap = null;
+          } catch (error) { lastError = error; }
+        }
       }
-      // Some Android providers fail in createImageBitmap but still expose the
-      // selected photo through an object URL in a regular HTMLImageElement.
+
+      // Safari/iOS and some Android gallery providers are more reliable with data URLs.
       if (!bitmap) {
-        objectUrl = URL.createObjectURL(file);
-        bitmap = await new Promise((resolve, reject) => {
-          const image = new Image();
-          image.onload = () => resolve(image);
-          image.onerror = () => reject(new Error('تعذر فتح الصورة في المتصفح.'));
-          image.src = objectUrl;
-        });
+        for (const candidate of candidates) {
+          try {
+            const dataUrl = await readAsDataURL(candidate);
+            bitmap = await imageElementFromSource(dataUrl);
+            break;
+          } catch (error) { lastError = error; }
+        }
       }
+
+      // Last compatibility fallback for browsers that work better with blob URLs.
+      if (!bitmap) {
+        for (const candidate of candidates) {
+          try {
+            objectUrl = URL.createObjectURL(candidate);
+            bitmap = await imageElementFromSource(objectUrl);
+            break;
+          } catch (error) {
+            lastError = error;
+            if (objectUrl) URL.revokeObjectURL(objectUrl);
+            objectUrl = '';
+          }
+        }
+      }
+      if (!bitmap) {
+        throw new Error(lastError?.message || 'تعذر فك ترميز الصورة. جرّب حفظها بصيغة JPG أو PNG ثم اختيارها من جديد.');
+      }
+
       const width = Number(bitmap.width || bitmap.naturalWidth || 0);
       const height = Number(bitmap.height || bitmap.naturalHeight || 0);
       if (!width || !height) throw new Error('أبعاد الصورة غير صالحة.');
-      // Avoid excessive memory usage with high-resolution photos on phones.
+      // Reduce very large photos to avoid exhausting phone memory.
       const scale = Math.min(1, 4096 / Math.max(width, height));
       const outWidth = Math.max(1, Math.round(width * scale));
       const outHeight = Math.max(1, Math.round(height * scale));
-      let canvas, context;
+      let canvas = null;
+      let context = null;
       if (typeof OffscreenCanvas === 'function') {
-        canvas = new OffscreenCanvas(outWidth, outHeight);
-        context = canvas.getContext('2d', { willReadFrequently: true });
-      } else {
+        try {
+          canvas = new OffscreenCanvas(outWidth, outHeight);
+          context = canvas.getContext('2d', { willReadFrequently: true });
+        } catch (_) { canvas = null; context = null; }
+      }
+      if (!context) {
         canvas = document.createElement('canvas');
         canvas.width = outWidth;
         canvas.height = outHeight;
         context = canvas.getContext('2d', { willReadFrequently: true });
       }
-      if (!context) throw new Error('تعذر تجهيز الصورة للقراءة.');
+      if (!context) throw new Error('تعذر تجهيز الصورة للقراءة في هذا المتصفح.');
       context.drawImage(bitmap, 0, 0, outWidth, outHeight);
       return context.getImageData(0, 0, outWidth, outHeight);
     } finally {
@@ -183,21 +270,24 @@
   }
 
   async function decodeOneFile(reader, file, found) {
+    let bytes = null;
     let byteError = null;
     const countBefore = found.length;
     try {
-      const bytes = await readFileBytes(file);
+      bytes = await readFileBytes(file);
       const results = await reader.readBarcodes(bytes, READER_OPTIONS);
       extractNumericCodes(results, found);
       if (found.length > countBefore) return;
-      // If the raw image decoded but yielded no symbol, try browser image decoding
-      // as some Android gallery providers/encodings behave differently.
     } catch (error) { byteError = error; }
 
     try {
-      const imageData = await imageDataFromFile(file);
+      const imageData = await imageDataFromFile(file, bytes);
       const results = await reader.readBarcodes(imageData, READER_OPTIONS);
       extractNumericCodes(results, found);
+      const decoderErrors = (Array.isArray(results) ? results : []).map(item => item?.error).filter(Boolean);
+      if (found.length === countBefore && decoderErrors.length) {
+        throw new Error(String(decoderErrors[0]));
+      }
     } catch (imageError) {
       const reason = imageError?.message || byteError?.message || 'تعذرت قراءة الصورة.';
       throw new Error(reason);
