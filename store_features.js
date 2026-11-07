@@ -987,7 +987,7 @@
 
   window.addStoreCategory=async function(storeId){
     if(!canManageStore(storeId)) return alert('إضافة الأقسام متاحة لمدير الموقع أو صاحب هذا المتجر فقط.');
-    const raw=prompt('اكتب اسم القسم الجديد، مثل: شيبسات أو بسكوت');
+    const raw=await window.sareePrompt('اكتب اسم القسم الجديد، مثل: شيبسات أو بسكوت','',{title:'إضافة قسم جديد',confirmText:'إضافة'});
     if(raw===null) return;
     const name=normalizeStoreCategoryName(raw);
     if(!name) return alert('اكتب اسم القسم.');
@@ -1423,7 +1423,7 @@
     syncBarcodeSubmitState();
     try{
       // لا نستثني المادة الحالية هنا: أي تكرار داخل المتجر مرفوض.
-      const used=await storeBarcodeExists(storeId,code,null);
+      const used=await storeBarcodeExists(storeId,code,editing?.productId||null);
       if(token!==barcodeValidationToken) return false;
       barcodePrimaryUsed=Boolean(used);
       if($('barcodeMsg')){
@@ -1577,7 +1577,7 @@
 
   window.deleteStoreMaterial = async function(listingId,storeId){
     if(!canManageStore(storeId)) return alert('ليس لديك صلاحية حذف مواد هذا المتجر.');
-    if(!confirm('هل أنت متأكد من حذف المادة من هذا المتجر؟')) return;
+    if(!(await window.sareeConfirm('هل أنت متأكد من حذف المادة من هذا المتجر؟',{confirmText:'نعم، احذف المادة'}))) return;
     const savedScrollY=window.scrollY;
     const sourceCard=[...document.querySelectorAll('#storeProductsGrid .storeProductCard')]
       .find(card=>String(card.dataset.listingId)===String(listingId));
@@ -1656,7 +1656,7 @@
         if(error) throw error;
         const current=row.products||{};
         const currentPrimary=normBarcode(current.barcode||row.barcode||'');
-        if(barcode && barcode!==currentPrimary && await storeBarcodeExists(storeId,barcode,null)){
+        if(barcode && barcode!==currentPrimary && await storeBarcodeExists(storeId,barcode,row.product_id)){
           barcodePrimaryUsed=true;
           if($('barcodeMsg')) $('barcodeMsg').textContent='مستخدم في المتجر';
           syncBarcodeSubmitState();
@@ -2021,13 +2021,13 @@
     if(!isAdmin()) return;
     const {data,error}=await supabaseClient.from('companies').select('*').eq('id',id).single();
     if(error) return alert(error.message);
-    const name=prompt('اسم الشركة:',data.name||'');
+    const name=await window.sareePrompt('اسم الشركة:',data.name||'',{title:'تعديل بيانات الشركة'});
     if(name===null) return;
-    const phone=prompt('هاتف الشركة:',data.phone||'');
+    const phone=await window.sareePrompt('هاتف الشركة:',data.phone||'',{title:'تعديل بيانات الشركة'});
     if(phone===null) return;
-    const address=prompt('عنوان الشركة:',data.address||'');
+    const address=await window.sareePrompt('عنوان الشركة:',data.address||'',{title:'تعديل بيانات الشركة'});
     if(address===null) return;
-    const whatsapp_url=prompt('رابط واتساب الشركة:',data.whatsapp_url||'');
+    const whatsapp_url=await window.sareePrompt('رابط واتساب الشركة:',data.whatsapp_url||'',{title:'تعديل بيانات الشركة'});
     if(whatsapp_url===null) return;
     const {error:upErr}=await supabaseClient.from('companies').update({name:name.trim(),phone:phone.trim()||null,address:address.trim()||null,whatsapp_url:whatsapp_url.trim()||null,updated_at:new Date().toISOString()}).eq('id',id);
     if(upErr) return alert('تعذر تعديل الشركة: '+upErr.message);
@@ -2046,7 +2046,7 @@
 
   window.deleteAdminCompany = async function(id){
     if(!isAdmin()) return;
-    if(!confirm('حذف هذه الشركة؟ سيتم إبقاء المتاجر المرتبطة بها بدون شركة.')) return;
+    if(!(await window.sareeConfirm('حذف هذه الشركة؟ سيتم إبقاء المتاجر المرتبطة بها بدون شركة.',{confirmText:'نعم، احذف الشركة'}))) return;
     const {error}=await supabaseClient.from('companies').delete().eq('id',id);
     if(error) return alert('تعذر حذف الشركة: '+error.message);
     alert('تم حذف الشركة.');
@@ -2331,7 +2331,7 @@
 
   window.setAccountToUser = async function(id){
     if(!isAdmin()) return;
-    if(!confirm('تحويل هذا الحساب إلى مستخدم وإزالة ربطه بالمتجر؟')) return;
+    if(!(await window.sareeConfirm('تحويل هذا الحساب إلى مستخدم وإزالة ربطه بالمتجر؟',{confirmText:'نعم، تحويل الحساب'}))) return;
     const {error}=await supabaseClient.from('profiles').update({role:'user',store_id:null,can_edit_prices:false}).eq('id',id);
     if(error) return alert(error.message);
     await window.renderAdmin();

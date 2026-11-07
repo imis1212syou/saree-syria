@@ -265,7 +265,7 @@
 
   async function deleteSponsor(id) {
     if (!isAdmin()) return alert('هذا الخيار للمدير فقط.');
-    if (!confirm('حذف هذا الداعم؟')) return;
+    if (!(await window.sareeConfirm('حذف هذا الداعم؟',{confirmText:'نعم، احذف'}))) return;
     const c = client(); const {error} = await c.from(TABLE_SPONSORS).delete().eq('id',id);
     if (error) return alert(error.message);
     await refreshSponsors(); await openAdmin();

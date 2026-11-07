@@ -94,14 +94,14 @@
 
   window.toggleAdminStoreVerification=async function(id){
     if(!onlyAdmin())return; const st=storeById(id);if(!st)return;
-    const next=!Boolean(st.verified);if(!confirm(next?'توثيق المتجر؟':'إلغاء توثيق المتجر؟'))return;
+    const next=!Boolean(st.verified);if(!(await window.sareeConfirm(next?'توثيق المتجر؟':'إلغاء توثيق المتجر؟',{confirmText:next?'نعم، وثّق':'نعم، ألغِ التوثيق'})))return;
     const {error}=await supabaseClient.from('stores').update({verified:next}).eq('id',id);
     if(error)return alert(error.message); alert(next?'تم توثيق المتجر.':'تم إلغاء توثيق المتجر.'); await refreshEverything();
   };
 
   window.deleteAdminStore=async function(id){
     if(!onlyAdmin())return; const st=storeById(id);if(!st)return;
-    if(!confirm(`حذف المتجر «${st.name||''}»؟\nسيتم حذف الأسعار المرتبطة وفك ربط التجار.`))return;
+    if(!(await window.sareeConfirm(`حذف المتجر «${st.name||''}»؟\nسيتم حذف الأسعار المرتبطة وفك ربط التجار.`,{confirmText:'نعم، احذف المتجر'})))return;
     const {error}=await supabaseClient.rpc('admin_delete_store',{p_store_id:id});
     if(error)return alert('تعذر حذف المتجر:\n'+error.message);
     alert('تم حذف المتجر بنجاح.'); await refreshEverything();
@@ -157,7 +157,7 @@
 
   window.deleteAdminCompany=async function(id){
     if(!onlyAdmin())return;const c=await getCompany(id).catch(()=>null);if(!c)return alert('الشركة غير موجودة.');
-    if(!confirm(`حذف الشركة «${c.name}»؟\nسيتم فك ربط المتاجر بها.`))return;
+    if(!(await window.sareeConfirm(`حذف الشركة «${c.name}»؟\nسيتم فك ربط المتاجر بها.`,{confirmText:'نعم، احذف الشركة'})))return;
     const {error}=await supabaseClient.rpc('admin_delete_company',{p_id:id});if(error)return alert(error.message);alert('تم حذف الشركة بنجاح.');await refreshEverything();
   };
 
@@ -168,6 +168,6 @@
 
   window.deleteAdminMerchant=async function(id){
     if(!onlyAdmin())return;if(String(id)===String((typeof ADMIN_UID!=='undefined'?ADMIN_UID:window.ADMIN_UID)||''))return alert('لا يمكن حذف المدير.');
-    if(!confirm('حذف سجل التاجر من profiles؟'))return;const {error}=await supabaseClient.from('profiles').delete().eq('id',id);if(error)return alert(error.message);alert('تم حذف سجل التاجر.');await refreshEverything();
+    if(!(await window.sareeConfirm('حذف سجل التاجر من profiles؟',{confirmText:'نعم، احذف'})))return;const {error}=await supabaseClient.from('profiles').delete().eq('id',id);if(error)return alert(error.message);alert('تم حذف سجل التاجر.');await refreshEverything();
   };
 })();

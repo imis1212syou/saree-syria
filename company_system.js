@@ -648,7 +648,7 @@
       if(deleted&&currentCompany&&String(currentCompany.id)===String(companyId))await window.openCompanyById(companyId);
       return;
     }
-    if(!confirm('إخفاء هذه المادة عن الزوار؟'))return;
+    if(!(await window.sareeConfirm('إخفاء هذه المادة عن الزوار؟',{confirmText:'نعم، إخفاء'})))return;
     const {error}=await supabaseClient.rpc('company_delete_product',{p_id:id});
     if(error)return alert(error.message);
     await window.refreshHomeProductCount?.();
@@ -1037,7 +1037,7 @@
 
   window.adminDeleteCompanyProduct=async function(companyId,productId){
     if(role()!=='admin'){alert('المدير فقط يستطيع حذف مواد الشركات.');return false;}
-    if(!confirm('حذف هذه المادة من الشركة؟'))return false;
+    if(!(await window.sareeConfirm('حذف هذه المادة من الشركة؟',{confirmText:'نعم، احذف'})))return false;
     const r=await supabaseClient.from('company_products').delete().eq('id',productId).eq('company_id',companyId);
     if(r.error){alert('تعذر حذف المادة: '+r.error.message);return false;}
     await window.refreshHomeProductCount?.();
@@ -1085,7 +1085,7 @@
     const linked=companyUsers.find(x=>String(x.user_id)===String(companyUserId)||String(x.id)===String(companyUserId));
     const rowId=linked?.id || linked?.company_user_id || companyUserId;
     const userId=linked?.user_id || companyUserId;
-    if(!confirm('فك ربط حساب الشركة وإعادته لمستخدم عادي؟'))return;
+    if(!(await window.sareeConfirm('فك ربط حساب الشركة وإعادته لمستخدم عادي؟',{confirmText:'نعم، فك الربط'})))return;
     const {error}=await supabaseClient.rpc('admin_unlink_company_user',{p_company_user_id:rowId});
     if(error)return alert(error.message);
     const pr=await supabaseClient.from('profiles').update({role:'user',company_id:null,store_id:null,can_edit_prices:false}).eq('id',userId);

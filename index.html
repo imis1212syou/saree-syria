@@ -17,6 +17,7 @@
 .sareeEmailNotice{position:fixed;top:14px;left:50%;transform:translateX(-50%);width:min(92vw,520px);z-index:1000;background:#12191d;border:1px solid #35d07f;border-radius:14px;padding:12px 14px;box-shadow:0 10px 30px rgba(0,0,0,.35)}.sareeEmailNotice .noticeText{margin:0;color:#f1f4f5!important}.sareeEmailNotice .noticeClose{margin-top:8px;padding:8px 12px;font-size:12px}.forgotPasswordOverlay{position:fixed;inset:0;z-index:1200;background:rgba(0,0,0,.62);display:flex;align-items:center;justify-content:center;padding:16px}.forgotPasswordBox{width:min(92vw,430px);background:#12191d;border:1px solid #303b40;border-radius:18px;padding:16px;box-shadow:0 16px 50px rgba(0,0,0,.45)}.forgotPasswordBox h2{margin:0 0 8px}.forgotPasswordBox .actions{justify-content:flex-start}.forgotPasswordBox input{margin-top:12px}
 </style>
 <link rel="stylesheet" href="saree_visual_theme.css?v=nav-icons-location-settings-20261013-v3">
+<link rel="stylesheet" href="saree_dialogs.css?v=20261108-v1">
 </head>
 <body>
 <div class="app">
@@ -396,7 +397,7 @@ async function recordVisitor(){
    await supabaseClient.from('visitor_visits').insert({visitor_id:visitorId()});
  }catch(err){console.warn('visitor tracking:',err)}
 }
-function confirmLogout(){if(confirm('هل أنت متأكد أنك تريد تسجيل الخروج؟')) logout();}
+async function confirmLogout(){if(await window.sareeConfirm('هل أنت متأكد أنك تريد تسجيل الخروج؟',{confirmText:'نعم، تسجيل الخروج'})) logout();}
 function enterVisitorFromLogin(){
  const n=localStorage.getItem('visitor_name')||'زائر';
  removeEmailConfirmationNotice();clearPasswordRecoveryState();
@@ -747,7 +748,7 @@ function removeBasket(id){basket=basket.filter(x=>x!==id);localStorage.setItem('
 function renderBasket(){const items=basket.map(id=>products.find(p=>p.id===id)).filter(Boolean);if(!items.length)return $('basketList').innerHTML='<div class="card"><div class="name">السلة</div><div class="price">0</div><div class="muted">عدد المنتجات في السلة: صفر</div></div>';let total=0;$('basketList').innerHTML=items.map(p=>{const c=cheapest(p);total+=Number(c?.price_new||0);return `<div class="card"><div class="name">${e(p.name)}</div><div class="price">${c?f(c.price_new)+' ل.س':'لا يوجد سعر'}</div><div class="muted">${c?e(c.stores?.name||'')+' • '+e(c.stores?.city||''):''}</div><button class="btn secondary" onclick="removeBasket('${p.id}')">إزالة</button></div>`}).join('')+`<div class="hero"><h2>المجموع التقريبي</h2><div class="price">${f(total)} ل.س جديدة</div><div class="old">${old(total)} ل.س قديمة</div></div>`}
 function toggleFav(id){favorites=favorites.includes(id)?favorites.filter(x=>x!==id):[...favorites,id];localStorage.setItem('saree_favorites',JSON.stringify(favorites));renderProducts();renderFavorites()}
 function renderFavorites(){const items=favorites.map(id=>products.find(p=>p.id===id)).filter(Boolean);$('favoritesList').innerHTML=items.length?items.map(p=>{const c=cheapest(p);return `<div class="card"><div class="name">${e(p.name)}</div><div class="price">${c?f(c.price_new)+' ل.س':'لا يوجد سعر'}</div><button class="btn secondary" onclick="toggleFav('${p.id}')">إزالة</button>${c?`<button class="btn secondary" onclick="setAlert('${p.id}')">تنبيه عند نزول السعر</button>`:''}</div>`}).join(''):'<div class="card"><div class="name">المفضلة</div><div class="price">0</div><div class="muted">عدد المواد المفضلة: صفر</div></div>'}
-function setAlert(id){const c=cheapest(products.find(p=>p.id===id));if(!c)return;const v=prompt('أرسل لي تنبيهًا عندما يصبح السعر أقل من:',String(c.price_new));if(v===null)return;alerts[id]=Number(v);localStorage.setItem('saree_alerts',JSON.stringify(alerts));alert('تم حفظ التنبيه على هذا الجهاز.')}
+async function setAlert(id){const c=cheapest(products.find(p=>p.id===id));if(!c)return;const v=await window.sareePrompt('أرسل لي تنبيهًا عندما يصبح السعر أقل من:',String(c.price_new),{title:'تنبيه انخفاض السعر',confirmText:'حفظ التنبيه'});if(v===null)return;const price=Number(v);if(!Number.isFinite(price)||price<=0)return alert('أدخل سعراً صحيحاً أكبر من صفر.');alerts[id]=price;localStorage.setItem('saree_alerts',JSON.stringify(alerts));alert('تم حفظ التنبيه على هذا الجهاز.')}
 function renderStores(){
  $('storesList').innerHTML=stores.map(s=>`<div class="card"><div onclick="openStore('${s.id}')" style="cursor:pointer">${s.image_url?`<img class="img" src="${escAttr(s.image_url)}">`:''}<div class="name">${e(s.name)} ${s.verified?'✓':''}</div>${(s.company_name||s.company)?`<span class="pill companyBadge">${e(s.company_name||s.company)}</span>`:''}<div class="muted">${e(s.city||'')} ${e(s.area||'')}<br>${e(s.address||'')}</div>${s.phone?`<div class="muted">${e(s.phone)}</div>`:''}${s.whatsapp_url||s.whatsapp?`<div class="actions"><a class="btn primary" target="_blank" rel="noopener" href="${escAttr(s.whatsapp_url||s.whatsapp)}">💬 واتساب</a></div>`:''}</div><button class="btn secondary" onclick="openStore('${s.id}')">فتح المتجر</button></div>`).join('')||'<div class="card muted">لا توجد متاجر حالياً. العدد: صفر</div>'}
 function renderCategories(){const m={};products.forEach(p=>(m[p.category||'عام']??=[]).push(p));$('cats').innerHTML=Object.entries(m).map(([k,v])=>`<div class="card"><span class="pill">${e(k)}</span><div class="name">${v.length} منتجات</div></div>`).join('')||'<div class="card muted">لا توجد تصنيفات بعد.</div>'}
@@ -1126,7 +1127,7 @@ async function approveRequest(id){
  const {error}=await supabaseClient.from('change_requests').update({status:'approved',reviewed_by:profileData.id,reviewed_at:new Date().toISOString()}).eq('id',id);
  if(error)return alert(error.message);alert('تمت الموافقة والنشر.');await refreshAll();await renderAdmin();
 }
-async function rejectRequest(id){if(!(await sareeCheckAdmin(true))) return alert('هذا الخيار للمدير فقط.');const reason=prompt('سبب الرفض (اختياري):','');const {error}=await supabaseClient.from('change_requests').update({status:'rejected',reason,reviewed_by:profileData.id,reviewed_at:new Date().toISOString()}).eq('id',id);if(error)return alert(error.message);alert('تم رفض الطلب.');await renderAdmin()}
+async function rejectRequest(id){if(!(await sareeCheckAdmin(true))) return alert('هذا الخيار للمدير فقط.');const reason=await window.sareePrompt('سبب الرفض (اختياري):','',{title:'رفض طلب التعديل',confirmText:'تأكيد الرفض'});if(reason===null)return;const {error}=await supabaseClient.from('change_requests').update({status:'rejected',reason,reviewed_by:profileData.id,reviewed_at:new Date().toISOString()}).eq('id',id);if(error)return alert(error.message);alert('تم رفض الطلب.');await renderAdmin()}
 async function legacyAdminAddStore(){
  if(!(await sareeCheckAdmin(true))) return alert('هذا الخيار للمدير فقط.');
  const name=$('sn').value.trim();if(!name)return alert('اكتب اسم المتجر.');let image=null;try{image=await uploadImage($('simg').files[0],'stores')}catch(err){return alert(err.message)}
@@ -1202,6 +1203,7 @@ supabaseClient.auth.onAuthStateChange((event)=>{
 })();
 </script>
 
+<script src="saree_dialogs.js?v=20261108-v1"></script>
 <script src="store_admin_controls.js?v=location-fields-20261012"></script>
 <script src="ads.js?v=admin-video-20261012"></script>
   <script src="store_features.js?v=store-categories-search-scroll-20261020-v1"></script>

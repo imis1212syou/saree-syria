@@ -96,12 +96,13 @@
     alert("افتح هذا الموقع في Safari، ثم اضغط مشاركة ⬆️ واختر «إضافة إلى الشاشة الرئيسية» لتثبيت تطبيق سعرلي سوريا.");
   }
 
-  function installApp() {
+  async function installApp() {
     if (isStandalone()) return;
 
     // التأكيد الذي طلبه المستخدم: نعم = متابعة التثبيت، لا = إلغاء.
-    const ok = window.confirm(
-      "هل تريد تثبيت تطبيق «سعرلي سوريا» على جهازك؟\n\nاضغط «موافق» للتثبيت أو «إلغاء» للرجوع."
+    const ok = await window.sareeConfirm(
+      "هل تريد تثبيت تطبيق «سعرلي سوريا» على جهازك؟",
+      {title:'تثبيت التطبيق',confirmText:'نعم، تثبيت'}
     );
     if (!ok) return;
 

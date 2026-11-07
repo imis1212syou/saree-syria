@@ -173,7 +173,7 @@
     }
   };
   window.toggleAdminAd=async function(id,current){if(typeof profileData==='undefined'||profileData?.role!=='admin')return alert('هذا الخيار للمدير فقط.');const {error}=await supabaseClient.from('ads').update({active:!current,updated_at:new Date().toISOString()}).eq('id',id);if(error)return alert(error.message);await window.refreshAds();await window.renderAdmin();};
-  window.deleteAdminAd=async function(id){if(typeof profileData==='undefined'||profileData?.role!=='admin')return alert('هذا الخيار للمدير فقط.');if(!confirm('حذف هذا الإعلان؟'))return;const {error}=await supabaseClient.from('ads').delete().eq('id',id);if(error)return alert(error.message);await window.refreshAds();await window.renderAdmin();};
+  window.deleteAdminAd=async function(id){if(typeof profileData==='undefined'||profileData?.role!=='admin')return alert('هذا الخيار للمدير فقط.');if(!(await window.sareeConfirm('حذف هذا الإعلان؟',{confirmText:'نعم، احذف الإعلان'})))return;const {error}=await supabaseClient.from('ads').delete().eq('id',id);if(error)return alert(error.message);await window.refreshAds();await window.renderAdmin();};
 
   document.addEventListener('DOMContentLoaded',async function(){
     await loadAds();
